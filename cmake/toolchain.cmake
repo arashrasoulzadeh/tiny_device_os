@@ -7,37 +7,47 @@ function(ardubot_setup_host_toolchain)
         # Build native arch only (arm64 on Apple Silicon) - Homebrew libs are single-arch
         set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "macOS architectures" FORCE)
     elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-        # Use vcpkg on Windows
-        if(DEFINED ENV{VCPKG_ROOT})
-            set(CMAKE_TOOLCHAIN_FILE "${ENV{VCPKG_ROOT}}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain" FORCE)
+        # On Windows, use find_path/find_library for SDL2/PortAudio (choco doesn't provide CMake configs)
+        find_path(SDL2_INCLUDE_DIR SDL.h
+            PATHS "C:/Program Files/SDL2/include" "C:/tools/SDL2/include" "C:/msys64/mingw64/include" "C:/mingw64/include"
+            PATH_SUFFIXES SDL2
+        )
+        find_library(SDL2_LIBRARY NAMES SDL2 SDL2main
+            PATHS "C:/Program Files/SDL2/lib" "C:/tools/SDL2/lib" "C:/msys64/mingw64/lib" "C:/mingw64/lib"
+        )
+        if(SDL2_INCLUDE_DIR AND SDL2_LIBRARY)
+            set(SDL2_INCLUDE_DIRS ${SDL2_INCLUDE_DIR} CACHE INTERNAL "SDL2 include dirs" FORCE)
+            set(SDL2_LIBRARIES ${SDL2_LIBRARY} CACHE INTERNAL "SDL2 libraries" FORCE)
+        else()
+            message(FATAL_ERROR "SDL2 not found. Install with: choco install sdl2")
         endif()
-    endif()
-    
-    # Find SDL2 using CMake's find_package (provides imported targets)
-    find_package(SDL2 REQUIRED)
-    
-    # Find PortAudio - use pkg-config on Linux/macOS, find_library on Windows
-    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-        find_library(PORTAUDIO_LIBRARY NAMES portaudio PATHS "${ENV{VCPKG_ROOT}}/installed/x64-windows/lib")
-        find_path(PORTAUDIO_INCLUDE_DIR portaudio.h PATHS "${ENV{VCPKG_ROOT}}/installed/x64-windows/include")
-        set(PORTAUDIO_INCLUDE_DIRS ${PORTAUDIO_INCLUDE_DIR} CACHE INTERNAL "PortAudio include dirs" FORCE)
-        set(PORTAUDIO_LIBRARIES ${PORTAUDIO_LIBRARY} CACHE INTERNAL "PortAudio libraries" FORCE)
+        
+        find_library(PORTAUDIO_LIBRARY NAMES portaudio
+            PATHS "C:/Program Files/PortAudio/lib" "C:/tools/portaudio/lib" "C:/msys64/mingw64/lib" "C:/mingw64/lib"
+        )
+        find_path(PORTAUDIO_INCLUDE_DIR portaudio.h
+            PATHS "C:/Program Files/PortAudio/include" "C:/tools/portaudio/include" "C:/msys64/mingw64/include" "C:/mingw64/include"
+        )
+        if(PORTAUDIO_INCLUDE_DIR AND PORTAUDIO_LIBRARY)
+            set(PORTAUDIO_INCLUDE_DIRS ${PORTAUDIO_INCLUDE_DIR} CACHE INTERNAL "PortAudio include dirs" FORCE)
+            set(PORTAUDIO_LIBRARIES ${PORTAUDIO_LIBRARY} CACHE INTERNAL "PortAudio libraries" FORCE)
+        else()
+            message(FATAL_ERROR "PortAudio not found. Install with: choco install portaudio")
+        endif()
     else()
+        # Linux/macOS: use pkg-config
         find_package(PkgConfig REQUIRED)
+        pkg_check_modules(SDL2 REQUIRED sdl2)
         pkg_check_modules(PORTAUDIO REQUIRED portaudio-2.0)
         
-        # Find PortAudio library
-        find_library(PORTAUDIO_LIBRARY portaudio)
-        if(NOT PORTAUDIO_LIBRARY)
-            find_library(PORTAUDIO_LIBRARY portaudio-2.0)
-        endif()
-        
+        set(SDL2_INCLUDE_DIRS ${SDL2_INCLUDE_DIRS} CACHE INTERNAL "SDL2 include dirs" FORCE)
+        set(SDL2_LIBRARIES ${SDL2_LIBRARIES} CACHE INTERNAL "SDL2 libraries" FORCE)
         set(PORTAUDIO_INCLUDE_DIRS ${PORTAUDIO_INCLUDE_DIRS} CACHE INTERNAL "PortAudio include dirs" FORCE)
-        set(PORTAUDIO_LIBRARIES ${PORTAUDIO_LIBRARY} CACHE INTERNAL "PortAudio libraries" FORCE)
+        set(PORTAUDIO_LIBRARIES ${PORTAUDIO_LIBRARIES} CACHE INTERNAL "PortAudio libraries" FORCE)
+        
+        # Add _POSIX_C_SOURCE for usleep, ftruncate etc.
+        add_compile_definitions(_POSIX_C_SOURCE=200809L)
     endif()
-    
-    set(SDL2_INCLUDE_DIRS ${SDL2_INCLUDE_DIRS} CACHE INTERNAL "SDL2 include dirs" FORCE)
-    set(SDL2_LIBRARIES SDL2::SDL2 CACHE INTERNAL "SDL2 libraries" FORCE)
     
     if(ARDUBOT_SIM_BACKEND STREQUAL "sdl2")
         add_definitions(-DARDUBOT_SIM_SDL2=1)
