@@ -6,32 +6,47 @@ function(ardubot_setup_host_toolchain)
     message(STATUS "ardubot_setup_host_toolchain() called")
     
     if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-        # On Windows, use find_path/find_library for SDL2/PortAudio (choco doesn't provide CMake configs)
-        find_path(SDL2_INCLUDE_DIR SDL.h
-            PATHS "C:/Program Files/SDL2/include" "C:/tools/SDL2/include" "C:/msys64/mingw64/include" "C:/mingw64/include"
-            PATH_SUFFIXES SDL2
-        )
-        find_library(SDL2_LIBRARY NAMES SDL2 SDL2main
-            PATHS "C:/Program Files/SDL2/lib" "C:/tools/SDL2/lib" "C:/msys64/mingw64/lib" "C:/mingw64/lib"
-        )
-        if(SDL2_INCLUDE_DIR AND SDL2_LIBRARY)
-            set(SDL2_INCLUDE_DIRS ${SDL2_INCLUDE_DIR} CACHE INTERNAL "SDL2 include dirs" FORCE)
-            set(SDL2_LIBRARIES ${SDL2_LIBRARY} CACHE INTERNAL "SDL2 libraries" FORCE)
+        # Prefer vcpkg CONFIG packages (CI uses vcpkg + CMAKE_TOOLCHAIN_FILE).
+        # choco's sdl2/portaudio packages ship runtime DLLs only, with no
+        # headers or import libs, so they cannot satisfy an MSVC build.
+        find_package(SDL2 CONFIG QUIET)
+        if(SDL2_FOUND OR TARGET SDL2::SDL2)
+            set(SDL2_LIBRARIES SDL2::SDL2 SDL2::SDL2main CACHE INTERNAL "SDL2 libraries" FORCE)
         else()
-            message(FATAL_ERROR "SDL2 not found. Install with: choco install sdl2")
+            # Fallback: manual search (e.g. a self-hosted runner with SDL2 dev files staged)
+            find_path(SDL2_INCLUDE_DIR SDL.h
+                PATHS "C:/Program Files/SDL2/include" "C:/tools/SDL2/include" "C:/msys64/mingw64/include" "C:/mingw64/include"
+                PATH_SUFFIXES SDL2
+            )
+            find_library(SDL2_LIBRARY NAMES SDL2 SDL2main
+                PATHS "C:/Program Files/SDL2/lib" "C:/tools/SDL2/lib" "C:/msys64/mingw64/lib" "C:/mingw64/lib"
+            )
+            if(SDL2_INCLUDE_DIR AND SDL2_LIBRARY)
+                set(SDL2_INCLUDE_DIRS ${SDL2_INCLUDE_DIR} CACHE INTERNAL "SDL2 include dirs" FORCE)
+                set(SDL2_LIBRARIES ${SDL2_LIBRARY} CACHE INTERNAL "SDL2 libraries" FORCE)
+            else()
+                message(FATAL_ERROR "SDL2 not found. Install with: vcpkg install sdl2 (and pass -DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake)")
+            endif()
         endif()
-        
-        find_library(PORTAUDIO_LIBRARY NAMES portaudio
-            PATHS "C:/Program Files/PortAudio/lib" "C:/tools/portaudio/lib" "C:/msys64/mingw64/lib" "C:/mingw64/lib"
-        )
-        find_path(PORTAUDIO_INCLUDE_DIR portaudio.h
-            PATHS "C:/Program Files/PortAudio/include" "C:/tools/portaudio/include" "C:/msys64/mingw64/include" "C:/mingw64/include"
-        )
-        if(PORTAUDIO_INCLUDE_DIR AND PORTAUDIO_LIBRARY)
-            set(PORTAUDIO_INCLUDE_DIRS ${PORTAUDIO_INCLUDE_DIR} CACHE INTERNAL "PortAudio include dirs" FORCE)
-            set(PORTAUDIO_LIBRARIES ${PORTAUDIO_LIBRARY} CACHE INTERNAL "PortAudio libraries" FORCE)
+
+        find_package(portaudio CONFIG QUIET)
+        if(TARGET portaudio)
+            set(PORTAUDIO_LIBRARIES portaudio CACHE INTERNAL "PortAudio libraries" FORCE)
+        elseif(TARGET portaudio_static)
+            set(PORTAUDIO_LIBRARIES portaudio_static CACHE INTERNAL "PortAudio libraries" FORCE)
         else()
-            message(FATAL_ERROR "PortAudio not found. Install with: choco install portaudio")
+            find_library(PORTAUDIO_LIBRARY NAMES portaudio
+                PATHS "C:/Program Files/PortAudio/lib" "C:/tools/portaudio/lib" "C:/msys64/mingw64/lib" "C:/mingw64/lib"
+            )
+            find_path(PORTAUDIO_INCLUDE_DIR portaudio.h
+                PATHS "C:/Program Files/PortAudio/include" "C:/tools/portaudio/include" "C:/msys64/mingw64/include" "C:/mingw64/include"
+            )
+            if(PORTAUDIO_INCLUDE_DIR AND PORTAUDIO_LIBRARY)
+                set(PORTAUDIO_INCLUDE_DIRS ${PORTAUDIO_INCLUDE_DIR} CACHE INTERNAL "PortAudio include dirs" FORCE)
+                set(PORTAUDIO_LIBRARIES ${PORTAUDIO_LIBRARY} CACHE INTERNAL "PortAudio libraries" FORCE)
+            else()
+                message(FATAL_ERROR "PortAudio not found. Install with: vcpkg install portaudio (and pass -DCMAKE_TOOLCHAIN_FILE=<vcpkg>/scripts/buildsystems/vcpkg.cmake)")
+            endif()
         endif()
     else()
         # Linux/macOS: use pkg-config

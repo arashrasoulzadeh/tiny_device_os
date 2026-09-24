@@ -44,6 +44,7 @@
 7. **App/Plugin Framework** - Cooperative tasks, syscall API, dynamic `.ardmod` modules
 8. **Arduino IDE Library** - Single header, prebuilt static libs per board variant
 9. **Multi-resolution Display** - Virtual canvas, flex/grid UI, build-time assets
+10. **Documentation Kept Current** - Any change to a public API, CLI flag, or CMake option updates the matching doc in `docs/` (and `AGENTS.md`/`CLAUDE.md` for agent-facing workflow changes) in the same commit
 
 ---
 

@@ -46,13 +46,19 @@ jobs:
         with:
           submodules: recursive
       
-      - name: Install dependencies
-        run: |
-          choco install sdl2 portaudio cmake mingw -y
-          refreshenv
-      
+      - name: Install CMake
+        run: choco install cmake -y
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgGitCommitId: 5e5d0e1341e5b02b6e457933716d4a5c96f3f5c9
+
+      - name: Install SDL2 and PortAudio (vcpkg)
+        run: ${{ env.VCPKG_ROOT }}/vcpkg install sdl2:x64-windows portaudio:x64-windows
+
       - name: Configure CMake
-        run: cmake -B build -DARDUBOT_BUILD_SIM=ON -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -DARDUBOT_BUILD_SIM=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${{ env.VCPKG_ROOT }}/scripts/buildsystems/vcpkg.cmake -DVCPKG_TARGET_TRIPLET=x64-windows
       
       - name: Build
         run: cmake --build build --config Release -j
