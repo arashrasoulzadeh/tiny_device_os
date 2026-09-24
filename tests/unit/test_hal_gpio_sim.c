@@ -61,6 +61,7 @@ void test_gpio_modes(void) {
 }
 
 static void gpio_irq_callback(hal_gpio_t* g, void* arg) {
+    (void)g;
     *(int*)arg = 1;
 }
 

@@ -26,7 +26,8 @@ void test_junit_xml_format(void) {
     TEST_ASSERT_NOT_NULL(f);
     
     char content[1024] = {0};
-    fread(content, 1, sizeof(content) - 1, f);
+    size_t bytes_read = fread(content, 1, sizeof(content) - 1, f);
+    (void)bytes_read;
     fclose(f);
     
     TEST_ASSERT_TRUE(strstr(content, "<?xml") != NULL);
@@ -50,7 +51,8 @@ void test_junit_multiple_testsuites(void) {
     TEST_ASSERT_NOT_NULL(f);
     
     char content[1024] = {0};
-    fread(content, 1, sizeof(content) - 1, f);
+    size_t bytes_read2 = fread(content, 1, sizeof(content) - 1, f);
+    (void)bytes_read2;
     fclose(f);
     
     TEST_ASSERT_TRUE(strstr(content, "testsuites") != NULL);
