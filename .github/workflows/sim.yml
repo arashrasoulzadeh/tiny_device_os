@@ -54,7 +54,7 @@ jobs:
         run: |
           git clone https://github.com/microsoft/vcpkg.git "${{ github.workspace }}/vcpkg"
           cd "${{ github.workspace }}/vcpkg"
-          git checkout 5e5d0e1341e5b02b6e457933716d4a5c96f3f5c9
+          git checkout 6ade29bbd5a4c7e99439ec52adbc63c073953a57
           ./bootstrap-vcpkg.bat
           echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> "$GITHUB_ENV"
 

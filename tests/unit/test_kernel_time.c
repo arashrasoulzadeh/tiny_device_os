@@ -1,14 +1,10 @@
-#define _POSIX_C_SOURCE 200809L
-#include <time.h>
+#define _DEFAULT_SOURCE
+#include <unistd.h>
 #include "unity.h"
 #include "os_time.h"
 
 static void test_sleep_us(long us) {
-    struct timespec ts = {
-        .tv_sec = us / 1000000,
-        .tv_nsec = (us % 1000000) * 1000,
-    };
-    nanosleep(&ts, NULL);
+    usleep((useconds_t)us);
 }
 
 void setUp(void) {
