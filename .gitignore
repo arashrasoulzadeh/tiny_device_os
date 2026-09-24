@@ -1,0 +1,63 @@
+# Build directories
+build/
+build-*/
+cmake-build-*/
+*.cmake.build/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake.orig
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Compiled objects
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.elf
+*.hex
+*.bin
+
+# Simulator output
+ardubot-sim
+ardubot-sim.exe
+*.img
+
+# Test output
+*.gcda
+*.gcno
+*.gcov
+coverage.info
+coverage/
+lcov.info
+*.xml
+junit.xml
+
+# Logs
+*.log
+
+# Unity test framework (if not submodule)
+tests/unity/src/
+tests/unity/extras/
+
+# Tools
+tools/ardubot-cli/build/
+tools/asset-pack/__pycache__/
+tools/asset-pack/*.pyc
+
+# Documentation build
+docs/_build/
+docs/site/

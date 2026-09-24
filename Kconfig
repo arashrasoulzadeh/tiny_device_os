@@ -1,0 +1,199 @@
+mainmenu "ArdubotOS Configuration"
+
+config ARDUINO_ARCH
+    string
+    default ""
+
+choice
+    prompt "Target Architecture"
+    default ARDUINO_ARCH_ESP32
+
+config ARDUINO_ARCH_ESP32
+    bool "ESP32"
+    select ARDUINO_ARCH_ESP32_Y
+
+config ARDUINO_ARCH_ESP8266
+    bool "ESP8266"
+    select ARDUINO_ARCH_ESP8266_Y
+
+config ARDUINO_ARCH_AVR
+    bool "AVR (Mega2560)"
+    select ARDUINO_ARCH_AVR_Y
+
+config ARDUINO_ARCH_SIM
+    bool "Simulator (Host)"
+    select ARDUINO_ARCH_SIM_Y
+endchoice
+
+config ARDUINO_ARCH_ESP32_Y
+    bool
+    select HAS_FREERTOS
+    select HAS_WIFI
+    select HAS_BLE
+    select HAS_DEEP_SLEEP
+
+config ARDUINO_ARCH_ESP8266_Y
+    bool
+    select HAS_WIFI
+    select HAS_DEEP_SLEEP
+
+config ARDUINO_ARCH_AVR_Y
+    bool
+
+config ARDUINO_ARCH_SIM_Y
+    bool
+    select HAS_SDL2
+    select HAS_PORTAUDIO
+
+menu "Kernel Configuration"
+
+config MAX_TASKS
+    int "Maximum number of tasks"
+    default 16
+    range 4 64
+
+config TICK_RATE_HZ
+    int "Kernel tick rate (Hz)"
+    default 1000
+    range 100 10000
+
+config ENABLE_TICKLESS_IDLE
+    bool "Enable tickless idle mode"
+    default y
+
+config ENABLE_POWER_MANAGEMENT
+    bool "Enable power management"
+    default y
+
+config DEEP_SLEEP_MIN_US
+    int "Minimum deep sleep duration (microseconds)"
+    default 10000
+    range 1000 1000000
+
+endmenu
+
+menu "Memory Configuration"
+
+config HEAP_SIZE_KB
+    int "Heap size (KB)"
+    default 32
+    range 4 512
+
+config USE_TLSF_ALLOCATOR
+    bool "Use TLSF allocator"
+    default y
+
+config STACK_GUARD_SIZE
+    int "Stack guard size (bytes)"
+    default 16
+    range 0 256
+
+endmenu
+
+menu "Display Configuration"
+
+config DISPLAY_DRIVER_SSD1306
+    bool "SSD1306 OLED driver"
+    default y
+
+config DISPLAY_DRIVER_ILI9341
+    bool "ILI9341 TFT driver"
+    default y
+
+config DISPLAY_DRIVER_ST7789
+    bool "ST7789 TFT driver"
+    default y
+
+config VIRTUAL_CANVAS_WIDTH
+    int "Virtual canvas width (logical pixels)"
+    default 320
+
+config VIRTUAL_CANVAS_HEIGHT
+    int "Virtual canvas height (logical pixels)"
+    default 240
+
+config UI_FRAMEWORK
+    bool "Enable full UI framework (flex/grid/widgets)"
+    default y
+
+config UI_THEMES
+    bool "Enable theming support"
+    default y
+
+config UI_ANIMATIONS
+    bool "Enable UI animations"
+    default y
+
+endmenu
+
+menu "Storage Configuration"
+
+config USE_LITTLEFS
+    bool "Use LittleFS for flash storage"
+    default y
+
+config USE_FATFS
+    bool "Use FatFS for SD card"
+    default y
+
+config LITTLEFS_BLOCK_SIZE
+    int "LittleFS block size"
+    default 4096
+
+config LITTLEFS_LOOKAHEAD
+    int "LittleFS lookahead size"
+    default 128
+
+endmenu
+
+menu "Simulator Configuration"
+
+config SIM_HEADLESS
+    bool "Build headless simulator (no window)"
+    default n
+
+config SIM_AUDIO
+    bool "Enable audio in simulator"
+    default y
+
+config SIM_NETWORK
+    bool "Enable network simulation (TAP)"
+    default n
+
+endmenu
+
+menu "Developer Helpers"
+
+config HELPER_STRINGS
+    bool "String helpers (builder, format, split, base64, json)"
+    default y
+
+config HELPER_MATH
+    bool "Math helpers (fixed-point, vectors, easing, color)"
+    default y
+
+config HELPER_COLLECTIONS
+    bool "Collection helpers (array_list, hash_map, ring_buffer)"
+    default y
+
+config HELPER_DEBUG
+    bool "Debug helpers (log, assert, panic, stack_trace)"
+    default y
+
+config HELPER_PROFILING
+    bool "Profiling helpers (perf_counter, scope_timer, mem_tracker)"
+    default y
+
+config HELPER_CONFIG
+    bool "Config helpers (KVS, schema, validation, migration)"
+    default y
+
+config HELPER_TIME
+    bool "Time helpers (timers, cron, NTP)"
+    default y
+
+config HELPER_FS
+    bool "Filesystem helpers (read_all, write_atomic, dir_walk)"
+    default y
+
+endmenu
