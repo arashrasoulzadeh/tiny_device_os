@@ -20,25 +20,29 @@ void test_tdd_check_detects_missing_test(void) {
     TEST_ASSERT_NOT_NULL(f);
     
     char output[1024] = {0};
-    fread(output, 1, sizeof(output) - 1, f);
+    size_t n = fread(output, 1, sizeof(output) - 1, f);
+    (void)n;
     pclose(f);
-    
+
     TEST_ASSERT_TRUE(strstr(output, "TDD") != NULL || strstr(output, "test") != NULL);
 }
 
 void test_tdd_check_passes_with_test(void) {
-    system("git add tests/unit/test_kernel_boot.c 2>/dev/null");
-    
+    int rc = system("git add tests/unit/test_kernel_boot.c 2>/dev/null");
+    (void)rc;
+
     FILE* f = popen("python3 scripts/tdd_check.py --staged 2>&1", "r");
     TEST_ASSERT_NOT_NULL(f);
-    
+
     char output[1024] = {0};
-    fread(output, 1, sizeof(output) - 1, f);
+    size_t n = fread(output, 1, sizeof(output) - 1, f);
+    (void)n;
     int ret = pclose(f);
-    
+
     TEST_ASSERT_EQUAL(0, ret);
-    
-    system("git reset HEAD tests/unit/test_kernel_boot.c 2>/dev/null");
+
+    rc = system("git reset HEAD tests/unit/test_kernel_boot.c 2>/dev/null");
+    (void)rc;
 }
 
 int main(void) {
