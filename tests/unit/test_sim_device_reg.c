@@ -13,21 +13,25 @@ void tearDown(void) {
 }
 
 static int i2c_dev1_read(uint8_t addr, uint16_t reg, uint8_t* data, size_t len, void* arg) {
+    (void)addr; (void)reg; (void)data; (void)len;
     *(int*)arg += 1;
     return 0;
 }
 
 static int i2c_dev1_write(uint8_t addr, uint16_t reg, const uint8_t* data, size_t len, void* arg) {
+    (void)addr; (void)reg; (void)data; (void)len;
     *(int*)arg += 1;
     return 0;
 }
 
 static int i2c_dev2_read(uint8_t addr, uint16_t reg, uint8_t* data, size_t len, void* arg) {
+    (void)addr; (void)reg; (void)data; (void)len;
     *(int*)arg += 1;
     return 0;
 }
 
 static int spi_dev_transfer(uint8_t cs, const uint8_t* tx, uint8_t* rx, size_t len, void* arg) {
+    (void)cs; (void)tx; (void)rx; (void)len;
     *(int*)arg += 1;
     return 0;
 }
