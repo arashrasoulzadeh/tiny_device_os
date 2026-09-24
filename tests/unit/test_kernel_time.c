@@ -1,7 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
+#include <unistd.h>
 #include "unity.h"
 #include "os_time.h"
-#include <unistd.h>
 
 void setUp(void) {
 }
