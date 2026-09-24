@@ -1,0 +1,96 @@
+name: Simulator Tests
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  sim-test-ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libsdl2-dev libportaudio2 lcov cmake gcc g++
+      
+      - name: Configure CMake
+        run: cmake -B build -DARDUBOT_BUILD_SIM=ON -DCMAKE_BUILD_TYPE=Debug
+      
+      - name: Build
+        run: cmake --build build -- -j$(nproc)
+      
+      - name: Run tests
+        run: |
+          cd build
+          ./ardubot-sim --headless --test=all --junit=results.xml --coverage=coverage.info
+      
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-ubuntu
+          path: build/coverage.info
+
+  sim-test-windows:
+    runs-on: windows-latest
+    env:
+      SDL_RENDER_DRIVER: software
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: |
+          choco install sdl2 portaudio cmake mingw -y
+          refreshenv
+      
+      - name: Configure CMake
+        run: cmake -B build -DARDUBOT_BUILD_SIM=ON -DCMAKE_BUILD_TYPE=Release
+      
+      - name: Build
+        run: cmake --build build --config Release -j
+      
+      - name: Run tests
+        run: |
+          cd build
+          ./Release/ardubot-sim.exe --headless --test=all --junit=results.xml
+      
+      - name: Upload JUnit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-windows
+          path: build/results.xml
+
+  sim-test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      
+      - name: Install dependencies
+        run: |
+          brew install sdl2 portaudio cmake lcov
+      
+      - name: Configure CMake
+        run: cmake -B build -DARDUBOT_BUILD_SIM=ON -DCMAKE_BUILD_TYPE=Debug
+      
+      - name: Build
+        run: cmake --build build -- -j$(sysctl -n hw.ncpu)
+      
+      - name: Run tests
+        run: |
+          cd build
+          ./ardubot-sim --headless --test=all --junit=results.xml
+      
+      - name: Upload JUnit results
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-macos
+          path: build/results.xml
