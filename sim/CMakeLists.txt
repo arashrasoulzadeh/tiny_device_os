@@ -55,3 +55,13 @@ target_link_libraries(sim PUBLIC kernel hal)
 if(ARDUBOT_BUILD_SIM)
     add_subdirectory(models)
 endif()
+
+# Main simulator executable
+add_executable(ardubot-sim sim_main.c)
+target_link_libraries(ardubot-sim sim sim_args)
+if(SDL2_LIBRARIES)
+    target_link_libraries(ardubot-sim ${SDL2_LIBRARIES})
+endif()
+if(PORTAUDIO_LIBRARIES)
+    target_link_libraries(ardubot-sim ${PORTAUDIO_LIBRARIES})
+endif()
