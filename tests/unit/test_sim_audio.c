@@ -23,7 +23,6 @@ static void audio_callback(void* buf, uint32_t frames, void* arg) {
 
 void test_audio_callback(void) {
     int cb_called = 0;
-    uint8_t buffer[1024];
     
     sim_audio_init(44100, 2, 512);
     sim_audio_set_callback(audio_callback, &cb_called);

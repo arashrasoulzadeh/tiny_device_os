@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "unity.h"
 #include "os_time.h"
 #include <unistd.h>
