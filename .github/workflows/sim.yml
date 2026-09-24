@@ -41,19 +41,14 @@ jobs:
     runs-on: windows-latest
     env:
       SDL_RENDER_DRIVER: software
-      VCPKG_ROOT: C:/vcpkg
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
       
-      - name: Setup vcpkg
-        uses: lukka/get-vcpkg@v2
-      
       - name: Install dependencies
         run: |
-          vcpkg install sdl2 portaudio --triplet=x64-windows
-          choco install cmake mingw -y
+          choco install sdl2 portaudio cmake mingw -y
           refreshenv
       
       - name: Configure CMake
