@@ -58,6 +58,7 @@ static int bmp280_i2c_write(uint8_t addr, uint16_t reg, const uint8_t* data, siz
 
 static int bmp280_i2c_read(uint8_t addr, uint16_t reg, uint8_t* data, size_t len, void* arg) {
     (void)arg;
+    (void)reg;
     if (addr != BMP280_I2C_ADDR || !data || len == 0) return -1;
     
     data[0] = 0;

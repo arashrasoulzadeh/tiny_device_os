@@ -48,7 +48,8 @@ void test_headless_with_junit(void) {
     TEST_ASSERT_NOT_NULL(f);
     if (f) {
         char buf[256];
-        (void)fgets(buf, sizeof(buf), f);
+        char* result = fgets(buf, sizeof(buf), f);
+        (void)result;
         TEST_ASSERT_TRUE(strstr(buf, "<?xml") != NULL);
         fclose(f);
     }
@@ -64,7 +65,8 @@ void test_headless_with_coverage(void) {
     TEST_ASSERT_NOT_NULL(f);
     if (f) {
         char buf[256];
-        (void)fgets(buf, sizeof(buf), f);
+        char* result = fgets(buf, sizeof(buf), f);
+        (void)result;
         TEST_ASSERT_TRUE(strstr(buf, "TN:") != NULL);
         fclose(f);
     }
