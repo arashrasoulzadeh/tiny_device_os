@@ -4,7 +4,8 @@
 # Host/Simulator toolchain (native)
 function(ardubot_setup_host_toolchain)
     if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-        set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "macOS architectures" FORCE)
+        # Build native arch only (arm64 on Apple Silicon) - Homebrew libs are single-arch
+        set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "macOS architectures" FORCE)
     endif()
     
     # Find SDL2 using CMake's find_package (provides imported targets)
