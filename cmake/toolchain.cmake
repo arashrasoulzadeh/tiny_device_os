@@ -6,23 +6,38 @@ function(ardubot_setup_host_toolchain)
     if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         # Build native arch only (arm64 on Apple Silicon) - Homebrew libs are single-arch
         set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "macOS architectures" FORCE)
+    elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+        # Use vcpkg on Windows
+        if(DEFINED ENV{VCPKG_ROOT})
+            set(CMAKE_TOOLCHAIN_FILE "${ENV{VCPKG_ROOT}}/scripts/buildsystems/vcpkg.cmake" CACHE STRING "Vcpkg toolchain" FORCE)
+        endif()
     endif()
     
     # Find SDL2 using CMake's find_package (provides imported targets)
     find_package(SDL2 REQUIRED)
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(PORTAUDIO REQUIRED portaudio-2.0)
     
-    # Find PortAudio library
-    find_library(PORTAUDIO_LIBRARY portaudio)
-    if(NOT PORTAUDIO_LIBRARY)
-        find_library(PORTAUDIO_LIBRARY portaudio-2.0)
+    # Find PortAudio - use pkg-config on Linux/macOS, find_library on Windows
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+        find_library(PORTAUDIO_LIBRARY NAMES portaudio PATHS "${ENV{VCPKG_ROOT}}/installed/x64-windows/lib")
+        find_path(PORTAUDIO_INCLUDE_DIR portaudio.h PATHS "${ENV{VCPKG_ROOT}}/installed/x64-windows/include")
+        set(PORTAUDIO_INCLUDE_DIRS ${PORTAUDIO_INCLUDE_DIR} CACHE INTERNAL "PortAudio include dirs" FORCE)
+        set(PORTAUDIO_LIBRARIES ${PORTAUDIO_LIBRARY} CACHE INTERNAL "PortAudio libraries" FORCE)
+    else()
+        find_package(PkgConfig REQUIRED)
+        pkg_check_modules(PORTAUDIO REQUIRED portaudio-2.0)
+        
+        # Find PortAudio library
+        find_library(PORTAUDIO_LIBRARY portaudio)
+        if(NOT PORTAUDIO_LIBRARY)
+            find_library(PORTAUDIO_LIBRARY portaudio-2.0)
+        endif()
+        
+        set(PORTAUDIO_INCLUDE_DIRS ${PORTAUDIO_INCLUDE_DIRS} CACHE INTERNAL "PortAudio include dirs" FORCE)
+        set(PORTAUDIO_LIBRARIES ${PORTAUDIO_LIBRARY} CACHE INTERNAL "PortAudio libraries" FORCE)
     endif()
     
     set(SDL2_INCLUDE_DIRS ${SDL2_INCLUDE_DIRS} CACHE INTERNAL "SDL2 include dirs" FORCE)
     set(SDL2_LIBRARIES SDL2::SDL2 CACHE INTERNAL "SDL2 libraries" FORCE)
-    set(PORTAUDIO_INCLUDE_DIRS ${PORTAUDIO_INCLUDE_DIRS} CACHE INTERNAL "PortAudio include dirs" FORCE)
-    set(PORTAUDIO_LIBRARIES ${PORTAUDIO_LIBRARY} CACHE INTERNAL "PortAudio libraries" FORCE)
     
     if(ARDUBOT_SIM_BACKEND STREQUAL "sdl2")
         add_definitions(-DARDUBOT_SIM_SDL2=1)

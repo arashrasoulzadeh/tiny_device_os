@@ -17,7 +17,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libsdl2-dev libportaudio2 lcov cmake gcc g++
+          sudo apt-get install -y libsdl2-dev portaudio19-dev lcov cmake gcc g++
       
       - name: Configure CMake
         run: cmake -B build -DARDUBOT_BUILD_SIM=ON -DCMAKE_BUILD_TYPE=Debug
@@ -41,14 +41,19 @@ jobs:
     runs-on: windows-latest
     env:
       SDL_RENDER_DRIVER: software
+      VCPKG_ROOT: C:/vcpkg
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
       
+      - name: Setup vcpkg
+        uses: lukka/get-vcpkg@v2
+      
       - name: Install dependencies
         run: |
-          choco install sdl2 portaudio cmake mingw -y
+          vcpkg install sdl2 portaudio --triplet=x64-windows
+          choco install cmake mingw -y
           refreshenv
       
       - name: Configure CMake
