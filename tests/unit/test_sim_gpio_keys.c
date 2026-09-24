@@ -23,24 +23,31 @@ void test_gpio_key_mapping(void) {
     TEST_ASSERT_FALSE(sim_gpio_read(0));
 }
 
+typedef struct {
+    int pin;
+    bool level;
+} gpio_key_callback_result_t;
+
 static void gpio_key_callback(int pin, bool level, void* arg) {
-    *(int*)arg = pin;
-    *((bool*)arg + 1) = level;
+    gpio_key_callback_result_t* result = (gpio_key_callback_result_t*)arg;
+    result->pin = pin;
+    result->level = level;
 }
 
 void test_gpio_key_callback(void) {
-    int cb_pin = -1;
-    bool cb_level = false;
-    
+    gpio_key_callback_result_t cb_result = {.pin = -1, .level = false};
+
     sim_gpio_register(1, false);
     sim_gpio_set_key_mapping(SIM_KEY_A, 1, true);
-    sim_gpio_set_callback(gpio_key_callback, &cb_pin);
-    
+    sim_gpio_set_callback(gpio_key_callback, &cb_result);
+
     sim_gpio_handle_key(SIM_KEY_A, true);
-    TEST_ASSERT_EQUAL(1, cb_pin);
-    
+    TEST_ASSERT_EQUAL(1, cb_result.pin);
+    TEST_ASSERT_TRUE(cb_result.level);
+
     sim_gpio_handle_key(SIM_KEY_A, false);
-    TEST_ASSERT_EQUAL(1, cb_pin);
+    TEST_ASSERT_EQUAL(1, cb_result.pin);
+    TEST_ASSERT_FALSE(cb_result.level);
 }
 
 void test_multiple_keys_different_pins(void) {
