@@ -13,11 +13,6 @@ const char* g_test_name = NULL;
 const char* g_junit_file = NULL;
 const char* g_coverage_file = NULL;
 
-void signal_handler(int sig) {
-    (void)sig;
-    g_running = false;
-}
-
 void print_usage(const char* prog) {
     printf("Usage: %s [options]\n", prog);
     printf("Options:\n");
