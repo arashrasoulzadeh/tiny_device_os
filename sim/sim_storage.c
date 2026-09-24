@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 200809L
 #include "sim_storage.h"
 #include <stdlib.h>
 #include <string.h>
