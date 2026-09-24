@@ -3,10 +3,9 @@
 
 # Host/Simulator toolchain (native)
 function(ardubot_setup_host_toolchain)
-    if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-        # Build native arch only (arm64 on Apple Silicon) - Homebrew libs are single-arch
-        set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "macOS architectures" FORCE)
-    elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+    message(STATUS "ardubot_setup_host_toolchain() called")
+    
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         # On Windows, use find_path/find_library for SDL2/PortAudio (choco doesn't provide CMake configs)
         find_path(SDL2_INCLUDE_DIR SDL.h
             PATHS "C:/Program Files/SDL2/include" "C:/tools/SDL2/include" "C:/msys64/mingw64/include" "C:/mingw64/include"
@@ -36,6 +35,12 @@ function(ardubot_setup_host_toolchain)
         endif()
     else()
         # Linux/macOS: use pkg-config
+        if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+            # Build native arch only (arm64 on Apple Silicon) - Homebrew libs are single-arch
+            set(CMAKE_OSX_ARCHITECTURES "arm64" CACHE STRING "macOS architectures" FORCE)
+        endif()
+        
+        message(STATUS "Finding SDL2 and PortAudio via pkg-config on Linux/macOS")
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(SDL2 REQUIRED sdl2)
         pkg_check_modules(PORTAUDIO REQUIRED portaudio-2.0)
