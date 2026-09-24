@@ -1,7 +1,15 @@
 #define _POSIX_C_SOURCE 200809L
-#include <unistd.h>
+#include <time.h>
 #include "unity.h"
 #include "os_time.h"
+
+static void test_sleep_us(long us) {
+    struct timespec ts = {
+        .tv_sec = us / 1000000,
+        .tv_nsec = (us % 1000000) * 1000,
+    };
+    nanosleep(&ts, NULL);
+}
 
 void setUp(void) {
 }
@@ -11,7 +19,7 @@ void tearDown(void) {
 
 void test_time_now_us_should_increase(void) {
     time_us_t t1 = time_now_us();
-    usleep(1000);
+    test_sleep_us(1000);
     time_us_t t2 = time_now_us();
     
     TEST_ASSERT_GREATER_THAN_UINT64(t1, t2);
@@ -20,7 +28,7 @@ void test_time_now_us_should_increase(void) {
 
 void test_time_now_ms_should_increase(void) {
     time_ms_t t1 = time_now_ms();
-    usleep(2000);
+    test_sleep_us(2000);
     time_ms_t t2 = time_now_ms();
     
     TEST_ASSERT_GREATER_THAN_UINT32(t1, t2);
@@ -29,7 +37,7 @@ void test_time_now_ms_should_increase(void) {
 
 void test_time_since_us(void) {
     time_us_t start = time_now_us();
-    usleep(1000);
+    test_sleep_us(1000);
     time_us_t elapsed = time_since_us(start);
     
     TEST_ASSERT_GREATER_THAN_UINT64(500, elapsed);
