@@ -17,7 +17,7 @@ kernel/     scheduler, time, allocator
 ```
 
 Portable code (kernel, drivers, fs, game, apps) talks to hardware only through the
-`hal_*.h` interfaces in `hal/include/`. Each target — `sim`, `esp32`, `esp8266`, `avr` —
+`hal_*.h` interfaces in `hal/include/`. Each target — `sim`, `esp32`, `esp8266`, `avr`, `rp2040` —
 provides its own implementation under `hal/arch/<target>/` or `sim/`.
 
 ## Targets

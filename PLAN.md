@@ -18,7 +18,7 @@
 
 | Area | Decision |
 |------|----------|
-| **Target Hardware** | ESP8266 (min 32KB RAM), ESP32, Mega2560, extensible to ARM Cortex-M |
+| **Target Hardware** | ESP8266 (min 32KB RAM), ESP32, Mega2560, Raspberry Pi Pico family (RP2040, RP2350), extensible to ARM Cortex-M |
 | **Multitasking** | Hybrid: cooperative on AVR/ESP8266, preemptive on ESP32+ |
 | **Storage** | Both: LittleFS (flash) + FatFS (SD) with unified VFS |
 | **Games** | Full: scalable 2D/3D engine, Lua/WASM scripting, asset pipeline |
@@ -74,6 +74,7 @@ ardubot/
 │       ├── esp32/
 │       ├── esp8266/
 │       ├── avr/
+│       ├── rp2040/
 │       └── sim/
 ├── fs/
 │   ├── vfs.c/h
@@ -126,7 +127,8 @@ ardubot/
 ├── boards/
 │   ├── nodemcu/
 │   ├── esp32-devkitc/
-│   └── mega2560/
+│   ├── mega2560/
+│   └── pico/
 ├── docs/
 └── scripts/
     ├── tdd_check.py
@@ -143,7 +145,7 @@ ardubot/
 |-----|------|------------|
 | 1 | Repo init: CMake dual-target, Kconfig, dirs | `test_cmake_config.c` |
 | 1 | SDL2 window + event loop (software renderer) | `test_sim_video_init.c` |
-| 2 | Build system: host + esp32 + esp8266 + avr targets | `test_build_targets.c` |
+| 2 | Build system: host + esp32 + esp8266 + avr + rp2040 targets | `test_build_targets.c` |
 | 2 | Minimal kernel: task create, cooperative scheduler, time | `test_kernel_boot.c` |
 | 3 | HAL stubs (sim): GPIO, I2C, SPI, UART, Display | `test_hal_gpio_sim.c` |
 | 3 | Simulator main: args, HAL init, kernel start | `test_sim_args.c` |
@@ -290,7 +292,7 @@ ArdubotOS/ (Arduino library)
 
 **Track 2: QEMU (CI / Full-System)**
 - Unmodified firmware, real bootloader
-- Boards: ESP32 (upstream), ESP8266 (Espressif fork), Mega2560 (AVR target)
+- Boards: ESP32 (upstream), ESP8266 (Espressif fork), Mega2560 (AVR target), RP2040 (upstream)
 - Custom `ardubot` machine for OS-specific peripherals
 
 ### Shared HAL Pattern

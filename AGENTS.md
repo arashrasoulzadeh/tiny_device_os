@@ -28,7 +28,7 @@ Host dependencies: SDL2, PortAudio.
 - Linux: `apt-get install libsdl2-dev portaudio19-dev`
 - Windows CI: vcpkg (`sdl2`, `portaudio`) + `CMAKE_TOOLCHAIN_FILE` — see `.github/workflows/sim.yml`.
 
-Cross-target builds use `-DARDUBOT_BUILD_ESP32=ON` / `_ESP8266` / `_AVR` instead of `_SIM`
+Cross-target builds use `-DARDUBOT_BUILD_ESP32=ON` / `_ESP8266` / `_AVR` / `_RP2040` instead of `_SIM`
 (see `cmake/toolchain.cmake`); these require the relevant toolchains and are not exercised
 by this simulator-first workflow unless you're specifically working on a board target.
 
@@ -65,7 +65,7 @@ by this simulator-first workflow unless you're specifically working on a board t
 - `tests/unit/` — fast host-only tests (Unity framework, no simulator init required).
 - `tests/integration/` — tests that exercise the simulator end-to-end.
 - `boards/` — per-board linker scripts, startup code, board-specific config.
-- `cmake/toolchain.cmake` — per-target (sim/ESP32/ESP8266/AVR) compiler & dependency setup.
+- `cmake/toolchain.cmake` — per-target (sim/ESP32/ESP8266/AVR/RP2040) compiler & dependency setup.
 - `docs/` — architecture and subsystem documentation.
 
 ## CI
