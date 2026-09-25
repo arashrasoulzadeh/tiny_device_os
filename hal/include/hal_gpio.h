@@ -43,6 +43,10 @@ void hal_gpio_disable_irq(hal_gpio_t* gpio);
 int hal_gpio_get_pin_number(const hal_gpio_t* gpio);
 const char* hal_gpio_get_path(const hal_gpio_t* gpio);
 
+// Power management
+int hal_gpio_suspend(hal_gpio_t* gpio);
+int hal_gpio_resume(hal_gpio_t* gpio);
+
 #ifdef __cplusplus
 }
 #endif

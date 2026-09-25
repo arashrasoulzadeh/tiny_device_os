@@ -48,6 +48,13 @@ typedef struct task_ctrl_block {
     struct task_ctrl_block* prev;
 } task_tcb_t;
 
+typedef enum {
+    POWER_MODE_ACTIVE = 0,
+    POWER_MODE_IDLE,
+    POWER_MODE_LIGHT_SLEEP,
+    POWER_MODE_DEEP_SLEEP
+} power_mode_t;
+
 typedef struct {
     task_tcb_t tasks[MAX_TASKS];
     task_tcb_t* current;
@@ -60,6 +67,13 @@ typedef struct {
     bool scheduler_started;
     bool in_isr;
     uint8_t nesting_level;
+    
+    // Tickless idle
+    bool tickless_idle_enabled;
+    uint32_t next_wake_tick;
+    uint32_t idle_tick_count;
+    power_mode_t power_mode;
+    uint32_t deep_sleep_min_ticks;
 } scheduler_t;
 
 int scheduler_init(void);
@@ -90,6 +104,15 @@ void scheduler_enter_isr(void);
 void scheduler_exit_isr(void);
 
 void idle_task(void* arg);
+
+// Tickless idle API
+void scheduler_enable_tickless_idle(bool enable);
+uint32_t scheduler_get_next_wake_tick(void);
+void scheduler_enter_idle(void);
+void scheduler_exit_idle(void);
+
+// Deep sleep
+int scheduler_enter_deep_sleep(uint32_t timeout_ticks);
 
 #ifdef __cplusplus
 }

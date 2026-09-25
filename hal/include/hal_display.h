@@ -80,6 +80,10 @@ int hal_display_set_flush_cb(hal_display_t* display, hal_display_flush_cb_t cb, 
 void hal_display_get_size(const hal_display_t* display, uint16_t* width, uint16_t* height);
 const char* hal_display_get_path(const hal_display_t* display);
 
+// Power management
+int hal_display_suspend(hal_display_t* display);
+int hal_display_resume(hal_display_t* display);
+
 #ifdef __cplusplus
 }
 #endif

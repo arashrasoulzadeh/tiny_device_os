@@ -133,3 +133,11 @@ void hal_display_get_size(const hal_display_t* display, uint16_t* width, uint16_
 const char* hal_display_get_path(const hal_display_t* display) {
     return display ? display->path : NULL;
 }
+
+int hal_display_suspend(hal_display_t* display) {
+    return hal_display_sleep(display);
+}
+
+int hal_display_resume(hal_display_t* display) {
+    return hal_display_wake(display);
+}

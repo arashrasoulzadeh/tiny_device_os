@@ -69,3 +69,13 @@ void hal_spi_cs_deassert(hal_spi_t* spi) {
 const char* hal_spi_get_path(const hal_spi_t* spi) {
     return spi ? spi->path : NULL;
 }
+
+int hal_spi_suspend(hal_spi_t* spi) {
+    (void)spi;
+    return 0;
+}
+
+int hal_spi_resume(hal_spi_t* spi) {
+    (void)spi;
+    return 0;
+}

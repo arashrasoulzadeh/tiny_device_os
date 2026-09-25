@@ -76,6 +76,10 @@ int hal_net_recv(hal_net_t* net, void* data, size_t len);
 const char* hal_net_get_path(const hal_net_t* net);
 hal_net_type_t hal_net_get_type(const hal_net_t* net);
 
+// Power management
+int hal_net_suspend(hal_net_t* net);
+int hal_net_resume(hal_net_t* net);
+
 #ifdef __cplusplus
 }
 #endif

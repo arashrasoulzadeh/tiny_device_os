@@ -114,3 +114,17 @@ const char* hal_net_get_path(const hal_net_t* net) {
 hal_net_type_t hal_net_get_type(const hal_net_t* net) {
     return net ? net->type : HAL_NET_TYPE_NONE;
 }
+
+int hal_net_suspend(hal_net_t* net) {
+    if (!net) return -1;
+    net->connected = false;
+    net->has_ip = false;
+    return 0;
+}
+
+int hal_net_resume(hal_net_t* net) {
+    if (!net) return -1;
+    net->connected = true;
+    net->has_ip = true;
+    return 0;
+}

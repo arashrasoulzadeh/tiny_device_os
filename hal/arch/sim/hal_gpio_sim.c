@@ -73,3 +73,15 @@ int hal_gpio_get_pin_number(const hal_gpio_t* gpio) {
 const char* hal_gpio_get_path(const hal_gpio_t* gpio) {
     return gpio ? gpio->path : NULL;
 }
+
+int hal_gpio_suspend(hal_gpio_t* gpio) {
+    if (!gpio) return -1;
+    // In simulator, nothing to do
+    return 0;
+}
+
+int hal_gpio_resume(hal_gpio_t* gpio) {
+    if (!gpio) return -1;
+    // In simulator, nothing to do
+    return 0;
+}

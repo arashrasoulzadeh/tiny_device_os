@@ -1,10 +1,14 @@
 #include "scheduler.h"
 #include "time.h"
+#include "hal_power.h"
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <limits.h>
 
 static scheduler_t g_scheduler = {0};
+
+static void scheduler_update_next_wake_tick(void);
 
 static void task_list_add(task_tcb_t** head, task_tcb_t* task) {
     task->next = *head;
@@ -61,6 +65,13 @@ int scheduler_init(void) {
     g_scheduler.scheduler_started = false;
     g_scheduler.in_isr = false;
     g_scheduler.nesting_level = 0;
+    
+    // Tickless idle defaults
+    g_scheduler.tickless_idle_enabled = true;
+    g_scheduler.next_wake_tick = UINT32_MAX;
+    g_scheduler.idle_tick_count = 0;
+    g_scheduler.power_mode = POWER_MODE_ACTIVE;
+    g_scheduler.deep_sleep_min_ticks = 10000; // 10ms default
     
     task_tcb_t* idle_task_tcb;
     int ret = task_create("idle", idle_task, NULL, TASK_PRIO_IDLE, 256, &idle_task_tcb);
@@ -266,6 +277,9 @@ void scheduler_tick(void) {
         task = next_task;
     }
     
+    // Update next wake tick for tickless idle
+    scheduler_update_next_wake_tick();
+    
     scheduler_unlock();
 }
 
@@ -302,11 +316,91 @@ void scheduler_exit_isr(void) {
 void idle_task(void* arg) {
     (void)arg;
     while (1) {
+        if (g_scheduler.tickless_idle_enabled) {
+            scheduler_enter_idle();
+        } else {
 #if defined(__arm__) || defined(__aarch64__)
-        __asm__ volatile("wfi" ::: "memory");
+            __asm__ volatile("wfi" ::: "memory");
 #else
-        // Simulator: yield to other tasks
-        task_yield();
+            // Simulator: yield to other tasks
+            task_yield();
 #endif
+        }
     }
+}
+
+// Tickless idle implementation
+static void scheduler_update_next_wake_tick(void) {
+    g_scheduler.next_wake_tick = UINT32_MAX;
+    
+    task_tcb_t* task = g_scheduler.blocked_list;
+    while (task) {
+        if (task->wake_time < g_scheduler.next_wake_tick) {
+            g_scheduler.next_wake_tick = task->wake_time;
+        }
+        task = task->next;
+    }
+}
+
+void scheduler_enable_tickless_idle(bool enable) {
+    g_scheduler.tickless_idle_enabled = enable;
+}
+
+uint32_t scheduler_get_next_wake_tick(void) {
+    return g_scheduler.next_wake_tick;
+}
+
+void scheduler_enter_idle(void) {
+    g_scheduler.power_mode = POWER_MODE_IDLE;
+    g_scheduler.idle_tick_count++;
+    
+    uint32_t next_wake = g_scheduler.next_wake_tick;
+    uint32_t now = g_scheduler.tick_count;
+    uint32_t sleep_ticks = (next_wake == UINT32_MAX) ? 0 : (next_wake - now);
+    
+    if (sleep_ticks > 0) {
+        // Check if we can enter light sleep
+        if (sleep_ticks >= g_scheduler.deep_sleep_min_ticks) {
+            g_scheduler.power_mode = POWER_MODE_LIGHT_SLEEP;
+            // In real hardware: call hal_power_light_sleep(sleep_ticks)
+            // For simulator, just advance tick count
+            g_scheduler.tick_count += sleep_ticks;
+        } else {
+            // Short sleep - just busy wait or light sleep
+            g_scheduler.power_mode = POWER_MODE_LIGHT_SLEEP;
+        }
+        g_scheduler.power_mode = POWER_MODE_ACTIVE;
+    } else {
+        // No tasks to wake up - enter deep sleep
+        g_scheduler.power_mode = POWER_MODE_DEEP_SLEEP;
+        // In real hardware: hal_power_deep_sleep(MAX_DEEP_SLEEP)
+        // For simulator, just yield
+        task_yield();
+    }
+}
+
+void scheduler_exit_idle(void) {
+    g_scheduler.power_mode = POWER_MODE_ACTIVE;
+}
+
+int scheduler_enter_deep_sleep(uint32_t timeout_ticks) {
+    if (!g_scheduler.tickless_idle_enabled) return -1;
+    
+    g_scheduler.power_mode = POWER_MODE_DEEP_SLEEP;
+    
+    // In real hardware: hal_power_deep_sleep(timeout_ticks)
+    // For simulator:
+    if (timeout_ticks > 0) {
+        g_scheduler.tick_count += timeout_ticks;
+    }
+    
+    return 0;
+}
+
+power_mode_t scheduler_get_power_mode(void) {
+    return g_scheduler.power_mode;
+}
+
+void scheduler_set_deep_sleep_min_ticks(uint32_t ticks) {
+    g_scheduler.deep_sleep_min_ticks = ticks;
 }

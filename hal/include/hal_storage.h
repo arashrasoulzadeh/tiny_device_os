@@ -53,6 +53,10 @@ int hal_storage_set_callback(hal_storage_t* storage, hal_storage_callback_t cb, 
 const char* hal_storage_get_path(const hal_storage_t* storage);
 hal_storage_type_t hal_storage_get_type(const hal_storage_t* storage);
 
+// Power management
+int hal_storage_suspend(hal_storage_t* storage);
+int hal_storage_resume(hal_storage_t* storage);
+
 #ifdef __cplusplus
 }
 #endif

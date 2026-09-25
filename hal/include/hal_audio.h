@@ -55,6 +55,10 @@ bool hal_audio_get_mute(const hal_audio_t* audio);
 
 const char* hal_audio_get_path(const hal_audio_t* audio);
 
+// Power management
+int hal_audio_suspend(hal_audio_t* audio);
+int hal_audio_resume(hal_audio_t* audio);
+
 #ifdef __cplusplus
 }
 #endif

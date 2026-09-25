@@ -59,6 +59,10 @@ void hal_uart_break(hal_uart_t* uart, bool enable);
 
 const char* hal_uart_get_path(const hal_uart_t* uart);
 
+// Power management
+int hal_uart_suspend(hal_uart_t* uart);
+int hal_uart_resume(hal_uart_t* uart);
+
 #ifdef __cplusplus
 }
 #endif

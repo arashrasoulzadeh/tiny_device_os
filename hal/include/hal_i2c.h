@@ -38,6 +38,10 @@ uint32_t hal_i2c_get_timeout(const hal_i2c_t* i2c);
 
 const char* hal_i2c_get_path(const hal_i2c_t* i2c);
 
+// Power management
+int hal_i2c_suspend(hal_i2c_t* i2c);
+int hal_i2c_resume(hal_i2c_t* i2c);
+
 #ifdef __cplusplus
 }
 #endif

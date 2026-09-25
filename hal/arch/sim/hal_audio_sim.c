@@ -152,3 +152,15 @@ bool hal_audio_get_mute(const hal_audio_t* audio) {
 const char* hal_audio_get_path(const hal_audio_t* audio) {
     return audio ? audio->path : NULL;
 }
+
+int hal_audio_suspend(hal_audio_t* audio) {
+    if (!audio) return -1;
+    audio->running = false;
+    return 0;
+}
+
+int hal_audio_resume(hal_audio_t* audio) {
+    if (!audio) return -1;
+    audio->running = true;
+    return 0;
+}

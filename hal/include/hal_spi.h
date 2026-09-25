@@ -45,6 +45,10 @@ void hal_spi_cs_deassert(hal_spi_t* spi);
 
 const char* hal_spi_get_path(const hal_spi_t* spi);
 
+// Power management
+int hal_spi_suspend(hal_spi_t* spi);
+int hal_spi_resume(hal_spi_t* spi);
+
 #ifdef __cplusplus
 }
 #endif

@@ -114,3 +114,15 @@ const char* hal_storage_get_path(const hal_storage_t* storage) {
 hal_storage_type_t hal_storage_get_type(const hal_storage_t* storage) {
     return storage ? storage->type : HAL_STORAGE_TYPE_FLASH;
 }
+
+int hal_storage_suspend(hal_storage_t* storage) {
+    if (!storage) return -1;
+    storage->initialized = false;
+    return 0;
+}
+
+int hal_storage_resume(hal_storage_t* storage) {
+    if (!storage) return -1;
+    storage->initialized = true;
+    return 0;
+}
