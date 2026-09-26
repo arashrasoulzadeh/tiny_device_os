@@ -8,6 +8,8 @@
 - Flash + SD storage (LittleFS + FatFS)
 - Full game engine (2D/3D, Lua/WASM, asset pipeline)
 - UI framework (flex/grid, widgets, animations, themes)
+- App helpers for HTTP (server + client), UI, input buttons, outputs (LED/LCD/sound), and sensors
+- Simplified multi-type / multi-size LCD interface (virtual canvas over SPI/I2C/parallel/RGB)
 - < 10µA deep sleep power management
 - Arduino IDE library distribution
 - SDL2 simulator for macOS/Linux/Windows development
@@ -26,8 +28,9 @@
 | **App Sandbox** | Cooperative: same address space, trusted apps |
 | **Arduino IDE** | Full OS as `#include <ArdubotOS.h>` with prebuilt libs |
 | **Power Target** | < 10µA deep sleep (ESP32 RTC/ULP) |
-| **Display** | SPI + I2C + 8/16-bit parallel + RGB (ESP32) |
+| **Display** | SPI + I2C + 8/16-bit parallel + RGB (ESP32); multiple LCD types/sizes via one simplified app-facing interface |
 | **UI Framework** | Full: containers, widgets, list/grid, text input, scroll, animations, themes |
+| **App Helpers** | First-class helpers (not raw HAL only): HTTP server, HTTP client requests, UI, input buttons, output devices (LED / LCD / sound), and sensors |
 | **Assets** | Build-time multi-resolution in `.arpak` format |
 | **Simulator** | SDL2 + PortAudio, headless CI, macOS/Linux/Windows |
 
@@ -43,8 +46,9 @@
 6. **Power First** - Tickless idle, per-driver PM, deep sleep < 10µA
 7. **App/Plugin Framework** - Cooperative tasks, syscall API, dynamic `.ardmod` modules
 8. **Arduino IDE Library** - Single header, prebuilt static libs per board variant
-9. **Multi-resolution Display** - Virtual canvas, flex/grid UI, build-time assets
-10. **Documentation Kept Current** - Any change to a public API, CLI flag, or CMake option updates the matching doc in `docs/` (and `AGENTS.md`/`CLAUDE.md` for agent-facing workflow changes) in the same commit
+9. **Multi-resolution Display** - Virtual canvas, flex/grid UI, build-time assets; multiple LCD types and sizes behind one simplified interface
+10. **App Helpers Required** - OS must ship helpers for HTTP server, HTTP requests, UI, input buttons, output devices (LED/LCD/sound), and sensors — apps should not need to wire raw HAL for common cases
+11. **Documentation Kept Current** - Any change to a public API, CLI flag, or CMake option updates the matching doc in `docs/` (and `AGENTS.md`/`CLAUDE.md` for agent-facing workflow changes) in the same commit
 
 ---
 
@@ -352,6 +356,19 @@ typedef struct {
     hal_display_interface_t interface;  // SPI, I2C, PARALLEL, RGB
 } hal_display_config_t;
 ```
+Apps target a single virtual canvas API; drivers adapt SSD1306/ILI9341/etc. and varying resolutions underneath. Multiple LCD types and sizes must be supported without changing app drawing code.
+
+### App Helpers (Required)
+The OS must provide high-level helpers so apps can use common capabilities without wiring HAL/drivers directly:
+
+| Helper area | Responsibility |
+|-------------|----------------|
+| **HTTP server** | Serve routes / static responses on supported net stacks |
+| **HTTP requests** | Client GET/POST (and related) with status + body |
+| **UI** | Widgets, layout, themes (see UI Framework) |
+| **Input buttons** | Debounced button / key events (GPIO or panel) |
+| **Output devices** | LED, LCD (via simplified display interface), sound |
+| **Sensors** | Read common sensor classes through a unified helper API |
 
 ### UI Framework (Phase 4)
 ```c

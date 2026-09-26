@@ -76,9 +76,32 @@ void test_task_suspend_blocked_does_not_wake_on_tick(void) {
     TEST_ASSERT_EQUAL(2, g_phase);
 }
 
+/* Self-suspend must save context so resume continues after the suspend call. */
+static void self_suspend_entry(void* arg) {
+    (void)arg;
+    g_phase = 1;
+    task_suspend(task_get_current());
+    g_phase = 2;
+}
+
+void test_task_self_suspend_resumes_after_suspend_point(void) {
+    TEST_ASSERT_EQUAL(0, task_create("park", self_suspend_entry, NULL, TASK_PRIO_NORMAL,
+                                     64 * 1024, &g_sleeper));
+    TEST_ASSERT_EQUAL(0, scheduler_start());
+
+    scheduler_step();
+    TEST_ASSERT_EQUAL(1, g_phase);
+    TEST_ASSERT_EQUAL(TASK_STATE_SUSPENDED, task_get_state(g_sleeper));
+
+    task_resume(g_sleeper);
+    scheduler_step();
+    TEST_ASSERT_EQUAL(2, g_phase);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_task_sleep_resumes_after_ticks_and_main_continues);
     RUN_TEST(test_task_suspend_blocked_does_not_wake_on_tick);
+    RUN_TEST(test_task_self_suspend_resumes_after_suspend_point);
     return UNITY_END();
 }

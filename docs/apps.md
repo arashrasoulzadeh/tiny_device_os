@@ -41,16 +41,24 @@ APP_DEFINE(counter_app, "counter",
     .version = "2.0.0",
     .author = "ArdubotOS",
     .description = "Simple counter demo",
+    .icon = &counter_app_icon,   /* apps provide their own 16×16 icon */
     .fps = 30,
     .on_init = on_init,
     .on_frame = on_frame
 );
 ```
 
+Define the bitmap in `counter_icon.c` (or beside the app):
+
+```c
+#include "icons.h"
+const app_icon_t counter_app_icon = {{ /* 16 row bitmasks */ }};
+```
+
 - First argument: C symbol prefix → exports `counter_app_manifest`
 - Second argument: install/start name → `"counter"` for `app_start("counter")`
 
-Reference: `apps/stdapps/counter_app.c`.
+Reference: `apps/stdapps/counter/counter_app.c`.
 
 ## What `APP_DEFINE` does
 
@@ -69,6 +77,7 @@ UI drawing lives in [`apps/ui/components/`](../apps/ui/components/)
 |------|---------|--------|
 | `app_mark_dirty` / `app_is_dirty` / `app_clear_dirty` | Skip redraw when nothing changed | `canvas.h` |
 | `app_clear` / `app_text` / `app_textf` / `app_flush` | Framebuffer draw | `canvas.h` |
+| `app_status_draw` | Top-right battery + running-apps icons | `status.h` |
 
 ## Menu helpers
 
@@ -83,7 +92,8 @@ UI drawing lives in [`apps/ui/components/`](../apps/ui/components/)
 
 Panel size is compile-time: `APP_DISPLAY_WIDTH` / `APP_DISPLAY_HEIGHT`
 ([`display.h`](../apps/ui/components/display.h)), set by CMake
-(`ARDUBOT_DISPLAY_WIDTH` / `ARDUBOT_DISPLAY_HEIGHT`, default 128×64).
+(`ARDUBOT_DISPLAY_WIDTH` / `ARDUBOT_DISPLAY_HEIGHT`, default **128×32** — same as
+`device_config.yaml`).
 
 ## App catalog (boot)
 
@@ -108,17 +118,17 @@ keys and do not flush the display.
 
 | Call | Purpose |
 |------|---------|
-| `app_open(from, "name")` | Start/focus another app; suspends the caller |
-| `app_request_exit(app)` | Leave the current app (typical Esc/back) |
+| `app_open(from, "name")` | Start or **resume** another app; suspends the caller |
+| `app_request_exit(app)` | Soft-leave: suspend current (non-home) app and resume launcher |
 
-Leaving a non-home app resumes `"launcher"` and remaps its keys. Esc on
-`info` / `counter` calls `app_request_exit`; the launcher uses `app_open` on
-Enter.
+Leaving a non-home app keeps it alive in the background (timer apps keep
+ticking). Esc on `info` / `counter` / `stopwatch` soft-leaves; the launcher
+uses `app_open` on Enter (resumes if the app was suspended).
 
 ## Adding a builtin to the build
 
-1. Create `apps/stdapps/my_app.c` with `APP_DEFINE(my_app, "my_app", ...)`.
-2. Add `my_app.c` to `apps/stdapps/CMakeLists.txt`.
+1. Create `apps/stdapps/my_app/my_app.c` with `APP_DEFINE(my_app, "my_app", ...)`.
+2. Add `my_app/my_app.c` (and its include dir) to `apps/stdapps/CMakeLists.txt`.
 3. Install it in `sim/sim_main.c` with `app_install_manifest(my_app_manifest, "my_app")`.
 
 ## Which app starts (main / home app)
@@ -128,6 +138,7 @@ The simulator picks the startup app in [`sim/sim_main.c`](../sim/sim_main.c):
 ```c
 app_install_manifest(counter_app_manifest, "counter");
 app_install_manifest(info_app_manifest, "info");
+app_install_manifest(stopwatch_app_manifest, "stopwatch");
 app_install_manifest(launcher_app_manifest, "launcher");
 app_kit_catalog_build("launcher");  /* launch list, once */
 app_start("launcher");              /* <-- main app */
@@ -136,6 +147,11 @@ app_start("launcher");              /* <-- main app */
 Change the string passed to `app_start(...)` to boot a different app (e.g.
 `app_start("counter")`). Install every builtin you want listed in the launcher
 before `app_kit_catalog_build`, then start the home app.
+
+The **stopwatch** app (`apps/stdapps/stopwatch/stopwatch_app.c`) demos cooperative
+multithreading: one worker task per time unit (`sw_sec` sleeps 1s and ticks
+seconds; `sw_min` / `sw_hour` self-suspend and resume on wrap). Keys: `1`
+start/stop, `2` reset, Esc back.
 
 ## Lower-level APIs
 

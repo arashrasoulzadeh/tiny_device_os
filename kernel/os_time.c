@@ -14,6 +14,10 @@ time_ms_t time_now_ms(void) {
     return (time_ms_t)(time_now_us() / 1000);
 }
 
+void time_set_now_us(time_us_t now_us) {
+    g_boot_time = now_us;
+}
+
 time_us_t time_since_us(time_us_t start) {
     time_us_t now = time_now_us();
     return (now >= start) ? (now - start) : (TIME_US_MAX - start + now);

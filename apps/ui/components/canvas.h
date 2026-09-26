@@ -19,6 +19,7 @@ bool app_is_dirty(const app_ctx_t* app);
 void app_clear(app_ctx_t* app);
 void app_text(app_ctx_t* app, int x, int y, const char* text);
 void app_textf(app_ctx_t* app, int x, int y, const char* fmt, ...);
+void app_pixel(app_ctx_t* app, int x, int y, bool on);
 void app_flush(app_ctx_t* app);
 
 #ifdef __cplusplus

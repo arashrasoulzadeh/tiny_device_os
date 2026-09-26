@@ -5,8 +5,8 @@
 #include <string.h>
 #include <stdio.h>
 
-#define SSD1306_PAGES 8
-#define SSD1306_BUFFER_SIZE (SSD1306_WIDTH * SSD1306_PAGES)
+#define SSD1306_PAGES ((SSD1306_HEIGHT) / 8)
+#define SSD1306_BUFFER_SIZE ((SSD1306_WIDTH) * (SSD1306_PAGES))
 
 typedef struct {
     uint8_t buffer[SSD1306_BUFFER_SIZE];
@@ -59,7 +59,7 @@ void ssd1306_model_register(void) {
     g_ssd1306.display_on = true;
     g_ssd1306.contrast = 0x7F;
     g_ssd1306.vcom = 0x30;
-    g_ssd1306.multiplex = 0x3F;
+    g_ssd1306.multiplex = (uint8_t)(SSD1306_HEIGHT - 1);
     g_ssd1306.charge_pump = true;
     g_ssd1306.memory_mode = 0x00;
     
@@ -191,11 +191,27 @@ void ssd1306_model_clear(void) {
     g_ssd1306.column = 0;
 }
 
+void ssd1306_model_set_pixel(int x, int y, bool on) {
+    size_t idx;
+    if (x < 0 || y < 0 || x >= SSD1306_WIDTH || y >= SSD1306_HEIGHT) {
+        return;
+    }
+    idx = (size_t)(y / 8) * SSD1306_WIDTH + (size_t)x;
+    if (idx >= SSD1306_BUFFER_SIZE) {
+        return;
+    }
+    if (on) {
+        g_ssd1306.buffer[idx] |= (uint8_t)(1u << (y & 7));
+    } else {
+        g_ssd1306.buffer[idx] &= (uint8_t)~(1u << (y & 7));
+    }
+}
+
 void ssd1306_model_draw_text(int x, int y, const char* text) {
     if (!text) return;
     if (x < 0 || x >= SSD1306_WIDTH || y < 0 || y >= SSD1306_HEIGHT) return;
     
-    static const uint8_t font_5x7[95][5] = {
+    static const uint8_t font_5x7[96][5] = {
         {0x00, 0x00, 0x00, 0x00, 0x00}, // ' ' (32)
         {0x00, 0x00, 0x5F, 0x00, 0x00}, // '!' (33)
         {0x00, 0x07, 0x00, 0x07, 0x00}, // '"' (34)

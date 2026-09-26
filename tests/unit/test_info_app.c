@@ -2,7 +2,7 @@
 #include "device_info.h"
 #include <string.h>
 
-/* Smoke coverage for apps/stdapps/info_app.c (TDD gate). */
+/* Smoke coverage for apps/stdapps/info/info_app.c (TDD gate). */
 void setUp(void) {}
 void tearDown(void) {}
 

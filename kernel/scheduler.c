@@ -381,9 +381,26 @@ void task_sleep(uint32_t ticks) {
 }
 
 void task_suspend(task_tcb_t* task) {
+    if (!task) {
+        return;
+    }
+
     scheduler_lock();
 
-    if (!task) {
+    if (task == g_scheduler.current) {
+        /* Must setjmp before switching away so resume continues here. */
+        if (setjmp(task->context) == 0) {
+            task->context_valid = true;
+            task->state = TASK_STATE_SUSPENDED;
+
+            task_tcb_t* next = task_get_highest_ready();
+            if (next && next->priority != TASK_PRIO_IDLE) {
+                context_switch(next);
+            } else {
+                switch_to_main();
+            }
+        }
+        task->state = TASK_STATE_RUNNING;
         scheduler_unlock();
         return;
     }
@@ -399,9 +416,6 @@ void task_suspend(task_tcb_t* task) {
             task->wake_time = 0;
             task->sleep_ticks = 0;
             break;
-        case TASK_STATE_RUNNING:
-            /* Current task: fall through to mark suspended and switch away. */
-            break;
         case TASK_STATE_SUSPENDED:
             scheduler_unlock();
             return;
@@ -411,16 +425,6 @@ void task_suspend(task_tcb_t* task) {
     }
 
     task->state = TASK_STATE_SUSPENDED;
-
-    if (task == g_scheduler.current) {
-        task_tcb_t* next = task_get_highest_ready();
-        if (next && next->priority != TASK_PRIO_IDLE) {
-            context_switch(next);
-        } else {
-            switch_to_main();
-        }
-    }
-
     scheduler_unlock();
 }
 

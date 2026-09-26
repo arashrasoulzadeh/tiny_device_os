@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "sim_video.h"
+#include "ardubot_keys.h"
 #include "hal_gpio.h"
 
 #ifdef __cplusplus

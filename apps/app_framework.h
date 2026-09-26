@@ -11,6 +11,7 @@
 #include "vfs.h"
 #include "stdlog.h"
 #include "os_time.h"
+#include "ardubot_keys.h"
 #include "sim_gpio.h"
 #include "hal_gpio.h"
 #include "hal_display.h"
@@ -20,7 +21,9 @@
 #include "hal_spi.h"
 #include "hal_uart.h"
 #include "ssd1306_model.h"
+#if !defined(ARDUBOT_PIO)
 #include "bmp280_model.h"
+#endif
 #include "display.h"
 
 #ifdef __cplusplus
@@ -59,6 +62,19 @@ extern "C" {
 #define APP_HEAP_MEDIUM     65536
 #define APP_HEAP_LARGE      131072
 #define APP_HEAP_HUGE       262144
+
+#if defined(ARDUBOT_PIO) || defined(ARDUBOT_TARGET_ESP8266)
+#undef APP_STACK_TINY
+#undef APP_STACK_SMALL
+#undef APP_STACK_MEDIUM
+#undef APP_HEAP_TINY
+#undef APP_HEAP_SMALL
+#define APP_STACK_TINY   1536
+#define APP_STACK_SMALL  3072
+#define APP_STACK_MEDIUM 4096
+#define APP_HEAP_TINY    2048
+#define APP_HEAP_SMALL   4096
+#endif
 
 // App type presets
 #define APP_TYPE_DEFAULT    APP_TYPE_USER
@@ -155,9 +171,25 @@ static inline void app_display_flush(app_display_t* disp) {
     if (disp && disp->initialized) ssd1306_model_render();
 }
 
+static inline void app_display_pixel(app_display_t* disp, int x, int y, bool on) {
+    if (disp && disp->initialized) {
+        ssd1306_model_set_pixel(x, y, on);
+    }
+}
+
 static inline void app_display_rect(app_display_t* disp, int x, int y, int w, int h, bool fill) {
-    (void)disp; (void)x; (void)y; (void)w; (void)h; (void)fill;
-    // Not directly supported, use hal_display functions if needed
+    int ix;
+    int iy;
+    if (!disp || !disp->initialized || w <= 0 || h <= 0) {
+        return;
+    }
+    for (iy = y; iy < y + h; iy++) {
+        for (ix = x; ix < x + w; ix++) {
+            if (fill || ix == x || iy == y || ix == x + w - 1 || iy == y + h - 1) {
+                ssd1306_model_set_pixel(ix, iy, true);
+            }
+        }
+    }
 }
 
 static inline void app_display_set_rotation(app_display_t* disp, uint8_t rot) {

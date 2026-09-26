@@ -1,6 +1,7 @@
 #pragma once
 
 #include "app.h"
+#include "icons.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -11,6 +12,8 @@ extern "C" {
 typedef struct {
     const char* name;
     app_type_t type;
+    /** Launcher icon provided by the app (never NULL — falls back to default). */
+    const app_icon_t* icon;
 } app_catalog_entry_t;
 
 /** Snapshot launchable apps (skips `exclude_name`, typically "launcher"). */

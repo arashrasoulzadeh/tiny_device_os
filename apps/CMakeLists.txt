@@ -5,20 +5,24 @@ add_library(apps STATIC
     ui.c
     app_utils.c
     app_kit.c
+    ardubot_keys.c
     device_info.c
     stdlog.c
     ui/components/canvas.c
     ui/components/menu.c
     ui/components/catalog.c
     ui/components/screen.c
+    ui/components/icons.c
+    ui/components/status.c
 )
 
 # Panel size for the active device (override with -DARDUBOT_DISPLAY_WIDTH/HEIGHT).
+# Defaults match repo-root device_config.yaml (NodeMCU SSD1306 128x32).
 if(NOT DEFINED ARDUBOT_DISPLAY_WIDTH)
     set(ARDUBOT_DISPLAY_WIDTH 128)
 endif()
 if(NOT DEFINED ARDUBOT_DISPLAY_HEIGHT)
-    set(ARDUBOT_DISPLAY_HEIGHT 64)
+    set(ARDUBOT_DISPLAY_HEIGHT 32)
 endif()
 
 target_include_directories(apps PUBLIC

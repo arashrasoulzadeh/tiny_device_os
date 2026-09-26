@@ -41,6 +41,21 @@ void host_call_on_stack(void* stack_top, void (*fn)(void*), void* arg) {
     abort();
 }
 
+#elif defined(__xtensa__)
+/* ESP8266 / ESP32 call0 ABI: switch SP, call fn(arg), never returns. */
+void host_call_on_stack(void* stack_top, void (*fn)(void*), void* arg) {
+    uintptr_t sp = ((uintptr_t)stack_top) & ~(uintptr_t)15u;
+    __asm__ __volatile__(
+        "mov a1, %0\n\t"
+        "mov a2, %2\n\t"
+        "callx0 %1\n\t"
+        :
+        : "r"(sp), "r"(fn), "r"(arg)
+        : "a2", "a3", "a4", "a5", "a6", "a7", "a8", "a9", "a10", "a11", "a12", "a13",
+          "a14", "a15", "memory");
+    abort();
+}
+
 #else
 #error "host_call_on_stack: unsupported host architecture"
 #endif

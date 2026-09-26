@@ -23,7 +23,7 @@ hal_display_t* hal_display_open(const char* path, const hal_display_config_t* co
         display->config = *config;
     } else {
         display->config.width = 128;
-        display->config.height = 64;
+        display->config.height = 32;
         display->config.rotation = 0;
         display->config.bpp = 1;
         display->config.interface = HAL_DISPLAY_INTERFACE_I2C;

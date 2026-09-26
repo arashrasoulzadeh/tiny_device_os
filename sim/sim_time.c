@@ -30,11 +30,14 @@ void sim_time_update(void) {
 }
 
 void sim_time_sleep_ms(uint32_t ms) {
-    // Use nanosleep for better precision on Unix systems
+#ifdef _WIN32
+    SDL_Delay(ms);
+#else
     struct timespec ts;
     ts.tv_sec = ms / 1000;
     ts.tv_nsec = (ms % 1000) * 1000000;
     nanosleep(&ts, NULL);
+#endif
 }
 
 void sim_time_sleep_us(uint32_t us) {

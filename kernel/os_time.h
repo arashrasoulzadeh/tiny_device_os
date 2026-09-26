@@ -16,6 +16,9 @@ typedef uint32_t time_ms_t;
 time_us_t time_now_us(void);
 time_ms_t time_now_ms(void);
 
+/** Platform (sim/board) feeds monotonic microseconds since boot. */
+void time_set_now_us(time_us_t now_us);
+
 time_us_t time_since_us(time_us_t start);
 time_ms_t time_since_ms(time_ms_t start);
 

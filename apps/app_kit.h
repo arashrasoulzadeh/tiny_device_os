@@ -1,11 +1,20 @@
 #pragma once
 
 #include "app_framework.h"
+#include "icons.h"
 
 #include <stdarg.h>
 
 #ifdef __cplusplus
 extern "C" {
+#endif
+
+#if defined(_MSC_VER)
+#define ARDUBOT_CONSTRUCTOR(fn)                                                            \
+    __pragma(section(".CRT$XCU", read)) __declspec(allocate(".CRT$XCU")) static void (    \
+        *fn##_ctor)(void) = (fn);
+#else
+#define ARDUBOT_CONSTRUCTOR(fn) __attribute__((constructor))
 #endif
 
 #define APP_KIT_MAX_KEYS 8
@@ -24,6 +33,8 @@ typedef struct {
     uint32_t fps;
     uint32_t stack_size;
     uint32_t heap_size;
+    /** Optional 16×16 launcher icon (app provides this). */
+    const app_icon_t* icon;
     app_fn_t on_init;
     app_fn_t on_frame;
     app_fn_t on_cleanup;
@@ -61,7 +72,8 @@ int app_bind_back(app_ctx_t* app);
 /** Launch another installed app; suspends the caller and focuses the new app. */
 int app_open(app_ctx_t* from, const char* name);
 
-/** Leave the current app (Escape/back). Resumes the home/launcher on exit. */
+/** Leave the current app (Escape/back). Non-home apps soft-suspend and keep
+ *  running in the background; the home/launcher is resumed and focused. */
 void app_request_exit(app_ctx_t* app);
 
 bool app_kit_is_foreground(const app_ctx_t* app);
@@ -72,11 +84,16 @@ app_manifest_t* app_kit_make_manifest(const app_desc_t* desc, void (*entry)(void
 
 void app_kit_apply_overrides(app_desc_t* dest, const app_desc_t* over);
 
+/** Publish / look up an app's launcher icon (set from APP_DEFINE `.icon`). */
+void app_kit_set_icon(const char* name, const app_icon_t* icon);
+const app_icon_t* app_kit_get_icon(const char* name);
+
 /* UI components (canvas / menu / catalog / screen) */
 #include "canvas.h"
 #include "catalog.h"
 #include "menu.h"
 #include "screen.h"
+#include "status.h"
 
 /**
  * Declare a builtin app.
@@ -87,6 +104,7 @@ void app_kit_apply_overrides(app_desc_t* dest, const app_desc_t* over);
  * Example:
  *   APP_DEFINE(counter_app, "counter",
  *       .version = "2.0.0",
+ *       .icon = &counter_app_icon,
  *       .on_init = on_init,
  *       .on_frame = on_frame
  *   );
@@ -98,7 +116,9 @@ void app_kit_apply_overrides(app_desc_t* dest, const app_desc_t* over);
     static void symbol##_entry(void) {                                                     \
         app_kit_run(&symbol##_desc);                                                       \
     }                                                                                      \
-    __attribute__((constructor)) static void symbol##_register(void) {                     \
+    static void symbol##_register(void);                                                   \
+    ARDUBOT_CONSTRUCTOR(symbol##_register)                                                 \
+    static void symbol##_register(void) {                                                  \
         symbol##_desc = (app_desc_t){                                                      \
             .name = (install_name),                                                        \
             .version = "1.0.0",                                                            \
@@ -108,10 +128,14 @@ void app_kit_apply_overrides(app_desc_t* dest, const app_desc_t* over);
             .fps = 30,                                                                     \
             .stack_size = APP_STACK_SMALL,                                                 \
             .heap_size = APP_HEAP_SMALL,                                                   \
+            .icon = NULL,                                                                  \
         };                                                                                 \
         {                                                                                  \
             const app_desc_t _app_over = {__VA_ARGS__};                                    \
             app_kit_apply_overrides(&symbol##_desc, &_app_over);                           \
+        }                                                                                  \
+        if (symbol##_desc.icon) {                                                          \
+            app_kit_set_icon(install_name, symbol##_desc.icon);                            \
         }                                                                                  \
         symbol##_manifest = app_kit_make_manifest(&symbol##_desc, symbol##_entry);         \
     }

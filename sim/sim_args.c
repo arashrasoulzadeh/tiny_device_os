@@ -3,8 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include <getopt.h>
-
 bool g_headless = false;
 bool g_running = true;
 const char* g_flash_image = "flash.img";
@@ -25,29 +23,43 @@ void print_usage(const char* prog) {
     printf("  --help                  Show this help\n");
 }
 
+static const char* option_value(int* i, int argc, char** argv, const char* arg, const char* name) {
+    size_t n = strlen(name);
+    if (strncmp(arg, name, n) == 0 && arg[n] == '=') {
+        return arg + n + 1;
+    }
+    if (strcmp(arg, name) == 0 && *i + 1 < argc) {
+        return argv[++(*i)];
+    }
+    return NULL;
+}
+
 int parse_args(int argc, char** argv) {
-    static struct option long_options[] = {
-        {"headless", no_argument, 0, 'h'},
-        {"flash-image", required_argument, 0, 'f'},
-        {"sd-image", required_argument, 0, 's'},
-        {"test", required_argument, 0, 't'},
-        {"junit", required_argument, 0, 'j'},
-        {"coverage", required_argument, 0, 'c'},
-        {"help", no_argument, 0, 'H'},
-        {0, 0, 0, 0}
-    };
-    
-    int opt;
-    while ((opt = getopt_long(argc, argv, "hf:s:t:j:c:H", long_options, NULL)) != -1) {
-        switch (opt) {
-            case 'h': g_headless = true; break;
-            case 'f': g_flash_image = optarg; break;
-            case 's': g_sd_image = optarg; break;
-            case 't': g_test_name = optarg; break;
-            case 'j': g_junit_file = optarg; break;
-            case 'c': g_coverage_file = optarg; break;
-            case 'H': print_usage(argv[0]); return 1;
-            default: return -1;
+    for (int i = 1; i < argc; i++) {
+        const char* arg = argv[i];
+        const char* value = NULL;
+        if (strcmp(arg, "--headless") == 0 || strcmp(arg, "-h") == 0) {
+            g_headless = true;
+        } else if ((value = option_value(&i, argc, argv, arg, "--flash-image")) ||
+                   (value = option_value(&i, argc, argv, arg, "-f"))) {
+            g_flash_image = value;
+        } else if ((value = option_value(&i, argc, argv, arg, "--sd-image")) ||
+                   (value = option_value(&i, argc, argv, arg, "-s"))) {
+            g_sd_image = value;
+        } else if ((value = option_value(&i, argc, argv, arg, "--test")) ||
+                   (value = option_value(&i, argc, argv, arg, "-t"))) {
+            g_test_name = value;
+        } else if ((value = option_value(&i, argc, argv, arg, "--junit")) ||
+                   (value = option_value(&i, argc, argv, arg, "-j"))) {
+            g_junit_file = value;
+        } else if ((value = option_value(&i, argc, argv, arg, "--coverage")) ||
+                   (value = option_value(&i, argc, argv, arg, "-c"))) {
+            g_coverage_file = value;
+        } else if (strcmp(arg, "--help") == 0 || strcmp(arg, "-H") == 0) {
+            print_usage(argv[0]);
+            return 1;
+        } else {
+            return -1;
         }
     }
     return 0;

@@ -1,15 +1,69 @@
 #include "app_kit.h"
 
+#include "icons.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define APP_KIT_HOME_NAME "launcher"
 #define APP_KIT_PIN_BASE 20
+#define APP_KIT_MAX_CTX 8
 
 static app_ctx_t* g_fg = NULL;
 static app_ctx_t* g_home = NULL;
 static int g_next_pin = APP_KIT_PIN_BASE;
+
+typedef struct {
+    const char* name;
+    app_ctx_t* ctx;
+} app_kit_ctx_slot_t;
+
+static app_kit_ctx_slot_t g_ctx_reg[APP_KIT_MAX_CTX];
+
+static void app_kit_register_ctx(const char* name, app_ctx_t* ctx) {
+    if (!name || !ctx) {
+        return;
+    }
+    for (int i = 0; i < APP_KIT_MAX_CTX; i++) {
+        if (g_ctx_reg[i].name && strcmp(g_ctx_reg[i].name, name) == 0) {
+            g_ctx_reg[i].ctx = ctx;
+            return;
+        }
+    }
+    for (int i = 0; i < APP_KIT_MAX_CTX; i++) {
+        if (!g_ctx_reg[i].name) {
+            g_ctx_reg[i].name = name;
+            g_ctx_reg[i].ctx = ctx;
+            return;
+        }
+    }
+}
+
+static void app_kit_unregister_ctx(const char* name) {
+    if (!name) {
+        return;
+    }
+    for (int i = 0; i < APP_KIT_MAX_CTX; i++) {
+        if (g_ctx_reg[i].name && strcmp(g_ctx_reg[i].name, name) == 0) {
+            g_ctx_reg[i].name = NULL;
+            g_ctx_reg[i].ctx = NULL;
+            return;
+        }
+    }
+}
+
+static app_ctx_t* app_kit_find_ctx(const char* name) {
+    if (!name) {
+        return NULL;
+    }
+    for (int i = 0; i < APP_KIT_MAX_CTX; i++) {
+        if (g_ctx_reg[i].name && strcmp(g_ctx_reg[i].name, name) == 0) {
+            return g_ctx_reg[i].ctx;
+        }
+    }
+    return NULL;
+}
 
 static void app_kit_remap_keys(app_ctx_t* app) {
     if (!app) {
@@ -83,8 +137,32 @@ int app_bind_back(app_ctx_t* app) {
 }
 
 void app_request_exit(app_ctx_t* app) {
-    if (app) {
+    if (!app) {
+        return;
+    }
+
+    /* Home actually quits. Other apps soft-leave: stay alive in the background. */
+    if (!app->desc || !app->desc->name || strcmp(app->desc->name, APP_KIT_HOME_NAME) == 0) {
         app->running = false;
+        return;
+    }
+
+    if (app_suspend(app->desc->name) != 0) {
+        app->running = false;
+        return;
+    }
+
+    app_t* home = app_find(APP_KIT_HOME_NAME);
+    if (home) {
+        if (home->state == APP_STATE_SUSPENDED) {
+            app_resume(APP_KIT_HOME_NAME);
+        } else if (home->state == APP_STATE_INSTALLED || home->state == APP_STATE_STOPPED) {
+            app_start(APP_KIT_HOME_NAME);
+        }
+    }
+
+    if (g_home) {
+        app_kit_focus(g_home);
     }
 }
 
@@ -96,12 +174,26 @@ int app_open(app_ctx_t* from, const char* name) {
         return 0;
     }
 
-    if (app_start(name) != 0) {
-        return -1;
+    app_t* target = app_find(name);
+    if (target && target->state == APP_STATE_SUSPENDED) {
+        if (app_resume(name) != 0) {
+            return -1;
+        }
+    } else if (target && target->state == APP_STATE_RUNNING) {
+        /* Already running — just focus below. */
+    } else {
+        if (app_start(name) != 0) {
+            return -1;
+        }
     }
 
     if (app_suspend(from->desc->name) != 0) {
         APP_WARN("app_open: failed to suspend %s", from->desc->name);
+    }
+
+    app_ctx_t* to_ctx = app_kit_find_ctx(name);
+    if (to_ctx) {
+        app_kit_focus(to_ctx);
     }
 
     return 0;
@@ -202,6 +294,49 @@ void app_kit_apply_overrides(app_desc_t* dest, const app_desc_t* over) {
     if (over->on_cleanup) {
         dest->on_cleanup = over->on_cleanup;
     }
+    if (over->icon) {
+        dest->icon = over->icon;
+    }
+}
+
+typedef struct {
+    const char* name;
+    const app_icon_t* icon;
+} app_kit_icon_slot_t;
+
+static app_kit_icon_slot_t g_icons[APP_MAX];
+static int g_icon_count = 0;
+
+void app_kit_set_icon(const char* name, const app_icon_t* icon) {
+    int i;
+    if (!name || !icon) {
+        return;
+    }
+    for (i = 0; i < g_icon_count; i++) {
+        if (g_icons[i].name && strcmp(g_icons[i].name, name) == 0) {
+            g_icons[i].icon = icon;
+            return;
+        }
+    }
+    if (g_icon_count >= APP_MAX) {
+        return;
+    }
+    g_icons[g_icon_count].name = name;
+    g_icons[g_icon_count].icon = icon;
+    g_icon_count++;
+}
+
+const app_icon_t* app_kit_get_icon(const char* name) {
+    int i;
+    if (!name) {
+        return &app_icon_default;
+    }
+    for (i = 0; i < g_icon_count; i++) {
+        if (g_icons[i].name && strcmp(g_icons[i].name, name) == 0) {
+            return g_icons[i].icon ? g_icons[i].icon : &app_icon_default;
+        }
+    }
+    return &app_icon_default;
 }
 
 void app_kit_run(const app_desc_t* desc) {
@@ -227,6 +362,7 @@ void app_kit_run(const app_desc_t* desc) {
         g_home = &ctx;
     }
 
+    app_kit_register_ctx(desc->name, &ctx);
     app_kit_focus(&ctx);
 
     if (desc->on_init) {
@@ -235,6 +371,13 @@ void app_kit_run(const app_desc_t* desc) {
     }
 
     while (ctx.running) {
+        /* Re-take focus after resume from background. */
+        if (app_kit_find_ctx(desc->name) == &ctx && g_fg != &ctx) {
+            app_t* self = desc->name ? app_find(desc->name) : NULL;
+            if (self && self->state == APP_STATE_RUNNING) {
+                app_kit_focus(&ctx);
+            }
+        }
         if (desc->on_frame) {
             desc->on_frame(&ctx);
         }
@@ -251,6 +394,7 @@ void app_kit_run(const app_desc_t* desc) {
         desc->on_cleanup(&ctx);
     }
     app_display_deinit(&ctx.display);
+    app_kit_unregister_ctx(desc->name);
 
     if (g_fg == &ctx) {
         g_fg = NULL;

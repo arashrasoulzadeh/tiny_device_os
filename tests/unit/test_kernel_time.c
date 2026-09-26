@@ -1,11 +1,18 @@
 #define _DEFAULT_SOURCE
-#include <unistd.h>
 #include "unity.h"
 #include "os_time.h"
 
+#ifdef _WIN32
+#include <windows.h>
+static void test_sleep_us(long us) {
+    Sleep((DWORD)((us + 999) / 1000));
+}
+#else
+#include <unistd.h>
 static void test_sleep_us(long us) {
     usleep((useconds_t)us);
 }
+#endif
 
 void setUp(void) {
 }

@@ -1,0 +1,42 @@
+# ArdubotOS connected-device profile (used by `make usb`)
+# Pins use NodeMCU labels (D0–D8); GPIO numbers are derived at flash time.
+
+device:
+  name: nodemcu
+  arch: esp8266
+  board: nodemcu
+  pio_env: nodemcu
+  # Serial port: "auto" picks the first USB-UART device, or set explicitly
+  # e.g. /dev/cu.wchusbserial1410  /dev/cu.usbserial-0001  /dev/cu.SLAB_USBtoUART
+  # "auto" re-scans /dev/cu.usbserial* (don’t hardcode a vanished path)
+  port: auto
+  baud: 115200
+  flash_baud: 460800
+  flash_size: 4MB
+  flash_mode: dio
+
+lcd:
+  type: ssd1306
+  width: 128
+  height: 32
+  bus: i2c
+  address: 0x3C
+  # I2C wiring — use D1/D2 (GPIO5/4). Do NOT use D0 (GPIO16): Wire/I2C fails there.
+  scl: D1   # GPIO5  — SCK/SCL on OLED
+  sda: D2   # GPIO4  — SDA
+
+inputs:
+  buttons:
+    # Push-buttons to GND (INPUT_PULLUP). Keep off D1/D2 (LCD I2C).
+    - name: up
+      pin: D5          # GPIO14 — navigate / + / toggle
+      active_low: true
+      pull: up
+    - name: select
+      pin: D6          # GPIO12 — launch / − / reset; hold ~0.7s = back
+      active_low: true
+      pull: up
+
+outputs:
+  leds: []
+  sound: null

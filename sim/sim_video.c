@@ -15,6 +15,18 @@ static void* g_key_arg = NULL;
 static sim_quit_callback_t g_quit_cb = NULL;
 static void* g_quit_arg = NULL;
 
+/* Device parity: SELECT long-press (~700ms) emits Escape/back. */
+#define SIM_SELECT_LONG_MS 700
+static bool g_enter_held = false;
+static bool g_enter_long_fired = false;
+static uint32_t g_enter_down_ms = 0;
+
+static void emit_key(sim_key_t key, bool pressed) {
+    if (g_key_cb && key != SIM_KEY_UNKNOWN) {
+        g_key_cb(key, pressed, g_key_arg);
+    }
+}
+
 static sim_key_t sdl_key_to_sim(SDL_Keycode key) {
     switch (key) {
         // Navigation
@@ -103,7 +115,9 @@ static sim_key_t sdl_key_to_sim(SDL_Keycode key) {
 int sim_video_init(int width, int height, const char* title) {
     g_width = width;
     g_height = height;
-    
+    /* 128x32 OLED is tiny at 2x — use 4x so the sim matches the physical panel readably. */
+    int scale = (height <= 32) ? 4 : 2;
+
     // macOS: ensure window gets keyboard focus
     SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
     SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "0");
@@ -117,7 +131,7 @@ int sim_video_init(int width, int height, const char* title) {
     g_window = SDL_CreateWindow(
         title,
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        width * 2, height * 2,
+        width * scale, height * scale,
         SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_INPUT_FOCUS
     );
     
@@ -206,8 +220,27 @@ void sim_video_poll_events(void) {
             case SDL_KEYDOWN:
             case SDL_KEYUP: {
                 sim_key_t key = sdl_key_to_sim(event.key.keysym.sym);
-                if (key != SIM_KEY_UNKNOWN && g_key_cb) {
-                    g_key_cb(key, event.type == SDL_KEYDOWN, g_key_arg);
+                bool down = (event.type == SDL_KEYDOWN);
+
+                /* Map SELECT (Enter) like the NodeMCU button: short = select, long = back. */
+                if (key == SIM_KEY_ENTER) {
+                    if (down && !event.key.repeat) {
+                        g_enter_held = true;
+                        g_enter_long_fired = false;
+                        g_enter_down_ms = SDL_GetTicks();
+                    } else if (!down && g_enter_held) {
+                        if (!g_enter_long_fired) {
+                            emit_key(SIM_KEY_ENTER, true);
+                            emit_key(SIM_KEY_ENTER, false);
+                        }
+                        g_enter_held = false;
+                        g_enter_long_fired = false;
+                    }
+                    break;
+                }
+
+                if (key != SIM_KEY_UNKNOWN && !event.key.repeat) {
+                    emit_key(key, down);
                 }
                 break;
             }
@@ -216,6 +249,15 @@ void sim_video_poll_events(void) {
                     // Handle resize
                 }
                 break;
+        }
+    }
+
+    if (g_enter_held && !g_enter_long_fired) {
+        uint32_t now = SDL_GetTicks();
+        if (now - g_enter_down_ms >= SIM_SELECT_LONG_MS) {
+            g_enter_long_fired = true;
+            emit_key(SIM_KEY_ESCAPE, true);
+            emit_key(SIM_KEY_ESCAPE, false);
         }
     }
 }
@@ -264,19 +306,4 @@ int sim_video_get_width(void) {
 
 int sim_video_get_height(void) {
     return g_height;
-}
-
-sim_key_class_t sim_key_get_class(sim_key_t key) {
-    switch (key) {
-        case SIM_KEY_SYS_NEXT_APP:
-        case SIM_KEY_SYS_ESCAPE:
-        case SIM_KEY_SYS_MENU:
-            return SIM_KEY_CLASS_SYSTEM;
-        default:
-            return SIM_KEY_CLASS_APP;
-    }
-}
-
-bool sim_key_is_system(sim_key_t key) {
-    return sim_key_get_class(key) == SIM_KEY_CLASS_SYSTEM;
 }

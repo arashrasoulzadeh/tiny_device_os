@@ -20,8 +20,8 @@
 #include "ssd1306_model.h"
 #include "bmp280_model.h"
 #include "sim_gpio.h"
-#include "app.h"
 #include "app_kit.h"
+#include "status.h"
 
 // Key callback that forwards app keys to GPIO (ignores system keys)
 static void sim_key_to_gpio_cb(sim_key_t key, bool pressed, void* arg) {
@@ -113,6 +113,7 @@ static void demo_task_entry(void* arg) {
 extern app_manifest_t* counter_app_manifest;
 extern app_manifest_t* launcher_app_manifest;
 extern app_manifest_t* info_app_manifest;
+extern app_manifest_t* stopwatch_app_manifest;
 
 int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -146,7 +147,7 @@ int main(int argc, char** argv) {
     }
     
     if (!g_headless) {
-        if (sim_video_init(320, 240, "ArdubotOS Simulator") != 0) {
+        if (sim_video_init(APP_DISPLAY_WIDTH, APP_DISPLAY_HEIGHT, "ArdubotOS Simulator") != 0) {
             fprintf(stderr, "Failed to initialize video\n");
         }
         
@@ -195,6 +196,8 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Failed to initialize app system\n");
         return 1;
     }
+    /* Simulated pack level (USB host ≈ full). */
+    app_status_set_battery_percent(92);
 
     /* Install builtins, then start the home/launcher app.
      * Main app is selected here via app_start("launcher"). */
@@ -204,6 +207,10 @@ int main(int argc, char** argv) {
     }
     if (app_install_manifest(info_app_manifest, "info") != 0) {
         fprintf(stderr, "Failed to install info app\n");
+        return 1;
+    }
+    if (app_install_manifest(stopwatch_app_manifest, "stopwatch") != 0) {
+        fprintf(stderr, "Failed to install stopwatch app\n");
         return 1;
     }
     if (app_install_manifest(launcher_app_manifest, "launcher") != 0) {
@@ -224,7 +231,11 @@ int main(int argc, char** argv) {
 
     printf("Launcher started (main app)\n");
     fflush(stdout);
-    
+
+    /* One scheduler tick == 1 ms of wall time. SDL frames often take longer
+     * than 1 ms, so catch up multiple ticks per loop from sim_time. */
+    uint32_t last_tick_ms = sim_time_now_ms();
+
     while (g_running) {
         sim_time_update();
         sim_video_poll_events();
@@ -236,7 +247,21 @@ int main(int argc, char** argv) {
             sim_video_render();
         }
 
-        scheduler_tick();
+        {
+            uint32_t now_ms = sim_time_now_ms();
+            uint32_t dt = now_ms - last_tick_ms;
+            last_tick_ms = now_ms;
+            if (dt == 0) {
+                dt = 1;
+            } else if (dt > 50) {
+                dt = 50; /* clamp after pauses / breakpoints */
+            }
+            for (uint32_t t = 0; t < dt; t++) {
+                scheduler_tick();
+            }
+            /* Run any tasks that woke during the catch-up. */
+            scheduler_step();
+        }
         timers_process();
         sim_time_sleep_ms(1);
     }

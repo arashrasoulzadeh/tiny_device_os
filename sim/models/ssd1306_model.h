@@ -8,8 +8,23 @@
 extern "C" {
 #endif
 
+/* Match the active device panel (CMake APP_DISPLAY_* / device_config.yaml). */
+#ifndef SSD1306_WIDTH
+#ifdef APP_DISPLAY_WIDTH
+#define SSD1306_WIDTH APP_DISPLAY_WIDTH
+#else
 #define SSD1306_WIDTH 128
-#define SSD1306_HEIGHT 64
+#endif
+#endif
+
+#ifndef SSD1306_HEIGHT
+#ifdef APP_DISPLAY_HEIGHT
+#define SSD1306_HEIGHT APP_DISPLAY_HEIGHT
+#else
+#define SSD1306_HEIGHT 32
+#endif
+#endif
+
 #define SSD1306_I2C_ADDR 0x3C
 
 typedef enum {
@@ -47,6 +62,7 @@ void ssd1306_model_render(void);
 
 void ssd1306_model_clear(void);
 void ssd1306_model_draw_text(int x, int y, const char* text);
+void ssd1306_model_set_pixel(int x, int y, bool on);
 
 #ifdef __cplusplus
 }

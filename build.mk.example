@@ -1,0 +1,46 @@
+# ArdubotOS Build Configuration
+# Copy this to build.mk and customize, or override via command line/env
+# Example: make ARCH=esp32 BUILD=Release
+
+# Target architecture: sim, esp32, esp8266, avr, rp2040
+ARCH = sim
+
+# Build type: Debug, Release, RelWithDebInfo, MinSizeRel
+BUILD = Debug
+
+# Parallel build jobs (default: auto-detect CPU cores)
+# JOBS = 8
+
+# Output directory (default: build/$(ARCH)/$(BUILD))
+# OUTPUT = build/$(ARCH)/$(BUILD)
+
+# Extra compiler flags
+# FLAGS = -O2 -DNDEBUG -Wno-unused-parameter
+
+# Extra CMake options
+# CMAKE_OPTS = -DARDUBOT_ENABLE_OTA=ON -DARDUBOT_LOG_LEVEL=DEBUG
+
+# Test filter for headless runs
+# TEST_FILTER = all
+
+# Toolchain file (auto-detected for cross-compile targets)
+# CMAKE_TOOLCHAIN_FILE = /path/to/toolchain.cmake
+
+# ============================================================================
+# Architecture-specific overrides (uncomment for cross-compile)
+# ============================================================================
+# ESP32:
+# ARCH = esp32
+# CMAKE_TOOLCHAIN_FILE = cmake/toolchain-esp32.cmake
+
+# ESP8266:
+# ARCH = esp8266
+# CMAKE_TOOLCHAIN_FILE = cmake/toolchain-esp8266.cmake
+
+# AVR Mega2560:
+# ARCH = avr
+# CMAKE_TOOLCHAIN_FILE = cmake/toolchain-avr.cmake
+
+# RP2040:
+# ARCH = rp2040
+# CMAKE_TOOLCHAIN_FILE = cmake/toolchain-rp2040.cmake

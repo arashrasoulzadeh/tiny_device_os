@@ -1,4 +1,5 @@
 #include "screen.h"
+#include "status.h"
 
 bool app_screen_begin(app_ctx_t* app, const char* title) {
     if (!app || !app_is_dirty(app)) {
@@ -15,6 +16,7 @@ void app_screen_end(app_ctx_t* app) {
     if (!app) {
         return;
     }
+    app_status_draw(app);
     app_flush(app);
     app_clear_dirty(app);
 }

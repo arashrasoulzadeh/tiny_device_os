@@ -17,12 +17,17 @@ Implemented and exercised by host tests:
   they are not the day-to-day development target.
 - App runtime: manifests, **`app_kit`** (`APP_DEFINE`, focus, key bind, open/exit),
   plus UI components under `apps/ui/components/` (`canvas`, `screen`, `menu`,
-  `catalog`, `display`). Guides: `docs/appkit.md`, `docs/apps.md`.
-- Built-in apps: `apps/stdapps/counter_app.c`, `info_app.c`, `launcher_app.c`.
+  `catalog`, `icons`, `status`, `display`). Guides: `docs/appkit.md`, `docs/apps.md`.
+- Built-in apps under `apps/stdapps/<name>/`: `counter`, `info`, `launcher`,
+  `stopwatch` (three worker tasks: sec/min/hour).
 - VFS, LittleFS/FatFS glue, config store, OTA stubs under `fs/`.
 - Driver ops (`probe`/`open`/`read`/`write`/`ioctl`) in `drivers/driver.h`.
 - Simulator CLI: headless mode, `--test=all`, JUnit, coverage
-  (`sim/sim_main.c`, `sim/sim_args.c`).
+  (`sim/sim_main.c`, `sim/sim_args.c`). The sim main loop advances
+  **one scheduler tick per wall-clock millisecond** (catch-up when a frame
+  takes longer than 1 ms), so `task_sleep(1000)` is ~1 real second.
+  Interactive sim uses the **same 128×32 panel and Up/Select(/long=back)**
+  controls as the NodeMCU profile in `device_config.yaml`.
 
 Still roadmap (do not assume these work, and do not invent them while fixing
 something else): game engine, Lua/WASM, dynamic `.ardmod` loading as a product,
@@ -49,6 +54,34 @@ cmake -B build -DARDUBOT_BUILD_SIM=ON -DCMAKE_BUILD_TYPE=Debug
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
+
+Or via the Makefile wrapper: `make`, `make test`, `make run`.
+
+### USB / hardware (`make usb` → PlatformIO)
+
+`device_config.yaml` at the repo root describes the connected board (arch, serial
+port, LCD, buttons, `pio_env`). `make usb` asks which target to compile for (unless
+`DEVICE=` is set), generates `build/generated/device_config.h`, then builds and
+flashes with [PlatformIO](https://platformio.org/) (`pio run -e nodemcu -t upload`).
+
+```bash
+make device-config            # validate YAML + emit header
+make usb-ports                # list /dev/cu.usb* etc.
+make usb                      # interactive → PlatformIO build + upload
+make usb DEVICE=nodemcu PORT=/dev/cu.wchusbserial1410
+python3 tests/unit/test_device_config.py
+```
+
+Files: `platformio.ini`, `boards/nodemcu/src/main.cpp` (ArdubotOS launcher +
+builtins on SSD1306; local `ssd1306_mini.h`, no Adafruit `lib_deps`). Wiring:
+NodeMCU SSD1306 128×32 I2C (SCL=D1, SDA=D2), **UP** on D5, **SELECT** on D6
+(other side GND; long-press SELECT = back to launcher).
+
+On Apple Silicon, ESP8266 builds need Rosetta (`Bad CPU type in executable` means
+it is missing): `softwareupdate --install-rosetta --agree-to-license`.
+
+NodeMCU upload uses `scripts/nodemcu_upload.py` (Arduino-style DTR/RTS auto-reset)
+so you should not need to hold FLASH; CH340 port drops during reset are retried.
 
 One unit test binary:
 
@@ -86,14 +119,15 @@ Warnings are errors (`-Wall -Wextra -Wpedantic -Werror`). Unused parameters need
 ## Add a built-in app
 
 Use **`app_kit.h`** / `APP_DEFINE` — see [`docs/apps.md`](apps.md) and
-`apps/stdapps/counter_app.c`.
+`apps/stdapps/counter/counter_app.c`.
 
-1. Implement `on_init` / `on_frame` (and optional `on_cleanup`).
+1. Create `apps/stdapps/<name>/` and implement `on_init` / `on_frame` (and
+   optional `on_cleanup`) in `<name>_app.c`.
 2. Bind keys with `app_bind_key`, redraw with `app_mark_dirty` + `app_text` /
    `app_textf` / `app_flush`.
 3. End the file with
    `APP_DEFINE(my_app, "my_app", .version = "...", .on_init = ..., .on_frame = ...)`.
-4. Add the `.c` file to `apps/stdapps/CMakeLists.txt`.
+4. Add `<name>/<name>_app.c` and its include dir to `apps/stdapps/CMakeLists.txt`.
 5. Install/start via `app_install_manifest(my_app_manifest, "my_app")` and
    `app_start("my_app")` (see `sim/sim_main.c`).
 

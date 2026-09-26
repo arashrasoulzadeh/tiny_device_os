@@ -12,5 +12,5 @@
 #endif
 
 #ifndef APP_DISPLAY_HEIGHT
-#define APP_DISPLAY_HEIGHT 64
+#define APP_DISPLAY_HEIGHT 32
 #endif

@@ -1,4 +1,5 @@
 #include "catalog.h"
+#include "app_kit.h"
 
 #include <string.h>
 
@@ -21,7 +22,7 @@ int app_kit_catalog_build(const char* exclude_name) {
     }
 
     for (size_t i = 0; i < count && g_catalog_count < APP_KIT_CATALOG_MAX; i++) {
-        if (!apps[i] || !apps[i]->name) {
+        if (!apps[i] || !apps[i]->name[0]) {
             continue;
         }
         if (exclude_name && strcmp(apps[i]->name, exclude_name) == 0) {
@@ -29,6 +30,7 @@ int app_kit_catalog_build(const char* exclude_name) {
         }
         g_catalog[g_catalog_count].name = apps[i]->name;
         g_catalog[g_catalog_count].type = apps[i]->type;
+        g_catalog[g_catalog_count].icon = app_kit_get_icon(apps[i]->name);
         g_catalog_count++;
     }
 

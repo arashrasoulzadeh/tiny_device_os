@@ -1,0 +1,33 @@
+# ArdubotOS connected-device profile (copy to device_config.yaml)
+# Used by `make usb` / scripts/usb_flash.py
+
+device:
+  name: nodemcu
+  arch: esp8266
+  board: nodemcu
+  pio_env: nodemcu
+  port: auto
+  baud: 115200
+  flash_baud: 460800
+  flash_size: 4MB
+  flash_mode: dio
+
+lcd:
+  type: ssd1306
+  width: 128
+  height: 32
+  bus: i2c
+  address: 0x3C
+  scl: D6
+  sda: D7
+
+inputs:
+  buttons:
+    - name: primary
+      pin: D5
+      active_low: true
+      pull: up
+
+outputs:
+  leds: []
+  sound: null

@@ -45,6 +45,13 @@ void app_textf(app_ctx_t* app, int x, int y, const char* fmt, ...) {
     app_display_text(&app->display, x, y, buf);
 }
 
+void app_pixel(app_ctx_t* app, int x, int y, bool on) {
+    if (!app || !app_kit_is_foreground(app)) {
+        return;
+    }
+    app_display_pixel(&app->display, x, y, on);
+}
+
 void app_flush(app_ctx_t* app) {
     if (!app || !app_kit_is_foreground(app)) {
         return;

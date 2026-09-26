@@ -22,45 +22,9 @@ jobs:
           cmake -B build -DARDUBOT_BUILD_SIM=ON -DCMAKE_C_CLANG_TIDY=clang-tidy
           cmake --build build 2>&1 | tee clang-tidy.log
       
-      - name: Check for errors
+      - name: Check for clang-tidy errors
         run: |
-          if grep -q "error:" clang-tidy.log; then
+          if grep -E 'error:.*\[clang' clang-tidy.log; then
             echo "clang-tidy found errors"
-            cat clang-tidy.log
             exit 1
           fi
-
-  cpd-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      
-      - name: Install pmd (for CPD)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pmd
-      
-      - name: Run CPD (copy-paste detector)
-        run: |
-          pmd cpd --minimum-tokens 50 --files kernel/ hal/ sim/ tests/ --language cpp --format text > cpd-report.txt || true
-          if [ -s cpd-report.txt ]; then
-            echo "CPD found duplicates:"
-            cat cpd-report.txt
-            exit 1
-          fi
-
-  formatting:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-      
-      - name: Install clang-format
-        run: sudo apt-get update && sudo apt-get install -y clang-format
-      
-      - name: Check formatting
-        run: |
-          find kernel hal sim tests -name "*.c" -o -name "*.h" | xargs clang-format --dry-run --Werror

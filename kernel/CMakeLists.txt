@@ -12,8 +12,8 @@ target_include_directories(kernel PUBLIC
 )
 
 target_compile_options(kernel PRIVATE
-    -Wall -Wextra -Wpedantic -Werror
-    -fno-common -ffunction-sections -fdata-sections
+    $<$<C_COMPILER_ID:GNU,Clang,AppleClang>:-Wall;-Wextra;-Wpedantic;-Werror;-fno-common;-ffunction-sections;-fdata-sections>
+    $<$<C_COMPILER_ID:MSVC>:/W4;/WX>
 )
 
 target_link_libraries(kernel PUBLIC hal)

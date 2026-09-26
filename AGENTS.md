@@ -38,6 +38,27 @@ Cross-target builds use `-DARDUBOT_BUILD_ESP32=ON` / `_ESP8266` / `_AVR` / `_RP2
 (see `cmake/toolchain.cmake`); these require the relevant toolchains and are not exercised
 by this simulator-first workflow unless you're specifically working on a board target.
 
+USB flash uses [PlatformIO](https://platformio.org/) (`platformio.ini` + `boards/nodemcu/src`):
+
+```bash
+make usb                      # prompts which target; platformio run -t upload
+make usb DEVICE=nodemcu       # skip prompt
+make usb-ports                # list USB serial devices
+make device-config            # show YAML + generate build/generated/device_config.h
+```
+
+`device_config.yaml` sets serial `port` (`auto` or `/dev/cu....`), LCD type/size/pins,
+`pio_env`, and input buttons. First run downloads the espressif8266 toolchain via PlatformIO.
+
+**Apple Silicon (M1/M2/M3/M4):** the ESP8266 `toolchain-xtensa` package is still **x86_64**.
+If you see `Bad CPU type in executable`, install Rosetta once:
+
+```bash
+softwareupdate --install-rosetta --agree-to-license
+```
+
+Then retry `make usb DEVICE=nodemcu`.
+
 ## Non-negotiable rules
 
 1. **TDD is enforced, not a suggestion.** `scripts/tdd_check.py` runs as a pre-commit hook
@@ -68,7 +89,7 @@ by this simulator-first workflow unless you're specifically working on a board t
   models (I2C/SPI register simulation, e.g. `sim_i2c.c`, `sim_spi.c`).
 - `drivers/`, `modules/`, `fs/`, `game/` — higher-level subsystems (see `PLAN.md`).
 - `apps/` — app runtime + **`app_kit.h`** (`APP_DEFINE`) for authoring; builtins in
-  `apps/stdapps/`; UI under `apps/ui/components/`. See `docs/appkit.md` and
+  `apps/stdapps/<name>/`; UI under `apps/ui/components/`. See `docs/appkit.md` and
   `docs/apps.md`.
 - `tests/unit/` — fast host-only tests (Unity framework, no simulator init required).
 - `tests/integration/` — tests that exercise the simulator end-to-end.
