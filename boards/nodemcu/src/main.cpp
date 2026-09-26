@@ -2,11 +2,12 @@
  * ArdubotOS NodeMCU board entry (PlatformIO + Arduino).
  *
  * Boots the same builtin apps as the host simulator (launcher → counter /
- * info / stopwatch) on the SSD1306, driven by two push-buttons:
+ * info / stopwatch / pong) on the SSD1306, driven by two push-buttons:
  *   UP     — navigate (wrap) / app actions
  *   SELECT — launch / confirm / (long-press = back)
  *
  * Pins come from build/generated/device_config.h (device_config.yaml).
+ * Wi-Fi SSID and password come from device_secrets.h (device_secrets.yaml).
  */
 
 #include <Arduino.h>
@@ -15,9 +16,25 @@
 #include <string.h>
 
 #include "device_config.h"
+
+#if defined(__has_include)
+#if __has_include("device_secrets.h")
+#include "device_secrets.h"
+#endif
+#endif
+#ifndef ARDUBOT_WIFI_HAS_CREDS
+#define ARDUBOT_WIFI_HAS_CREDS 0
+#define ARDUBOT_WIFI_SSID ""
+#define ARDUBOT_WIFI_PASSWORD ""
+#endif
+
+#if defined(ARDUBOT_TARGET_ESP8266) && ARDUBOT_WIFI_HAS_CREDS
+#include <ESP8266WiFi.h>
+#endif
 #include "ssd1306_mini.h"
 #include "icons.h"
 #include "status.h"
+#include "pong.h"
 
 #ifndef ARDUBOT_LCD_WIDTH
 #define ARDUBOT_LCD_WIDTH 128
@@ -49,7 +66,7 @@
 
 #define LONG_PRESS_MS 700
 
-enum AppId : uint8_t { APP_LAUNCHER = 0, APP_COUNTER, APP_INFO, APP_STOPWATCH, APP_COUNT };
+enum AppId : uint8_t { APP_LAUNCHER = 0, APP_COUNTER, APP_INFO, APP_STOPWATCH, APP_PONG, APP_COUNT };
 
 struct MenuItem {
   AppId id;
@@ -61,11 +78,13 @@ struct MenuItem {
 extern const app_icon_t counter_app_icon;
 extern const app_icon_t info_app_icon;
 extern const app_icon_t stopwatch_app_icon;
+extern const app_icon_t pong_app_icon;
 
 static const MenuItem k_apps[] = {
     {APP_COUNTER, "counter", "[USR]", &counter_app_icon},
     {APP_INFO, "info", "[TOL]", &info_app_icon},
     {APP_STOPWATCH, "stopwatch", "[TOL]", &stopwatch_app_icon},
+    {APP_PONG, "pong", "[GME]", &pong_app_icon},
 };
 static const int k_app_count = (int)(sizeof(k_apps) / sizeof(k_apps[0]));
 
@@ -79,6 +98,8 @@ static uint32_t g_boot_ms = 0;
 static bool g_sw_running = false;
 static uint8_t g_sw_h = 0, g_sw_m = 0, g_sw_s = 0;
 static uint32_t g_sw_last_ms = 0;
+
+static pong_t g_pong;
 
 static bool g_up_down = false;
 static bool g_sel_down = false;
@@ -104,6 +125,8 @@ static void open_app(AppId id) {
     /* keep count */
   } else if (id == APP_STOPWATCH) {
     /* keep stopwatch state */
+  } else if (id == APP_PONG) {
+    pong_reset(&g_pong);
   }
   mark_dirty();
 }
@@ -129,14 +152,33 @@ static void board_set_pixel(int px, int py, bool on, void* user) {
   }
 }
 
-static int board_running_apps(void) {
-  /* Shell: home alone = 1; an opened app keeps home suspended = 2. */
-  return (g_app == APP_LAUNCHER) ? 1 : 2;
+static app_status_link_t g_link = APP_STATUS_LINK_OFF;
+static int g_rssi = -127;
+
+#if defined(ARDUBOT_TARGET_ESP8266) && ARDUBOT_WIFI_HAS_CREDS
+static void poll_wifi(void) {
+  static int shown = 0;
+  static int pending = 0;
+  static uint32_t pending_since = 0;
+  const bool up = WiFi.status() == WL_CONNECTED;
+  const int rssi = up ? (int)WiFi.RSSI() : -127;
+  const app_status_link_t link = up ? APP_STATUS_LINK_UP : APP_STATUS_LINK_DOWN;
+  const int proposed = app_status_signal_bars(link, rssi);
+  const int next = app_status_stable_bars(shown, proposed, millis(), &pending, &pending_since);
+  if (next != shown) {
+    shown = next;
+    g_link = link;
+    g_rssi = rssi;
+    mark_dirty();
+  }
 }
+#else
+static void poll_wifi(void) {}
+#endif
 
 static void draw_status(void) {
-  app_status_blit(ARDUBOT_LCD_WIDTH, app_status_battery_percent(), board_running_apps(),
-                  board_set_pixel, &display);
+  app_status_blit(ARDUBOT_LCD_WIDTH, app_status_battery_percent(), g_link, g_rssi, board_set_pixel,
+                  &display);
 }
 
 static void draw_launcher(void) {
@@ -220,10 +262,48 @@ static void draw_stopwatch(void) {
   display.display();
 }
 
+static void draw_pong(void) {
+  char line[16];
+  int y;
+  int i;
+  display.clear();
+  for (y = 0; y < PONG_H && y < ARDUBOT_LCD_HEIGHT; y++) {
+    display.set_pixel(PONG_W - 2, y, true);
+    display.set_pixel(PONG_W - 1, y, true);
+  }
+  for (i = 0; i < PONG_PADDLE_H; i++) {
+    display.set_pixel(PONG_PADDLE_X, g_pong.paddle_y + i, true);
+    display.set_pixel(PONG_PADDLE_X + 1, g_pong.paddle_y + i, true);
+  }
+  for (y = 0; y < PONG_BALL; y++) {
+    for (i = 0; i < PONG_BALL; i++) {
+      display.set_pixel(g_pong.ball_x + i, g_pong.ball_y + y, true);
+    }
+  }
+  if (g_pong.game_over) {
+    display.draw_text(46, 4, "END");
+    snprintf(line, sizeof(line), "S:%u Sel", (unsigned)g_pong.score);
+    display.draw_text(28, 16, line);
+  } else {
+    snprintf(line, sizeof(line), "%u", (unsigned)g_pong.score);
+    display.draw_text(0, 0, line);
+  }
+  draw_status();
+  display.display();
+}
+
 static void redraw(void) {
+  static uint32_t last_paint_ms = 0;
+  static bool have_painted = false;
   if (!g_dirty) {
     return;
   }
+  const uint32_t now = millis();
+  if (!app_status_redraw_due(now, last_paint_ms, have_painted)) {
+    return; /* stay dirty; paint on a later pass */
+  }
+  last_paint_ms = now;
+  have_painted = true;
   g_dirty = false;
   switch (g_app) {
     case APP_LAUNCHER:
@@ -237,6 +317,9 @@ static void redraw(void) {
       break;
     case APP_STOPWATCH:
       draw_stopwatch();
+      break;
+    case APP_PONG:
+      draw_pong();
       break;
     default:
       break;
@@ -262,6 +345,12 @@ static void on_up(void) {
       }
       mark_dirty();
       break;
+    case APP_PONG:
+      if (!g_pong.game_over) {
+        pong_paddle_up(&g_pong);
+        mark_dirty();
+      }
+      break;
     default:
       break;
   }
@@ -282,6 +371,14 @@ static void on_select(void) {
     case APP_STOPWATCH:
       g_sw_h = g_sw_m = g_sw_s = 0;
       g_sw_running = false;
+      mark_dirty();
+      break;
+    case APP_PONG:
+      if (g_pong.game_over) {
+        pong_reset(&g_pong);
+      } else {
+        pong_paddle_down(&g_pong);
+      }
       mark_dirty();
       break;
     default:
@@ -345,6 +442,26 @@ static void stopwatch_tick(void) {
   }
 }
 
+static void pong_tick(void) {
+  static uint32_t last_ms = 0;
+  const uint32_t now = millis();
+  if (g_app != APP_PONG || g_pong.game_over) {
+    return;
+  }
+  if (now - last_ms < (uint32_t)APP_STATUS_REDRAW_MS) {
+    return;
+  }
+  last_ms = now;
+  if (pin_pressed(ARDUBOT_BTN_UP_GPIO, ARDUBOT_BTN_UP_ACTIVE_LOW)) {
+    pong_paddle_up(&g_pong);
+  }
+  if (pin_pressed(ARDUBOT_BTN_SELECT_GPIO, ARDUBOT_BTN_SELECT_ACTIVE_LOW)) {
+    pong_paddle_down(&g_pong);
+  }
+  pong_step(&g_pong);
+  mark_dirty();
+}
+
 void setup() {
   Serial.begin(115200);
   delay(200);
@@ -357,6 +474,16 @@ void setup() {
 
   pinMode(ARDUBOT_BTN_UP_GPIO, INPUT_PULLUP);
   pinMode(ARDUBOT_BTN_SELECT_GPIO, INPUT_PULLUP);
+
+#if defined(ARDUBOT_TARGET_ESP8266) && ARDUBOT_WIFI_HAS_CREDS
+  WiFi.persistent(false);
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
+  WiFi.begin(ARDUBOT_WIFI_SSID, ARDUBOT_WIFI_PASSWORD);
+  Serial.printf("WiFi connecting to %s\n", ARDUBOT_WIFI_SSID);
+#else
+  Serial.println(F("WiFi idle — set ssid and password in device_secrets.yaml"));
+#endif
 
   Wire.begin(ARDUBOT_LCD_SDA_GPIO, ARDUBOT_LCD_SCL_GPIO);
   if (!display.begin()) {
@@ -374,7 +501,9 @@ void setup() {
 
 void loop() {
   poll_buttons();
+  poll_wifi();
   stopwatch_tick();
+  pong_tick();
   /* Info uptime refreshes about once a second while visible */
   static uint32_t last_info;
   if (g_app == APP_INFO && millis() - last_info > 1000u) {

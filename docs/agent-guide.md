@@ -19,7 +19,7 @@ Implemented and exercised by host tests:
   plus UI components under `apps/ui/components/` (`canvas`, `screen`, `menu`,
   `catalog`, `icons`, `status`, `display`). Guides: `docs/appkit.md`, `docs/apps.md`.
 - Built-in apps under `apps/stdapps/<name>/`: `counter`, `info`, `launcher`,
-  `stopwatch` (three worker tasks: sec/min/hour).
+  `stopwatch` (three worker tasks: sec/min/hour), `pong` (Up/Down paddle).
 - VFS, LittleFS/FatFS glue, config store, OTA stubs under `fs/`.
 - Driver ops (`probe`/`open`/`read`/`write`/`ioctl`) in `drivers/driver.h`.
 - Simulator CLI: headless mode, `--test=all`, JUnit, coverage
@@ -55,21 +55,29 @@ cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-Or via the Makefile wrapper: `make`, `make test`, `make run`.
+Or via the Makefile wrapper: `make`, `make test`, `make run` (SDL emulator).
+
+Wi-Fi icons in the emulator use `device_secrets.yaml` when that file exists
+(copy `device_secrets.yaml.example`). Without it the status bar shows Wi-Fi off.
+See `README.md`.
 
 ### USB / hardware (`make usb` → PlatformIO)
 
 `device_config.yaml` at the repo root describes the connected board (arch, serial
-port, LCD, buttons, `pio_env`). `make usb` asks which target to compile for (unless
-`DEVICE=` is set), generates `build/generated/device_config.h`, then builds and
-flashes with [PlatformIO](https://platformio.org/) (`pio run -e nodemcu -t upload`).
+port, LCD, buttons, `pio_env`). `device_secrets.yaml` (gitignored) holds
+`wifi.ssid` and `wifi.password`; `make usb` will not flash hardware until both
+are set. `make usb` asks which target to compile for (unless `DEVICE=` is set),
+generates `build/generated/device_config.h` and `device_secrets.h`, then builds
+and flashes with [PlatformIO](https://platformio.org/) (`platformio run -e nodemcu -t upload`).
 
 ```bash
-make device-config            # validate YAML + emit header
+make run                      # SDL2 emulator
+make device-config            # validate YAML + emit headers
 make usb-ports                # list /dev/cu.usb* etc.
 make usb                      # interactive → PlatformIO build + upload
 make usb DEVICE=nodemcu PORT=/dev/cu.wchusbserial1410
 python3 tests/unit/test_device_config.py
+python3 tests/unit/test_device_secrets.py
 ```
 
 Files: `platformio.ini`, `boards/nodemcu/src/main.cpp` (ArdubotOS launcher +

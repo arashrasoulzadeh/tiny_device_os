@@ -20,6 +20,7 @@ class Ssd1306 {
       return false;
     }
     memset(fb_, 0, sizeof(fb_));
+    memset(sent_, 0xFF, sizeof(sent_));
     const uint8_t com_pins = (height_ == 32) ? 0x02 : 0x12;
     const uint8_t mux = (uint8_t)(height_ - 1);
 
@@ -92,6 +93,12 @@ class Ssd1306 {
   }
 
   void display() {
+    const size_t nbytes = (size_t)width_ * (size_t)pages_;
+    /* Same pixels as last push — leave the panel alone so it does not flash. */
+    if (memcmp(fb_, sent_, nbytes) == 0) {
+      return;
+    }
+
     cmd(0x21);  // column addr
     cmd(0);
     cmd((uint8_t)(width_ - 1));
@@ -99,7 +106,6 @@ class Ssd1306 {
     cmd(0);
     cmd((uint8_t)(pages_ - 1));
 
-    const size_t nbytes = (size_t)width_ * (size_t)pages_;
     size_t off = 0;
     while (off < nbytes) {
       Wire.beginTransmission(addr_);
@@ -114,6 +120,7 @@ class Ssd1306 {
       Wire.endTransmission();
       off += chunk;
     }
+    memcpy(sent_, fb_, nbytes);
   }
 
  private:
@@ -237,5 +244,6 @@ class Ssd1306 {
   uint8_t height_;
   uint8_t addr_;
   uint8_t pages_;
-  uint8_t fb_[128 * 8];  // enough for 128x64
+  uint8_t fb_[128 * 8];    // enough for 128x64
+  uint8_t sent_[128 * 8];  // last bytes pushed to the panel
 };

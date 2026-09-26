@@ -3,12 +3,21 @@
 
 #include <stddef.h>
 
+#if defined(ARDUBOT_SIM_SDL2)
+#include "device_secrets.h"
+#if ARDUBOT_WIFI_HAS_CREDS
+#include "hal_wifi.h"
+#endif
+#endif
+
 #if !defined(ARDUBOT_PIO)
 #include "app.h"
 #include "app_kit.h"
 #endif
 
 static int g_battery_percent = 100;
+static app_status_link_t g_link = APP_STATUS_LINK_OFF;
+static int g_rssi = -127;
 
 void app_status_set_battery_percent(int percent) {
     if (percent < 0) {
@@ -24,24 +33,60 @@ int app_status_battery_percent(void) {
     return g_battery_percent;
 }
 
-#if !defined(ARDUBOT_PIO)
-static int count_running_apps(void) {
-    app_t* apps[APP_MAX];
-    size_t count = 0;
-    int running = 0;
-    size_t i;
+void app_status_set_link(app_status_link_t link, int rssi_dbm) {
+    g_link = link;
+    g_rssi = rssi_dbm;
+}
 
-    if (app_list(apps, APP_MAX, &count) != 0) {
+app_status_link_t app_status_link(void) {
+    return g_link;
+}
+
+int app_status_rssi(void) {
+    return g_rssi;
+}
+
+bool app_status_redraw_due(uint32_t now_ms, uint32_t last_paint_ms, bool have_painted) {
+    if (!have_painted || APP_STATUS_REDRAW_MS == 0) {
+        return true;
+    }
+    return (now_ms - last_paint_ms) >= APP_STATUS_REDRAW_MS;
+}
+
+int app_status_stable_bars(int shown, int proposed, uint32_t now_ms, int* pending,
+                           uint32_t* since_ms) {
+    if (!pending || !since_ms || proposed == shown) {
+        if (pending) {
+            *pending = shown;
+        }
+        return shown;
+    }
+    if (*pending != proposed) {
+        *pending = proposed;
+        *since_ms = now_ms;
+        return shown;
+    }
+    if ((now_ms - *since_ms) >= APP_STATUS_BAR_HOLD_MS) {
+        return proposed;
+    }
+    return shown;
+}
+
+int app_status_signal_bars(app_status_link_t link, int rssi_dbm) {
+    if (link != APP_STATUS_LINK_UP) {
         return 0;
     }
-    for (i = 0; i < count; i++) {
-        if (apps[i] && apps[i]->state == APP_STATE_RUNNING) {
-            running++;
-        }
+    if (rssi_dbm >= -55) {
+        return 4;
     }
-    return running;
+    if (rssi_dbm >= -67) {
+        return 3;
+    }
+    if (rssi_dbm >= -75) {
+        return 2;
+    }
+    return 1;
 }
-#endif
 
 static void blit_battery(int x, int y, int percent,
                          void (*set_pixel)(int px, int py, bool on, void* user), void* user) {
@@ -79,74 +124,122 @@ static void blit_battery(int x, int y, int percent,
     }
 }
 
-static void blit_apps_icon(int x, int y,
-                           void (*set_pixel)(int px, int py, bool on, void* user), void* user) {
-    int i;
+/* 7×7 Wi-Fi fan. `bars` is 0–4; `up` false draws the same arc with a slash. */
+static void blit_wifi(int x, int y, int bars, bool up,
+                      void (*set_pixel)(int px, int py, bool on, void* user), void* user) {
     if (!set_pixel) {
         return;
     }
-    for (i = 0; i < 3; i++) {
-        set_pixel(x + i, y, true, user);
-        set_pixel(x + i, y + 2, true, user);
-        set_pixel(x + 4 + i, y, true, user);
-        set_pixel(x + 4 + i, y + 2, true, user);
-        set_pixel(x + i, y + 4, true, user);
-        set_pixel(x + i, y + 6, true, user);
-        set_pixel(x + 4 + i, y + 4, true, user);
-        set_pixel(x + 4 + i, y + 6, true, user);
+    if (!up) {
+        set_pixel(x + 1, y, true, user);
+        set_pixel(x + 2, y, true, user);
+        set_pixel(x + 3, y, true, user);
+        set_pixel(x + 4, y, true, user);
+        set_pixel(x + 5, y, true, user);
+        set_pixel(x, y + 1, true, user);
+        set_pixel(x + 6, y + 1, true, user);
+        set_pixel(x + 5, y + 1, true, user);
+        set_pixel(x + 4, y + 2, true, user);
+        set_pixel(x + 3, y + 3, true, user);
+        set_pixel(x + 2, y + 4, true, user);
+        set_pixel(x + 1, y + 5, true, user);
+        return;
+    }
+    if (bars >= 4) {
+        set_pixel(x + 1, y, true, user);
+        set_pixel(x + 2, y, true, user);
+        set_pixel(x + 3, y, true, user);
+        set_pixel(x + 4, y, true, user);
+        set_pixel(x + 5, y, true, user);
+        set_pixel(x, y + 1, true, user);
+        set_pixel(x + 6, y + 1, true, user);
+    }
+    if (bars >= 3) {
+        set_pixel(x + 2, y + 2, true, user);
+        set_pixel(x + 4, y + 2, true, user);
+    }
+    if (bars >= 2) {
+        set_pixel(x + 3, y + 3, true, user);
+    }
+    if (bars >= 1) {
+        set_pixel(x + 3, y + 4, true, user);
+        set_pixel(x + 3, y + 5, true, user);
     }
 }
 
-static const uint8_t k_digit3x5[10][3] = {
-    {0x1F, 0x11, 0x1F}, {0x00, 0x1F, 0x00}, {0x1D, 0x15, 0x17}, {0x15, 0x15, 0x1F},
-    {0x07, 0x04, 0x1F}, {0x17, 0x15, 0x1D}, {0x1F, 0x15, 0x1D}, {0x01, 0x01, 0x1F},
-    {0x1F, 0x15, 0x1F}, {0x17, 0x15, 0x1F},
-};
+/* Four ascending bars, 1px wide, 1px apart. Unfilled bars keep a bottom stub. */
+static void blit_signal(int x, int y, int bars,
+                        void (*set_pixel)(int px, int py, bool on, void* user), void* user) {
+    static const int k_height[4] = {2, 3, 5, 7};
+    int i;
 
-static void blit_digit(int x, int y, int digit,
-                       void (*set_pixel)(int px, int py, bool on, void* user), void* user) {
-    int col;
-    int row;
-    if (!set_pixel || digit < 0 || digit > 9) {
+    if (!set_pixel) {
         return;
     }
-    for (col = 0; col < 3; col++) {
-        uint8_t bits = k_digit3x5[digit][col];
-        for (row = 0; row < 5; row++) {
-            if (bits & (1u << row)) {
-                set_pixel(x + col, y + row, true, user);
-            }
+    if (bars < 0) {
+        bars = 0;
+    }
+    if (bars > 4) {
+        bars = 4;
+    }
+    for (i = 0; i < 4; i++) {
+        int h = (i < bars) ? k_height[i] : 1;
+        int top = 7 - h;
+        int dy;
+        int bx = x + i * 2;
+        for (dy = top; dy <= 6; dy++) {
+            set_pixel(bx, y + dy, true, user);
         }
     }
 }
 
-void app_status_blit(int display_w, int battery_percent, int running_apps,
+void app_status_blit(int display_w, int battery_percent, app_status_link_t link, int rssi_dbm,
                      void (*set_pixel)(int x, int y, bool on, void* user), void* user) {
-    int batt_x;
-    int apps_x;
-    int n;
+    int bars;
+    bool up;
 
     if (!set_pixel || display_w < APP_STATUS_WIDTH) {
         return;
     }
 
-    batt_x = display_w - 12;
-    apps_x = batt_x - 14;
-
-    n = running_apps;
-    if (n < 0) {
-        n = 0;
-    }
-    if (n > 9) {
-        n = 9;
-    }
-
-    blit_apps_icon(apps_x, 0, set_pixel, user);
-    blit_digit(apps_x + 8, 1, n, set_pixel, user);
-    blit_battery(batt_x, 0, battery_percent, set_pixel, user);
+    up = (link == APP_STATUS_LINK_UP);
+    bars = app_status_signal_bars(link, rssi_dbm);
+    blit_wifi(APP_STATUS_WIFI_X(display_w), 0, bars, up, set_pixel, user);
+    blit_signal(APP_STATUS_SIGNAL_X(display_w), 0, bars, set_pixel, user);
+    blit_battery(APP_STATUS_BATT_X(display_w), 0, battery_percent, set_pixel, user);
 }
 
 #if !defined(ARDUBOT_PIO)
+#if defined(ARDUBOT_SIM_SDL2)
+static void ensure_sim_link(void) {
+    static int done = 0;
+    if (done) {
+        return;
+    }
+    done = 1;
+#if ARDUBOT_WIFI_HAS_CREDS
+    {
+        hal_wifi_t* wifi = hal_wifi_open("/dev/wifi0");
+        int rssi;
+        if (!wifi || hal_wifi_init(wifi) != 0 || hal_wifi_start(wifi) != 0 ||
+            hal_wifi_connect(wifi, ARDUBOT_WIFI_SSID, ARDUBOT_WIFI_PASSWORD) != 0) {
+            if (wifi) {
+                hal_wifi_close(wifi);
+            }
+            app_status_set_link(APP_STATUS_LINK_DOWN, -127);
+            return;
+        }
+        rssi = hal_wifi_get_rssi(wifi);
+        hal_wifi_close(wifi);
+        app_status_set_link(APP_STATUS_LINK_UP, rssi);
+        APP_INFO("WiFi %s rssi=%d", ARDUBOT_WIFI_SSID, rssi);
+    }
+#else
+    app_status_set_link(APP_STATUS_LINK_OFF, -127);
+#endif
+}
+#endif
+
 static void status_set_pixel(int x, int y, bool on, void* user) {
     app_ctx_t* app = (app_ctx_t*)user;
     if (!app || !on) {
@@ -159,8 +252,10 @@ void app_status_draw(app_ctx_t* app) {
     if (!app || !app_kit_is_foreground(app)) {
         return;
     }
-    app_status_blit(APP_DISPLAY_WIDTH, g_battery_percent, count_running_apps(), status_set_pixel,
-                    app);
+#if defined(ARDUBOT_SIM_SDL2)
+    ensure_sim_link();
+#endif
+    app_status_blit(APP_DISPLAY_WIDTH, g_battery_percent, g_link, g_rssi, status_set_pixel, app);
 }
 #else
 void app_status_draw(app_ctx_t* app) {

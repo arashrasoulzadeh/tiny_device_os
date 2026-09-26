@@ -1,10 +1,10 @@
 #include "app_kit.h"
-#include <stdint.h>
+#include "catalog.h"
+#include "menu.h"
 
 /* Unlimited horizontal icon strip — matches NodeMCU board launcher. */
 
 static app_menu_t g_menu;
-static app_timer_t g_timer;
 
 static void on_launch(app_ctx_t* app, void* user) {
     (void)user;
@@ -15,13 +15,6 @@ static void on_launch(app_ctx_t* app, void* user) {
 }
 
 static void launcher_init(app_ctx_t* app) {
-    if (app_display_init(&app->display, "/dev/display0") != 0) {
-        APP_ERROR("Display init failed");
-        return;
-    }
-
-    app_timer_init(&g_timer, 30);
-
     app_kit_catalog_build("launcher");
     app_menu_init(&g_menu, 8, 8);
     app_menu_set_icon_strip(&g_menu);
@@ -36,22 +29,14 @@ static void launcher_init(app_ctx_t* app) {
 
 static void launcher_frame(app_ctx_t* app) {
     if (!app_is_dirty(app)) {
-        if (app_timer_should_frame(&g_timer)) {
-            app_timer_sleep_remaining(&g_timer);
-        }
         return;
     }
-
     app_menu_draw(app, &g_menu, NULL, NULL);
     app_clear_dirty(app);
-
-    if (app_timer_should_frame(&g_timer)) {
-        app_timer_sleep_remaining(&g_timer);
-    }
 }
 
 static void launcher_cleanup(app_ctx_t* app) {
-    app_display_deinit(&app->display);
+    (void)app;
     app_kit_catalog_clear();
     app_menu_clear(&g_menu);
     APP_INFO("Launcher cleaned up");

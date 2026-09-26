@@ -10,11 +10,13 @@
 #   make test               # Run headless tests
 #   make clean              # Clean build directory
 #   make config             # Show current configuration
+#   make run                # Run the SDL2 emulator
 #   make usb                # Ask target, read device_config.yaml, build + flash USB
 #   make usb DEVICE=nodemcu # Non-interactive USB flash for NodeMCU
 #
 # Config file: build.mk (optional, auto-loaded if exists)
 # Device pins/port: device_config.yaml (required for make usb)
+# Wi-Fi ssid/password: device_secrets.yaml (gitignored; required for make usb)
 # Environment variables also work: ARCH, BUILD, FLAGS, OUTPUT, JOBS, DEVICE, PORT
 
 # ============================================================================
@@ -160,8 +162,11 @@ usb-ports:
 
 device-config:
 	@python3 scripts/device_config.py --config $(DEVICE_CONFIG) show
+	@python3 scripts/device_secrets.py check
 	@python3 scripts/device_config.py --config $(DEVICE_CONFIG) gen-header \
 	  -o build/generated/device_config.h
+	@python3 scripts/device_secrets.py gen-header \
+	  -o build/generated/device_secrets.h
 
 # Generate compile_commands.json for IDE
 compile-commands: configure
@@ -220,7 +225,8 @@ APP_SRCS    = apps/app.c apps/app_kit.c apps/app_utils.c apps/input.c apps/stdlo
               apps/stdapps/counter/counter_app.c apps/stdapps/launcher/launcher_app.c \
               apps/stdapps/info/info_app.c apps/stdapps/stopwatch/stopwatch_app.c apps/stdapps/pong/pong_app.c \
               apps/ui/components/canvas.c apps/ui/components/screen.c \
-              apps/ui/components/menu.c apps/ui/components/catalog.c
+              apps/ui/components/menu.c apps/ui/components/catalog.c \
+              apps/ui/components/icons.c apps/ui/components/status.c
 SIM_SRCS    = sim/sim_gpio.c sim/sim_i2c.c sim/sim_spi.c sim/sim_storage.c \
               sim/sim_time.c sim/sim_video.c sim/sim_audio.c sim/sim_args.c \
               sim/models/ssd1306_model.c sim/models/bmp280_model.c

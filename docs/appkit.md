@@ -19,7 +19,7 @@ apps/
     menu.h / menu.c              # vertical list + nav bind
     catalog.h / catalog.c        # boot launch list
     icons.h / icons.c            # 16×16 launcher glyphs
-    status.h / status.c          # top-right battery + running-apps
+    status.h / status.c          # top-right Wi-Fi, signal bars, battery
 ```
 
 ```mermaid
@@ -123,16 +123,22 @@ static void on_frame(app_ctx_t* app) {
 
 ### Status — `status.h`
 
-Top-right corner icons (battery + running-apps count). Drawn automatically from
-`app_screen_end` and `app_menu_draw`. Set the pack level once at boot:
+Top-right corner icons (Wi-Fi glyph, 4-bar signal, battery). Drawn automatically from
+`app_screen_end` and `app_menu_draw`. Wi-Fi credentials come from
+`device_secrets.yaml` (see `README.md`). Set the pack level once at boot:
 
 ```c
 app_status_set_battery_percent(100);  /* USB-powered boards */
+app_status_set_link(APP_STATUS_LINK_UP, -50);  /* associated, RSSI dBm */
 ```
 
 | Call | Purpose |
 |------|---------|
 | `app_status_set_battery_percent` / `_battery_percent` | 0–100 level |
+| `app_status_set_link` / `_link` / `_rssi` | Association + RSSI for the icons |
+| `app_status_signal_bars` | 0–4 bars from link + RSSI |
+| `app_status_redraw_due` | At most 10 full-panel paints per second |
+| `app_status_stable_bars` | Ignore signal-bar changes shorter than 400 ms |
 | `app_status_draw(app)` | Blit icons (foreground only) |
 | `app_status_blit(...)` | Same glyphs via a set_pixel callback (board shell) |
 

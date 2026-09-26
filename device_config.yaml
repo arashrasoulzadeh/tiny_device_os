@@ -1,5 +1,7 @@
 # ArdubotOS connected-device profile (used by `make usb`)
 # Pins use NodeMCU labels (D0–D8); GPIO numbers are derived at flash time.
+# Wi-Fi SSID and password belong in device_secrets.yaml (gitignored).
+# Copy device_secrets.yaml.example and fill them in before flashing.
 
 device:
   name: nodemcu

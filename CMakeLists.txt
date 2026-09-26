@@ -26,6 +26,34 @@ set(ARDUBOT_BUILD_TYPE ${CMAKE_BUILD_TYPE})
 include(${ARDUBOT_ROOT_DIR}/cmake/toolchain.cmake OPTIONAL)
 include(${ARDUBOT_ROOT_DIR}/cmake/kconfig.cmake)
 
+# Wi-Fi SSID/password from gitignored device_secrets.yaml. Missing file → radio off.
+set(ARDUBOT_SECRETS_HEADER "${CMAKE_BINARY_DIR}/generated/device_secrets.h")
+set(ARDUBOT_SECRETS_YAML "${CMAKE_SOURCE_DIR}/device_secrets.yaml")
+file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generated")
+if(EXISTS "${ARDUBOT_SECRETS_YAML}")
+    find_package(Python3 COMPONENTS Interpreter QUIET)
+    if(NOT Python3_EXECUTABLE)
+        message(FATAL_ERROR "device_secrets.yaml is present but Python 3 was not found")
+    endif()
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/device_secrets.py" gen-header
+                --secrets "${ARDUBOT_SECRETS_YAML}" -o "${ARDUBOT_SECRETS_HEADER}"
+        RESULT_VARIABLE _ardubot_secrets_rc
+        ERROR_VARIABLE _ardubot_secrets_err
+    )
+    if(NOT _ardubot_secrets_rc EQUAL 0)
+        message(FATAL_ERROR "device_secrets.h generation failed:\n${_ardubot_secrets_err}")
+    endif()
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${ARDUBOT_SECRETS_YAML}")
+else()
+    file(WRITE "${ARDUBOT_SECRETS_HEADER}"
+         "/* Auto-generated — no device_secrets.yaml */\n"
+         "#pragma once\n"
+         "#define ARDUBOT_WIFI_HAS_CREDS 0\n"
+         "#define ARDUBOT_WIFI_SSID \"\"\n"
+         "#define ARDUBOT_WIFI_PASSWORD \"\"\n")
+endif()
+
 add_subdirectory(kernel)
 add_subdirectory(hal)
 add_subdirectory(fs)

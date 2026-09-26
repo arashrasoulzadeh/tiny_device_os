@@ -34,6 +34,7 @@ target_include_directories(apps PUBLIC
     ${CMAKE_SOURCE_DIR}/hal/include
     ${CMAKE_SOURCE_DIR}/sim
     ${CMAKE_SOURCE_DIR}/sim/models
+    ${CMAKE_BINARY_DIR}/generated
 )
 
 target_link_libraries(apps PUBLIC kernel drivers fs)

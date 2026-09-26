@@ -114,6 +114,7 @@ extern app_manifest_t* counter_app_manifest;
 extern app_manifest_t* launcher_app_manifest;
 extern app_manifest_t* info_app_manifest;
 extern app_manifest_t* stopwatch_app_manifest;
+extern app_manifest_t* pong_app_manifest;
 
 int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -211,6 +212,10 @@ int main(int argc, char** argv) {
     }
     if (app_install_manifest(stopwatch_app_manifest, "stopwatch") != 0) {
         fprintf(stderr, "Failed to install stopwatch app\n");
+        return 1;
+    }
+    if (app_install_manifest(pong_app_manifest, "pong") != 0) {
+        fprintf(stderr, "Failed to install pong app\n");
         return 1;
     }
     if (app_install_manifest(launcher_app_manifest, "launcher") != 0) {

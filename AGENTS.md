@@ -48,7 +48,11 @@ make device-config            # show YAML + generate build/generated/device_conf
 ```
 
 `device_config.yaml` sets serial `port` (`auto` or `/dev/cu....`), LCD type/size/pins,
-`pio_env`, and input buttons. First run downloads the espressif8266 toolchain via PlatformIO.
+`pio_env`, and input buttons. Wi-Fi SSID and password go in `device_secrets.yaml`
+(gitignored; copy `device_secrets.yaml.example`). `make usb` refuses to flash
+hardware until both are set. First run downloads the espressif8266 toolchain via PlatformIO.
+
+Emulator: `make run`. On device: `make usb DEVICE=nodemcu`. See `README.md`.
 
 **Apple Silicon (M1/M2/M3/M4):** the ESP8266 `toolchain-xtensa` package is still **x86_64**.
 If you see `Bad CPU type in executable`, install Rosetta once:

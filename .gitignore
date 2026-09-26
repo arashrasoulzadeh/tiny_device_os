@@ -1,3 +1,6 @@
+# Wi-Fi credentials (copy from device_secrets.yaml.example)
+device_secrets.yaml
+
 # PlatformIO (make usb)
 .pio/
 .venv-pio/

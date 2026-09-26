@@ -2,6 +2,7 @@
 """Interactive USB build + flash via PlatformIO (https://platformio.org/).
 
 Reads device_config.yaml for arch, serial port, LCD, and input pins.
+Wi-Fi SSID and password come from device_secrets.yaml (gitignored).
 Prompts which target to compile for unless --device / DEVICE is set.
 
 Requires the `platformio` CLI on PATH (pip install platformio).
@@ -34,6 +35,7 @@ from device_config import (  # noqa: E402
     resolve_port,
     write_header,
 )
+from device_secrets import SecretsError, write_secrets_header  # noqa: E402
 
 INSTALL_HINT = (
     "Install PlatformIO Core and ensure `platformio` is on PATH:\n"
@@ -219,6 +221,14 @@ def main(argv: list[str] | None = None) -> int:
     cfg_for_header["device"]["board"] = target["board"]
     write_header(cfg_for_header, header_path)
     print(f"Generated {header_path.relative_to(ROOT)}")
+
+    secrets_header = ROOT / "build" / "generated" / "device_secrets.h"
+    try:
+        write_secrets_header(ROOT / "device_secrets.yaml", secrets_header, require=(arch != "sim"))
+    except SecretsError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"Generated {secrets_header.relative_to(ROOT)}")
 
     if arch == "sim":
         if not args.skip_build:

@@ -77,7 +77,7 @@ UI drawing lives in [`apps/ui/components/`](../apps/ui/components/)
 |------|---------|--------|
 | `app_mark_dirty` / `app_is_dirty` / `app_clear_dirty` | Skip redraw when nothing changed | `canvas.h` |
 | `app_clear` / `app_text` / `app_textf` / `app_flush` | Framebuffer draw | `canvas.h` |
-| `app_status_draw` | Top-right battery + running-apps icons | `status.h` |
+| `app_status_draw` | Top-right Wi-Fi, signal bars, and battery | `status.h` |
 
 ## Menu helpers
 
@@ -139,6 +139,7 @@ The simulator picks the startup app in [`sim/sim_main.c`](../sim/sim_main.c):
 app_install_manifest(counter_app_manifest, "counter");
 app_install_manifest(info_app_manifest, "info");
 app_install_manifest(stopwatch_app_manifest, "stopwatch");
+app_install_manifest(pong_app_manifest, "pong");
 app_install_manifest(launcher_app_manifest, "launcher");
 app_kit_catalog_build("launcher");  /* launch list, once */
 app_start("launcher");              /* <-- main app */
