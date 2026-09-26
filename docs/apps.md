@@ -68,11 +68,45 @@ Reference: `apps/stdapps/counter_app.c`.
 | `app_text` / `app_textf` | Draw text (printf-style) |
 | `app_flush` | Present + clear dirty |
 
+## Menu helpers
+
+| Call | Purpose |
+|------|---------|
+| `app_menu_init` / `app_menu_add` | Build a vertical list |
+| `app_menu_move` | Up/down + scroll into view |
+| `app_menu_selected` | Current item |
+| `app_menu_draw` | Title + rows + optional help line |
+| `app_type_tag` | `"[SYS]"` / `"[USR]"` / … |
+
+## App catalog (boot)
+
+After installing builtins, call once:
+
+```c
+app_kit_catalog_build("launcher");  /* excludes home app */
+app_start("launcher");
+```
+
+The launcher loads that snapshot with `app_menu_load_catalog` — it does **not**
+re-query `app_list` on every focus/Esc.
+
 ## Input
 
-`app_bind_key(app, SIM_KEY_*, handler, user)` auto-assigns a GPIO pin, maps the
-sim key, and calls `handler(app, user)` on press. Up to `APP_KIT_MAX_KEYS` (8)
-bindings per app.
+`app_bind_key(app, SIM_KEY_*, handler, user)` auto-assigns a unique GPIO pin,
+maps the sim key while the app is foreground, and calls `handler(app, user)` on
+press. Up to `APP_KIT_MAX_KEYS` (8) bindings per app. Background apps ignore
+keys and do not flush the display.
+
+## Switching apps
+
+| Call | Purpose |
+|------|---------|
+| `app_open(from, "name")` | Start/focus another app; suspends the caller |
+| `app_request_exit(app)` | Leave the current app (typical Esc/back) |
+
+Leaving a non-home app resumes `"launcher"` and remaps its keys. Esc on
+`info` / `counter` calls `app_request_exit`; the launcher uses `app_open` on
+Enter.
 
 ## Adding a builtin to the build
 
@@ -88,12 +122,13 @@ The simulator picks the startup app in [`sim/sim_main.c`](../sim/sim_main.c):
 app_install_manifest(counter_app_manifest, "counter");
 app_install_manifest(info_app_manifest, "info");
 app_install_manifest(launcher_app_manifest, "launcher");
-app_start("launcher");   /* <-- main app */
+app_kit_catalog_build("launcher");  /* launch list, once */
+app_start("launcher");              /* <-- main app */
 ```
 
 Change the string passed to `app_start(...)` to boot a different app (e.g.
 `app_start("counter")`). Install every builtin you want listed in the launcher
-before starting it.
+before `app_kit_catalog_build`, then start the home app.
 
 ## Lower-level APIs
 

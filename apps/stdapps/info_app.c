@@ -13,9 +13,14 @@ static void on_refresh(app_ctx_t* app, void* user) {
     refresh(app);
 }
 
+static void on_back(app_ctx_t* app, void* user) {
+    (void)user;
+    app_request_exit(app);
+}
+
 static void on_init(app_ctx_t* app) {
-    app_bind_key(app, SIM_KEY_ESCAPE, on_refresh, NULL);
     app_bind_key(app, SIM_KEY_ENTER, on_refresh, NULL);
+    app_bind_key(app, SIM_KEY_ESCAPE, on_back, NULL);
     refresh(app);
     APP_INFO("Info app ready");
 }

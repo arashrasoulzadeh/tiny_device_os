@@ -383,18 +383,41 @@ void task_sleep(uint32_t ticks) {
 void task_suspend(task_tcb_t* task) {
     scheduler_lock();
 
-    if (!task || task->state != TASK_STATE_READY) {
+    if (!task) {
         scheduler_unlock();
         return;
     }
 
-    task_list_remove(&g_scheduler.ready_list[task->priority], task);
+    switch (task->state) {
+        case TASK_STATE_READY:
+            task_list_remove(&g_scheduler.ready_list[task->priority], task);
+            break;
+        case TASK_STATE_BLOCKED:
+            /* Sleeping apps must leave the blocked list or they keep waking
+             * and stealing scheduler_step slots from the foreground app. */
+            task_list_remove(&g_scheduler.blocked_list, task);
+            task->wake_time = 0;
+            task->sleep_ticks = 0;
+            break;
+        case TASK_STATE_RUNNING:
+            /* Current task: fall through to mark suspended and switch away. */
+            break;
+        case TASK_STATE_SUSPENDED:
+            scheduler_unlock();
+            return;
+        default:
+            scheduler_unlock();
+            return;
+    }
+
     task->state = TASK_STATE_SUSPENDED;
 
     if (task == g_scheduler.current) {
         task_tcb_t* next = task_get_highest_ready();
-        if (next) {
+        if (next && next->priority != TASK_PRIO_IDLE) {
             context_switch(next);
+        } else {
+            switch_to_main();
         }
     }
 

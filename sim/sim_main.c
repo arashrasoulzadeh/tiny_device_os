@@ -21,6 +21,7 @@
 #include "bmp280_model.h"
 #include "sim_gpio.h"
 #include "app.h"
+#include "app_kit.h"
 
 // Key callback that forwards app keys to GPIO (ignores system keys)
 static void sim_key_to_gpio_cb(sim_key_t key, bool pressed, void* arg) {
@@ -209,6 +210,13 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Failed to install launcher app\n");
         return 1;
     }
+
+    /* Snapshot launchable apps once — launcher menu reads this, no per-visit refresh. */
+    if (app_kit_catalog_build("launcher") < 0) {
+        fprintf(stderr, "Failed to build app catalog\n");
+        return 1;
+    }
+
     if (app_start("launcher") != 0) {
         fprintf(stderr, "Failed to start launcher app\n");
         return 1;

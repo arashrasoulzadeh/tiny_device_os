@@ -18,10 +18,16 @@ static void on_dec(app_ctx_t* app, void* user) {
     APP_INFO("count=%d", g_count);
 }
 
+static void on_back(app_ctx_t* app, void* user) {
+    (void)user;
+    app_request_exit(app);
+}
+
 static void on_init(app_ctx_t* app) {
     app_bind_key(app, SIM_KEY_1, on_inc, NULL);
     app_bind_key(app, SIM_KEY_2, on_dec, NULL);
-    APP_INFO("Counter ready — press 1 / 2");
+    app_bind_key(app, SIM_KEY_ESCAPE, on_back, NULL);
+    APP_INFO("Counter ready — press 1 / 2, Esc to leave");
 }
 
 static void on_frame(app_ctx_t* app) {

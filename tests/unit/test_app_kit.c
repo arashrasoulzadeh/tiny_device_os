@@ -60,12 +60,28 @@ void test_app_textf_and_flush_do_not_crash(void) {
     memset(&ctx, 0, sizeof(ctx));
     TEST_ASSERT_EQUAL(0, app_display_init(&ctx.display, "/dev/display0"));
 
+    /* Not foreground: draw helpers are no-ops but must not crash. */
     app_clear(&ctx);
     app_text(&ctx, 0, 0, "Hello");
     app_textf(&ctx, 0, 8, "n=%d", 42);
     app_flush(&ctx);
     app_mark_dirty(&ctx);
     TEST_ASSERT_TRUE(app_is_dirty(&ctx));
+}
+
+void test_app_request_exit_stops_running_flag(void) {
+    app_ctx_t ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.running = true;
+    app_request_exit(&ctx);
+    TEST_ASSERT_FALSE(ctx.running);
+}
+
+void test_app_kit_is_foreground_false_without_focus(void) {
+    app_ctx_t ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    TEST_ASSERT_FALSE(app_kit_is_foreground(&ctx));
+    TEST_ASSERT_FALSE(app_kit_is_foreground(NULL));
 }
 
 void test_app_bind_key_succeeds_then_rejects_overflow(void) {
@@ -85,11 +101,67 @@ void test_app_bind_key_succeeds_then_rejects_overflow(void) {
     TEST_ASSERT_NOT_EQUAL(0, app_bind_key(&ctx, SIM_KEY_9, dummy_key, NULL));
 }
 
+void test_app_menu_move_and_select(void) {
+    app_menu_t menu;
+    app_menu_init(&menu, 16, 12);
+    TEST_ASSERT_EQUAL(0, app_menu_add(&menu, "a", "Alpha", "[USR]"));
+    TEST_ASSERT_EQUAL(0, app_menu_add(&menu, "b", "Beta", "[TOL]"));
+    TEST_ASSERT_EQUAL(0, app_menu_add(&menu, "c", "Gamma", "[GME]"));
+    TEST_ASSERT_EQUAL(3, menu.count);
+    TEST_ASSERT_EQUAL(0, menu.selected);
+
+    TEST_ASSERT_TRUE(app_menu_move(&menu, +1, 64));
+    TEST_ASSERT_EQUAL(1, menu.selected);
+    TEST_ASSERT_EQUAL_STRING("b", app_menu_selected(&menu)->id);
+
+    TEST_ASSERT_TRUE(app_menu_move(&menu, -1, 64));
+    TEST_ASSERT_EQUAL(0, menu.selected);
+    TEST_ASSERT_FALSE(app_menu_move(&menu, -1, 64));
+}
+
+void test_app_menu_load_catalog_uses_boot_snapshot(void) {
+    app_menu_t menu;
+    app_manifest_t* counter = NULL;
+    app_manifest_t* info = NULL;
+    app_manifest_t* launcher = NULL;
+    app_desc_t d_counter = {.name = "counter", .type = APP_TYPE_USER, .version = "1"};
+    app_desc_t d_info = {.name = "info", .type = APP_TYPE_TOOL, .version = "1"};
+    app_desc_t d_launch = {.name = "launcher", .type = APP_TYPE_SYSTEM, .version = "1"};
+
+    app_init();
+    app_kit_catalog_clear();
+
+    counter = app_kit_make_manifest(&d_counter, dummy_entry);
+    info = app_kit_make_manifest(&d_info, dummy_entry);
+    launcher = app_kit_make_manifest(&d_launch, dummy_entry);
+    TEST_ASSERT_NOT_NULL(counter);
+    TEST_ASSERT_NOT_NULL(info);
+    TEST_ASSERT_NOT_NULL(launcher);
+
+    TEST_ASSERT_EQUAL(0, app_install_manifest(counter, "counter"));
+    TEST_ASSERT_EQUAL(0, app_install_manifest(info, "info"));
+    TEST_ASSERT_EQUAL(0, app_install_manifest(launcher, "launcher"));
+
+    TEST_ASSERT_EQUAL(2, app_kit_catalog_build("launcher"));
+    TEST_ASSERT_EQUAL(2, app_kit_catalog_count());
+    TEST_ASSERT_NOT_NULL(app_kit_catalog_at(0));
+    TEST_ASSERT_EQUAL_STRING("[TOL]", app_type_tag(APP_TYPE_TOOL));
+
+    app_menu_init(&menu, 16, 12);
+    TEST_ASSERT_EQUAL(2, app_menu_load_catalog(&menu));
+    /* Second load must replace, not grow — catalog is the source of truth. */
+    TEST_ASSERT_EQUAL(2, app_menu_load_catalog(&menu));
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_app_kit_make_manifest_fills_fields);
     RUN_TEST(test_app_dirty_helpers);
     RUN_TEST(test_app_textf_and_flush_do_not_crash);
+    RUN_TEST(test_app_request_exit_stops_running_flag);
+    RUN_TEST(test_app_kit_is_foreground_false_without_focus);
     RUN_TEST(test_app_bind_key_succeeds_then_rejects_overflow);
+    RUN_TEST(test_app_menu_move_and_select);
+    RUN_TEST(test_app_menu_load_catalog_uses_boot_snapshot);
     return UNITY_END();
 }
