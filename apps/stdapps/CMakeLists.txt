@@ -1,6 +1,7 @@
 add_library(stdapps STATIC
     counter_app.c
     launcher_app.c
+    info_app.c
 )
 
 target_include_directories(stdapps PUBLIC

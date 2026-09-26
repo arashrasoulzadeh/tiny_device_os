@@ -108,8 +108,10 @@ static void demo_task_entry(void* arg) {
     }
 }
 
-// External reference to counter app manifest
+// External builtin app manifests (from APP_DEFINE)
 extern app_manifest_t* counter_app_manifest;
+extern app_manifest_t* launcher_app_manifest;
+extern app_manifest_t* info_app_manifest;
 
 int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -192,20 +194,27 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Failed to initialize app system\n");
         return 1;
     }
-    
-    // Install counter app (built-in manifest)
+
+    /* Install builtins, then start the home/launcher app.
+     * Main app is selected here via app_start("launcher"). */
     if (app_install_manifest(counter_app_manifest, "counter") != 0) {
         fprintf(stderr, "Failed to install counter app\n");
         return 1;
     }
-    
-    // Initialize counter app (runs setup, registers callbacks)
-    if (app_start("counter") != 0) {
-        fprintf(stderr, "Failed to start counter app\n");
+    if (app_install_manifest(info_app_manifest, "info") != 0) {
+        fprintf(stderr, "Failed to install info app\n");
         return 1;
     }
-    
-    printf("Counter app initialized\n");
+    if (app_install_manifest(launcher_app_manifest, "launcher") != 0) {
+        fprintf(stderr, "Failed to install launcher app\n");
+        return 1;
+    }
+    if (app_start("launcher") != 0) {
+        fprintf(stderr, "Failed to start launcher app\n");
+        return 1;
+    }
+
+    printf("Launcher started (main app)\n");
     fflush(stdout);
     
     while (g_running) {

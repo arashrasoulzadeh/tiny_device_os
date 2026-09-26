@@ -1,8 +1,9 @@
 # Architecture
 
-See `PLAN.md` for the full design rationale, locked decisions, and phased roadmap. This
-file is a short map of the codebase for orientation; keep it in sync per rule 10 in
-`PLAN.md`.
+See `PLAN.md` for the full design rationale, locked decisions, and phased roadmap.
+See `docs/agent-guide.md` for what is implemented versus still planned, and for
+the steps to add an app, a HAL function, or a unit test. This file is a short
+map of the codebase for orientation; keep it in sync per rule 10 in `PLAN.md`.
 
 ## Layers
 

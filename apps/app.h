@@ -23,10 +23,10 @@ typedef enum {
 } app_state_t;
 
 typedef enum {
-    APP_TYPE_SYSTEM = 0,
-    APP_TYPE_USER,
-    APP_TYPE_GAME,
-    APP_TYPE_TOOL
+    APP_TYPE_USER = 0, /* default; also means "no type override" in app_kit */
+    APP_TYPE_SYSTEM = 1,
+    APP_TYPE_GAME = 2,
+    APP_TYPE_TOOL = 3
 } app_type_t;
 
 typedef struct app_manifest {

@@ -2,6 +2,8 @@
 
 Instructions for AI coding agents (Claude Code, Cursor, Codex, etc.) working in this repo.
 See `PLAN.md` for the full architecture, phased roadmap, and locked design decisions.
+See `docs/agent-guide.md` for what is implemented today and how to add an app, a
+HAL call, or a unit test without rediscovering the tree.
 
 ## What this project is
 
@@ -64,13 +66,14 @@ by this simulator-first workflow unless you're specifically working on a board t
 - `hal/` — hardware abstraction interfaces (`include/`) and per-arch implementations (`arch/`).
 - `sim/` — SDL2/PortAudio-backed simulator: video, audio, storage, net, and per-device
   models (I2C/SPI register simulation, e.g. `sim_i2c.c`, `sim_spi.c`).
-- `drivers/`, `modules/`, `fs/`, `game/`, `apps/` — higher-level subsystems, most still
-  scaffolding per `PLAN.md`'s roadmap.
+- `drivers/`, `modules/`, `fs/`, `game/` — higher-level subsystems (see `PLAN.md`).
+- `apps/` — app runtime + **`app_kit.h`** (`APP_DEFINE`) for authoring; builtins in
+  `apps/stdapps/`. See `docs/apps.md`.
 - `tests/unit/` — fast host-only tests (Unity framework, no simulator init required).
 - `tests/integration/` — tests that exercise the simulator end-to-end.
 - `boards/` — per-board linker scripts, startup code, board-specific config.
 - `cmake/toolchain.cmake` — per-target (sim/ESP32/ESP8266/AVR/RP2040) compiler & dependency setup.
-- `docs/` — architecture and subsystem documentation.
+- `docs/` — architecture and subsystem documentation (`docs/apps.md` for writing apps).
 
 ## CI
 
