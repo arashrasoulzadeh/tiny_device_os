@@ -1,0 +1,3 @@
+# Point clangd at the CMake build directory (see CMAKE_EXPORT_COMPILE_COMMANDS).
+CompileFlags:
+  CompilationDatabase: build

@@ -36,6 +36,10 @@ int32_t hal_rtc_get_compensation(const hal_rtc_t* rtc);
 
 const char* hal_rtc_get_path(const hal_rtc_t* rtc);
 
+// Power management
+int hal_rtc_suspend(hal_rtc_t* rtc);
+int hal_rtc_resume(hal_rtc_t* rtc);
+
 #ifdef __cplusplus
 }
 #endif

@@ -60,8 +60,8 @@ void test_gpio_modes(void) {
     hal_gpio_close(gpio_pd);
 }
 
-static void gpio_irq_callback(hal_gpio_t* g, void* arg) {
-    (void)g;
+static void gpio_irq_callback(int pin, void* arg) {
+    (void)pin;
     *(int*)arg = 1;
 }
 

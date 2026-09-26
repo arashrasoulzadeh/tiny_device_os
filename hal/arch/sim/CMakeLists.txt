@@ -7,6 +7,12 @@ target_sources(hal PRIVATE
     hal_audio_sim.c
     hal_net_sim.c
     hal_storage_sim.c
+    hal_power_sim.c
+    hal_ble_sim.c
+    hal_wifi_sim.c
+    hal_adc_sim.c
+    hal_pwm_sim.c
+    hal_rtc_sim.c
 )
 
 target_include_directories(hal PRIVATE

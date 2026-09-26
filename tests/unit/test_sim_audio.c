@@ -16,9 +16,10 @@ void test_audio_init_cleanup(void) {
     sim_audio_cleanup();
 }
 
-static void audio_callback(void* buf, uint32_t frames, void* arg) {
+static void audio_callback(hal_audio_t* audio, void* buffer, size_t frames, void* arg) {
+    (void)audio;
     *(int*)arg = 1;
-    memset(buf, 0, frames * 4);
+    memset(buffer, 0, frames * 4);
 }
 
 void test_audio_callback(void) {

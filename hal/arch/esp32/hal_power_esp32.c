@@ -69,6 +69,22 @@ uint32_t hal_power_get_cpu_freq(const hal_power_t* power) {
     return power ? power->pm_config.max_freq_mhz : 240;
 }
 
+int hal_power_get_available_freqs(const hal_power_t* power, uint32_t* freqs, uint32_t* count) {
+    if (!power || !freqs || !count) return -1;
+    
+    // ESP32 available frequencies
+    static const uint32_t available_freqs[] = {240, 160, 80, 40, 20, 10};
+    uint32_t num_freqs = sizeof(available_freqs) / sizeof(available_freqs[0]);
+    
+    if (*count < num_freqs) {
+        return -1; // Buffer too small
+    }
+    
+    memcpy(freqs, available_freqs, num_freqs * sizeof(uint32_t));
+    *count = num_freqs;
+    return 0;
+}
+
 int hal_power_light_sleep(hal_power_t* power, uint32_t timeout_ms) {
     if (!power) return -1;
     

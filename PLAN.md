@@ -230,6 +230,22 @@ git commit -m "feat: new thing"  # FAILS if no test (TDD enforced)
 
 ---
 
+### StdApps: Standard Applications (Phase 4.5)
+
+Pre-built applications included in the OS image:
+
+| App | Description | Capabilities |
+|-----|-------------|--------------|
+| **counter** | Simple increment/decrement counter with UI | DISPLAY, EVENT |
+| **settings** | System settings (WiFi, display, power) | DISPLAY, NET, WIFI, POWER, CONFIG |
+| **fileman** | File manager for flash/SD | DISPLAY, FS, STORAGE |
+| **shell** | REPL for debugging, app management | DISPLAY, EVENT, APP_MGMT |
+| **demo** | Hardware test (GPIO, I2C, SPI, sensors) | GPIO, I2C, SPI, SENSOR |
+
+Build as `.ardmod` modules in `apps/stdapps/`, linked into OS image or loadable at runtime.
+
+---
+
 ### Phase 5: Game Engine (Months 9-12)
 
 | Tier | Features |

@@ -23,6 +23,10 @@ cd build
 ctest --test-dir build --output-on-failure
 ```
 
+IDE indexing (clangd / Go to Definition / Find References) needs `build/compile_commands.json`
+(emitted by `CMAKE_EXPORT_COMPILE_COMMANDS`). After the first configure, reload the window if
+symbols still won't resolve. Repo-root `.clangd` points clangd at `build/`.
+
 Host dependencies: SDL2, PortAudio.
 - macOS: `brew install sdl2 portaudio`
 - Linux: `apt-get install libsdl2-dev portaudio19-dev`

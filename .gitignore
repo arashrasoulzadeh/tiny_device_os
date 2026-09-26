@@ -18,6 +18,7 @@ Makefile
 *.swo
 *~
 .DS_Store
+compile_commands.json
 
 # Compiled objects
 *.o

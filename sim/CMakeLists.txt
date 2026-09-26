@@ -39,6 +39,7 @@ target_include_directories(sim PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_SOURCE_DIR}/hal/include
     ${CMAKE_SOURCE_DIR}/kernel
+    ${CMAKE_SOURCE_DIR}/apps
 )
 
 # Add SDL2 and PortAudio include directories if available
@@ -50,7 +51,7 @@ if(PORTAUDIO_INCLUDE_DIRS)
     target_include_directories(sim SYSTEM PUBLIC ${PORTAUDIO_INCLUDE_DIRS})
 endif()
 
-target_link_libraries(sim PUBLIC kernel hal)
+target_link_libraries(sim PUBLIC kernel hal apps stdapps)
 
 if(ARDUBOT_BUILD_SIM)
     add_subdirectory(models)

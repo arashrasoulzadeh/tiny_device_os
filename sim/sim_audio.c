@@ -1,21 +1,25 @@
 #include "sim_audio.h"
+#include "hal_audio.h"
 #include <SDL2/SDL.h>
 #include <stdlib.h>
 #include <stdio.h>
 
 static SDL_AudioDeviceID g_audio_device = 0;
-static sim_audio_callback_t g_callback = NULL;
-static void* g_callback_arg = NULL;
+static hal_audio_t* g_hal_audio = NULL;
 static uint32_t g_sample_rate = 44100;
 static uint16_t g_channels = 2;
-static float g_volume = 1.0f;
-static bool g_mute = false;
 
 static void audio_callback(void* userdata, Uint8* stream, int len) {
     (void)userdata;
-    if (g_callback) {
-        uint32_t frames = len / (g_channels * sizeof(int16_t));
-        g_callback(stream, frames, g_callback_arg);
+    if (g_hal_audio) {
+        size_t frame_bytes = g_channels * sizeof(int16_t);
+        uint32_t frames = len / frame_bytes;
+        int read_frames = hal_audio_read(g_hal_audio, stream, frames);
+        if (read_frames < (int)frames) {
+            // Fill remaining with silence
+            size_t written = read_frames * frame_bytes;
+            SDL_memset(stream + written, 0, len - written);
+        }
     } else {
         SDL_memset(stream, 0, len);
     }
@@ -24,8 +28,14 @@ static void audio_callback(void* userdata, Uint8* stream, int len) {
 int sim_audio_init(uint32_t sample_rate, uint16_t channels, uint16_t buffer_frames) {
     g_sample_rate = sample_rate;
     g_channels = channels;
-    g_volume = 1.0f;
-    g_mute = false;
+    
+    // Initialize SDL audio subsystem if not already initialized
+    if ((SDL_WasInit(SDL_INIT_AUDIO) & SDL_INIT_AUDIO) == 0) {
+        if (SDL_InitSubSystem(SDL_INIT_AUDIO) < 0) {
+            fprintf(stderr, "SDL_InitSubSystem(AUDIO) failed: %s\n", SDL_GetError());
+            return -1;
+        }
+    }
     
     SDL_AudioSpec want, have;
     SDL_zero(want);
@@ -50,11 +60,11 @@ void sim_audio_cleanup(void) {
         SDL_CloseAudioDevice(g_audio_device);
         g_audio_device = 0;
     }
+    g_hal_audio = NULL;
 }
 
-void sim_audio_set_callback(sim_audio_callback_t cb, void* arg) {
-    g_callback = cb;
-    g_callback_arg = arg;
+void sim_audio_set_hal_audio(hal_audio_t* audio) {
+    g_hal_audio = audio;
 }
 
 void sim_audio_start(void) {
@@ -70,19 +80,36 @@ void sim_audio_stop(void) {
 }
 
 int sim_audio_set_volume(float volume) {
-    g_volume = volume < 0.0f ? 0.0f : (volume > 1.0f ? 1.0f : volume);
-    return 0;
+    if (g_hal_audio) {
+        return hal_audio_set_volume(g_hal_audio, volume);
+    }
+    return -1;
 }
 
 float sim_audio_get_volume(void) {
-    return g_volume;
+    if (g_hal_audio) {
+        return hal_audio_get_volume(g_hal_audio);
+    }
+    return 1.0f;
 }
 
 int sim_audio_set_mute(bool mute) {
-    g_mute = mute;
-    return 0;
+    if (g_hal_audio) {
+        return hal_audio_set_mute(g_hal_audio, mute);
+    }
+    return -1;
 }
 
 bool sim_audio_get_mute(void) {
-    return g_mute;
+    if (g_hal_audio) {
+        return hal_audio_get_mute(g_hal_audio);
+    }
+    return false;
+}
+
+int sim_audio_set_callback(hal_audio_callback_t cb, void* arg) {
+    if (g_hal_audio) {
+        return hal_audio_set_callback(g_hal_audio, cb, arg);
+    }
+    return -1;
 }

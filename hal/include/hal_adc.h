@@ -52,6 +52,10 @@ void hal_adc_set_width(hal_adc_t* adc, adc_bits_width_t width);
 
 const char* hal_adc_get_path(const hal_adc_t* adc);
 
+// Power management
+int hal_adc_suspend(hal_adc_t* adc);
+int hal_adc_resume(hal_adc_t* adc);
+
 #ifdef __cplusplus
 }
 #endif

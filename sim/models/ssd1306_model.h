@@ -45,6 +45,9 @@ int ssd1306_model_write_data(const uint8_t* data, size_t len);
 
 void ssd1306_model_render(void);
 
+void ssd1306_model_clear(void);
+void ssd1306_model_draw_text(int x, int y, const char* text);
+
 #ifdef __cplusplus
 }
 #endif

@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include <setjmp.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,6 +45,12 @@ typedef struct task_ctrl_block {
     uint32_t wake_time;
     uint32_t sleep_ticks;
     
+    jmp_buf context;
+    bool context_valid;
+
+    /* Host (sim/unit-test) private-stack handle; unused on bare-metal targets. */
+    void* host_fiber;
+    
     struct task_ctrl_block* next;
     struct task_ctrl_block* prev;
 } task_tcb_t;
@@ -74,6 +81,10 @@ typedef struct {
     uint32_t idle_tick_count;
     power_mode_t power_mode;
     uint32_t deep_sleep_min_ticks;
+    
+    // For testing: caller context to return to
+    jmp_buf caller_context;
+    bool caller_context_valid;
 } scheduler_t;
 
 int scheduler_init(void);
@@ -113,6 +124,9 @@ void scheduler_exit_idle(void);
 
 // Deep sleep
 int scheduler_enter_deep_sleep(uint32_t timeout_ticks);
+
+// Testing: run one scheduling cycle, returns when task yields/blocks
+int scheduler_step(void);
 
 #ifdef __cplusplus
 }

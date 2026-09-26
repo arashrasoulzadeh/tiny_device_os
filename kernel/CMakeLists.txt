@@ -1,7 +1,9 @@
 add_library(kernel STATIC
     scheduler.c
+    host_stack.c
     os_time.c
     alloc.c
+    event.c
 )
 
 target_include_directories(kernel PUBLIC

@@ -33,6 +33,10 @@ void hal_ble_set_event_callback(hal_ble_t* ble, void (*cb)(int event, void* arg)
 
 const char* hal_ble_get_path(const hal_ble_t* ble);
 
+// Power management
+int hal_ble_suspend(hal_ble_t* ble);
+int hal_ble_resume(hal_ble_t* ble);
+
 #ifdef __cplusplus
 }
 #endif

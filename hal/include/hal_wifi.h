@@ -53,6 +53,10 @@ void hal_wifi_add_ap(const char* ssid, const char* password, int8_t rssi);
 
 const char* hal_wifi_get_path(const hal_wifi_t* wifi);
 
+// Power management
+int hal_wifi_suspend(hal_wifi_t* wifi);
+int hal_wifi_resume(hal_wifi_t* wifi);
+
 #ifdef __cplusplus
 }
 #endif

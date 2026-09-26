@@ -137,12 +137,6 @@ function(ardubot_setup_avr_toolchain)
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -mmcu=atmega2560 -DF_CPU=16000000UL -DARDUBOT_TARGET_AVR=1")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mmcu=atmega2560 -DF_CPU=16000000UL -DARDUBOT_TARGET_AVR=1")
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -mmcu=atmega2560 -Wl,--gc-sections")
-    
-    # AVR size check
-    add_custom_target(check-size
-        COMMAND avr-size -C -d --mcu=atmega2560 $<TARGET_FILE:ardubot-firmware>
-        COMMENT "Checking AVR firmware size"
-    )
 endfunction()
 
 # Select toolchain based on build options

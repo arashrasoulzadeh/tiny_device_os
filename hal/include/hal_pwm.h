@@ -53,6 +53,10 @@ void hal_pwm_disable(hal_pwm_t* pwm, int channel);
 
 const char* hal_pwm_get_path(const hal_pwm_t* pwm);
 
+// Power management
+int hal_pwm_suspend(hal_pwm_t* pwm);
+int hal_pwm_resume(hal_pwm_t* pwm);
+
 #ifdef __cplusplus
 }
 #endif

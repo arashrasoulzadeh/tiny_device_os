@@ -27,7 +27,7 @@ typedef enum {
 
 typedef struct hal_gpio hal_gpio_t;
 
-typedef void (*hal_gpio_callback_t)(hal_gpio_t* gpio, void* arg);
+typedef void (*hal_gpio_callback_t)(int pin, void* arg);
 
 hal_gpio_t* hal_gpio_open(const char* path, hal_gpio_mode_t mode);
 void hal_gpio_close(hal_gpio_t* gpio);

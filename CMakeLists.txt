@@ -5,6 +5,9 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
+# Emit compile_commands.json so clangd / IDE indexing can resolve includes & references.
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 if(CMAKE_C_COMPILER_ID STREQUAL "GNU" OR CMAKE_C_COMPILER_ID STREQUAL "Clang")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -Wextra -Wpedantic -Werror -fno-common -ffunction-sections -fdata-sections")
     set(CMAKE_C_FLAGS_DEBUG "-Og -g3 -ggdb")

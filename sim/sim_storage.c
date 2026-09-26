@@ -66,41 +66,48 @@ void sim_storage_cleanup(void) {
     }
 }
 
-static int do_read(int fd, uint32_t offset, void* buffer, size_t size) {
+#define FLASH_SIZE (4 * 1024 * 1024)
+#define SD_SIZE (32 * 1024 * 1024)
+
+static int do_read(int fd, uint32_t offset, void* buffer, size_t size, uint32_t max_size) {
     if (fd < 0 || !buffer) return -1;
+    if (offset + size > max_size) return -1;
     if (lseek(fd, offset, SEEK_SET) < 0) return -1;
     return read(fd, buffer, size) == (ssize_t)size ? 0 : -1;
 }
 
-static int do_write(int fd, uint32_t offset, const void* buffer, size_t size) {
+static int do_write(int fd, uint32_t offset, const void* buffer, size_t size, uint32_t max_size) {
     if (fd < 0 || !buffer) return -1;
+    if (offset + size > max_size) return -1;
     if (lseek(fd, offset, SEEK_SET) < 0) return -1;
     return write(fd, buffer, size) == (ssize_t)size ? 0 : -1;
 }
 
 int sim_storage_flash_read(uint32_t offset, void* buffer, size_t size) {
-    return do_read(g_flash_fd, offset, buffer, size);
+    return do_read(g_flash_fd, offset, buffer, size, FLASH_SIZE);
 }
 
 int sim_storage_flash_write(uint32_t offset, const void* buffer, size_t size) {
-    return do_write(g_flash_fd, offset, buffer, size);
+    return do_write(g_flash_fd, offset, buffer, size, FLASH_SIZE);
 }
 
 int sim_storage_flash_erase(uint32_t offset, size_t size) {
     if (g_flash_fd < 0) return -1;
-    uint8_t* buf = calloc(1, size);
+    if (offset + size > FLASH_SIZE) return -1;
+    uint8_t* buf = malloc(size);
     if (!buf) return -1;
-    int ret = do_write(g_flash_fd, offset, buf, size);
+    memset(buf, 0xFF, size);
+    int ret = do_write(g_flash_fd, offset, buf, size, FLASH_SIZE);
     free(buf);
     return ret;
 }
 
 int sim_storage_sd_read(uint32_t offset, void* buffer, size_t size) {
-    return do_read(g_sd_fd, offset, buffer, size);
+    return do_read(g_sd_fd, offset, buffer, size, SD_SIZE);
 }
 
 int sim_storage_sd_write(uint32_t offset, const void* buffer, size_t size) {
-    return do_write(g_sd_fd, offset, buffer, size);
+    return do_write(g_sd_fd, offset, buffer, size, SD_SIZE);
 }
 
 bool sim_storage_flash_exists(void) {

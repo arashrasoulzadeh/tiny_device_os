@@ -16,6 +16,17 @@ struct hal_gpio {
 
 static int g_next_pin = 0;
 
+int extract_pin_from_path(const char* path) {
+    // Extract pin number from path like "/dev/gpio1" -> 1
+    if (!path) return -1;
+    const char* pin_str = strrchr(path, 'o'); // Find last 'o' in "gpio"
+    if (pin_str) {
+        pin_str++; // Move past 'o'
+        return atoi(pin_str);
+    }
+    return -1;
+}
+
 hal_gpio_t* hal_gpio_open(const char* path, hal_gpio_mode_t mode) {
     hal_gpio_t* gpio = calloc(1, sizeof(hal_gpio_t));
     if (!gpio) return NULL;
@@ -23,7 +34,10 @@ hal_gpio_t* hal_gpio_open(const char* path, hal_gpio_mode_t mode) {
     strncpy(gpio->path, path, sizeof(gpio->path) - 1);
     gpio->mode = mode;
     gpio->level = false;
-    gpio->pin_number = g_next_pin++;
+    gpio->pin_number = extract_pin_from_path(path);
+    if (gpio->pin_number < 0) {
+        gpio->pin_number = g_next_pin++;
+    }
     gpio->irq_enabled = false;
     
     return gpio;

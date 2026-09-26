@@ -26,17 +26,27 @@ typedef struct {
 
 static bmp280_t g_bmp280 = {0};
 static bool g_initialized = false;
+static uint8_t g_current_reg = BMP280_REG_ID;
 
 static int bmp280_i2c_write(uint8_t addr, uint16_t reg, const uint8_t* data, size_t len, void* arg) {
     (void)arg;
     if (addr != BMP280_I2C_ADDR) return -1;
     if (len == 0) return 0;
     
-    // The first byte is the register, rest are values
-    if (len >= 1) {
-        uint8_t value = data[0];
+    uint8_t write_reg = (uint8_t)reg;
+    size_t data_offset = 0;
+    
+    if (reg == 0 && len > 0) {
+        write_reg = data[0];
+        data_offset = 1;
+    }
+    
+    g_current_reg = write_reg;
+    
+    if (len > data_offset) {
+        uint8_t value = data[data_offset];
         
-        switch (reg) {
+        switch (write_reg) {
             case BMP280_REG_RESET:
                 if (value == 0xB6) {
                     bmp280_model_set_temperature(25.0f);
@@ -58,12 +68,11 @@ static int bmp280_i2c_write(uint8_t addr, uint16_t reg, const uint8_t* data, siz
 
 static int bmp280_i2c_read(uint8_t addr, uint16_t reg, uint8_t* data, size_t len, void* arg) {
     (void)arg;
-    (void)reg;
     if (addr != BMP280_I2C_ADDR || !data || len == 0) return -1;
     
     data[0] = 0;
     
-    static uint8_t current_reg = 0;
+    uint8_t current_reg = (reg == 0) ? g_current_reg : (uint8_t)reg;
     
     if (len == 1) {
         switch (current_reg) {
@@ -124,8 +133,7 @@ static int bmp280_i2c_read(uint8_t addr, uint16_t reg, uint8_t* data, size_t len
                 break;
         }
     } else if (len > 1) {
-        uint8_t reg = data[0];
-        current_reg = reg;
+        current_reg = g_current_reg;
         for (size_t i = 0; i < len; i++) {
             bmp280_i2c_read(addr, current_reg, &data[i], 1, arg);
             current_reg++;
@@ -136,9 +144,7 @@ static int bmp280_i2c_read(uint8_t addr, uint16_t reg, uint8_t* data, size_t len
 }
 
 void bmp280_model_register(void) {
-    if (g_initialized) return;
-    
-    g_bmp280.dig_T1 = 27504;
+    g_bmp280.dig_T1 = 27392;
     g_bmp280.dig_T2 = 26435;
     g_bmp280.dig_T3 = -1000;
     g_bmp280.dig_P1 = 36477;

@@ -3,17 +3,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include "hal_gpio.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef enum {
-    HAL_GPIO_IRQ_NONE = 0,
-    HAL_GPIO_IRQ_RISING,
-    HAL_GPIO_IRQ_FALLING,
-    HAL_GPIO_IRQ_BOTH
-} hal_gpio_irq_t;
 
 typedef struct hal_power hal_power_t;
 
@@ -23,6 +17,9 @@ void hal_power_close(hal_power_t* power);
 int hal_power_init(hal_power_t* power);
 int hal_power_set_cpu_freq(hal_power_t* power, uint32_t freq_mhz);
 uint32_t hal_power_get_cpu_freq(const hal_power_t* power);
+
+// CPU frequency scaling - get available frequencies
+int hal_power_get_available_freqs(const hal_power_t* power, uint32_t* freqs, uint32_t* count);
 
 int hal_power_light_sleep(hal_power_t* power, uint32_t timeout_ms);
 int hal_power_deep_sleep(hal_power_t* power, uint32_t timeout_ms);

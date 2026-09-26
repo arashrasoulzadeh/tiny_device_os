@@ -127,20 +127,6 @@ int hal_power_add_uart_wake(hal_power_t* power, int uart_num) {
     return 0;
 }
 
-typedef enum {
-    ESP_SLEEP_WAKEUP_UNDEFINED = 0,
-    ESP_SLEEP_WAKEUP_TIMER,
-    ESP_SLEEP_WAKEUP_GPIO,
-    ESP_SLEEP_WAKEUP_UART,
-    ESP_SLEEP_WAKEUP_TOUCHPAD,
-    ESP_SLEEP_WAKEUP_EXT0,
-    ESP_SLEEP_WAKEUP_EXT1,
-    ESP_SLEEP_WAKEUP_ULP,
-    ESP_SLEEP_WAKEUP_BT,
-    ESP_SLEEP_WAKEUP_WIFI,
-    ESP_SLEEP_WAKEUP_ALL,
-} esp_sleep_wakeup_cause_t;
-
 esp_sleep_wakeup_cause_t hal_power_get_wake_cause(hal_power_t* power) {
     if (!power) return ESP_SLEEP_WAKEUP_UNDEFINED;
     power->last_wake_cause = esp_sleep_get_wakeup_cause();
