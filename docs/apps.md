@@ -1,7 +1,8 @@
 # Writing apps
 
-Prefer **`app_kit.h`** for new apps. It removes boilerplate (manifest, entry loop,
-GPIO key wiring) so an app is mostly init + frame + key handlers.
+Prefer **`app_kit.h`**. Full API and component map: [`docs/appkit.md`](appkit.md).
+
+This page is the short path: minimal example, install, and which app boots.
 
 ## Minimal app
 
@@ -61,26 +62,32 @@ Reference: `apps/stdapps/counter_app.c`.
 
 ## Screen helpers
 
-| Call | Purpose |
-|------|---------|
-| `app_mark_dirty` / `app_is_dirty` / `app_clear_dirty` | Skip redraw when nothing changed |
-| `app_clear` | Clear framebuffer |
-| `app_text` / `app_textf` | Draw text (printf-style) |
-| `app_flush` | Present + clear dirty |
+UI drawing lives in [`apps/ui/components/`](../apps/ui/components/)
+(`canvas.h`, `menu.h`, `catalog.h`). `app_kit.h` re-exports them as an umbrella.
+
+| Call | Purpose | Header |
+|------|---------|--------|
+| `app_mark_dirty` / `app_is_dirty` / `app_clear_dirty` | Skip redraw when nothing changed | `canvas.h` |
+| `app_clear` / `app_text` / `app_textf` / `app_flush` | Framebuffer draw | `canvas.h` |
 
 ## Menu helpers
 
-| Call | Purpose |
-|------|---------|
-| `app_menu_init` / `app_menu_add` | Build a vertical list |
-| `app_menu_move` | Up/down + scroll into view |
-| `app_menu_selected` | Current item |
-| `app_menu_draw` | Title + rows + optional help line |
-| `app_type_tag` | `"[SYS]"` / `"[USR]"` / … |
+| Call | Purpose | Header |
+|------|---------|--------|
+| `app_menu_init` / `app_menu_add` | Build a vertical list | `menu.h` |
+| `app_menu_move` | Up/down + dirty; pass key `user` through | `menu.h` |
+| `APP_MENU_ONE_UP` / `APP_MENU_ONE_DOWN` | Deltas for `app_menu_move` | `menu.h` |
+| `app_menu_selected` | Current item | `menu.h` |
+| `app_menu_draw` | Title + rows + optional help (uses `APP_DISPLAY_HEIGHT`) | `menu.h` |
+| `app_type_tag` | `"[SYS]"` / `"[USR]"` / … | `catalog.h` |
+
+Panel size is compile-time: `APP_DISPLAY_WIDTH` / `APP_DISPLAY_HEIGHT`
+([`display.h`](../apps/ui/components/display.h)), set by CMake
+(`ARDUBOT_DISPLAY_WIDTH` / `ARDUBOT_DISPLAY_HEIGHT`, default 128×64).
 
 ## App catalog (boot)
 
-After installing builtins, call once:
+After installing builtins, call once (`catalog.h`):
 
 ```c
 app_kit_catalog_build("launcher");  /* excludes home app */

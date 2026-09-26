@@ -68,12 +68,14 @@ by this simulator-first workflow unless you're specifically working on a board t
   models (I2C/SPI register simulation, e.g. `sim_i2c.c`, `sim_spi.c`).
 - `drivers/`, `modules/`, `fs/`, `game/` — higher-level subsystems (see `PLAN.md`).
 - `apps/` — app runtime + **`app_kit.h`** (`APP_DEFINE`) for authoring; builtins in
-  `apps/stdapps/`. See `docs/apps.md`.
+  `apps/stdapps/`; UI under `apps/ui/components/`. See `docs/appkit.md` and
+  `docs/apps.md`.
 - `tests/unit/` — fast host-only tests (Unity framework, no simulator init required).
 - `tests/integration/` — tests that exercise the simulator end-to-end.
 - `boards/` — per-board linker scripts, startup code, board-specific config.
 - `cmake/toolchain.cmake` — per-target (sim/ESP32/ESP8266/AVR/RP2040) compiler & dependency setup.
-- `docs/` — architecture and subsystem documentation (`docs/apps.md` for writing apps).
+- `docs/` — architecture and subsystem documentation (`docs/appkit.md` for the kit,
+  `docs/apps.md` for the short builtin recipe).
 
 ## CI
 

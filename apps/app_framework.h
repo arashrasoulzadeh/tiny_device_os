@@ -21,6 +21,7 @@
 #include "hal_uart.h"
 #include "ssd1306_model.h"
 #include "bmp280_model.h"
+#include "display.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -121,7 +122,7 @@ int app_run_with_lifecycle(const app_lifecycle_t* lifecycle);
 // DISPLAY HELPERS
 // ============================================================================
 
-// Simple display wrapper using SSD1306 model
+// Simple display wrapper using the build-time panel size
 typedef struct {
     bool initialized;
     uint16_t width;
@@ -132,8 +133,8 @@ static inline int app_display_init(app_display_t* disp, const char* dev_path) {
     (void)dev_path;
     if (!disp) return -1;
     ssd1306_model_register();
-    disp->width = SSD1306_WIDTH;
-    disp->height = SSD1306_HEIGHT;
+    disp->width = APP_DISPLAY_WIDTH;
+    disp->height = APP_DISPLAY_HEIGHT;
     disp->initialized = true;
     return 0;
 }

@@ -3,20 +3,6 @@
 static app_menu_t g_menu;
 static bool g_menu_ready;
 
-static void on_up(app_ctx_t* app, void* user) {
-    (void)user;
-    if (app_menu_move(&g_menu, -1, SSD1306_HEIGHT)) {
-        app_mark_dirty(app);
-    }
-}
-
-static void on_down(app_ctx_t* app, void* user) {
-    (void)user;
-    if (app_menu_move(&g_menu, +1, SSD1306_HEIGHT)) {
-        app_mark_dirty(app);
-    }
-}
-
 static void on_select(app_ctx_t* app, void* user) {
     const app_menu_item_t* item = app_menu_selected(&g_menu);
     (void)user;
@@ -30,8 +16,7 @@ static void on_select(app_ctx_t* app, void* user) {
 }
 
 static void on_init(app_ctx_t* app) {
-    app_bind_key(app, SIM_KEY_UP, on_up, NULL);
-    app_bind_key(app, SIM_KEY_DOWN, on_down, NULL);
+    app_menu_bind_nav(app, &g_menu);
     app_bind_key(app, SIM_KEY_ENTER, on_select, NULL);
 
     /* Catalog is built once at OS boot; load into the menu a single time. */
@@ -49,7 +34,7 @@ static void on_frame(app_ctx_t* app) {
     if (!app_is_dirty(app)) {
         return;
     }
-    app_menu_draw(app, &g_menu, SSD1306_HEIGHT, "ArdubotOS Launcher", "Up/Dn Enter");
+    app_menu_draw(app, &g_menu, "ArdubotOS Launcher", "Up/Dn Enter");
 }
 
 APP_DEFINE(launcher_app, "launcher", .version = "1.0.0", .author = "ArdubotOS",

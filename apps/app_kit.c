@@ -32,56 +32,6 @@ bool app_kit_is_foreground(const app_ctx_t* app) {
     return app != NULL && app == g_fg;
 }
 
-void app_mark_dirty(app_ctx_t* app) {
-    if (app) {
-        app->dirty = true;
-    }
-}
-
-void app_clear_dirty(app_ctx_t* app) {
-    if (app) {
-        app->dirty = false;
-    }
-}
-
-bool app_is_dirty(const app_ctx_t* app) {
-    return app ? app->dirty : false;
-}
-
-void app_clear(app_ctx_t* app) {
-    if (!app || !app_kit_is_foreground(app)) {
-        return;
-    }
-    app_display_clear(&app->display);
-}
-
-void app_text(app_ctx_t* app, int x, int y, const char* text) {
-    if (!app || !text || !app_kit_is_foreground(app)) {
-        return;
-    }
-    app_display_text(&app->display, x, y, text);
-}
-
-void app_textf(app_ctx_t* app, int x, int y, const char* fmt, ...) {
-    char buf[96];
-    va_list args;
-    if (!app || !fmt || !app_kit_is_foreground(app)) {
-        return;
-    }
-    va_start(args, fmt);
-    vsnprintf(buf, sizeof(buf), fmt, args);
-    va_end(args);
-    app_display_text(&app->display, x, y, buf);
-}
-
-void app_flush(app_ctx_t* app) {
-    if (!app || !app_kit_is_foreground(app)) {
-        return;
-    }
-    app_display_flush(&app->display);
-    app_clear_dirty(app);
-}
-
 static void kit_key_trampoline(int pin, void* arg) {
     app_key_binding_t* binding = (app_key_binding_t*)arg;
     (void)pin;
@@ -123,201 +73,19 @@ int app_bind_key(app_ctx_t* app, sim_key_t key, app_key_fn_t fn, void* user) {
     return 0;
 }
 
+static void kit_back_trampoline(app_ctx_t* app, void* user) {
+    (void)user;
+    app_request_exit(app);
+}
+
+int app_bind_back(app_ctx_t* app) {
+    return app_bind_key(app, SIM_KEY_ESCAPE, kit_back_trampoline, NULL);
+}
+
 void app_request_exit(app_ctx_t* app) {
     if (app) {
         app->running = false;
     }
-}
-
-static app_catalog_entry_t g_catalog[APP_KIT_CATALOG_MAX];
-static int g_catalog_count = 0;
-
-void app_kit_catalog_clear(void) {
-    g_catalog_count = 0;
-    memset(g_catalog, 0, sizeof(g_catalog));
-}
-
-int app_kit_catalog_build(const char* exclude_name) {
-    app_t* apps[APP_KIT_CATALOG_MAX];
-    size_t count = 0;
-
-    app_kit_catalog_clear();
-
-    if (app_list(apps, APP_KIT_CATALOG_MAX, &count) != 0) {
-        return -1;
-    }
-
-    for (size_t i = 0; i < count && g_catalog_count < APP_KIT_CATALOG_MAX; i++) {
-        if (!apps[i] || !apps[i]->name) {
-            continue;
-        }
-        if (exclude_name && strcmp(apps[i]->name, exclude_name) == 0) {
-            continue;
-        }
-        g_catalog[g_catalog_count].name = apps[i]->name;
-        g_catalog[g_catalog_count].type = apps[i]->type;
-        g_catalog_count++;
-    }
-
-    return g_catalog_count;
-}
-
-int app_kit_catalog_count(void) {
-    return g_catalog_count;
-}
-
-const app_catalog_entry_t* app_kit_catalog_at(int index) {
-    if (index < 0 || index >= g_catalog_count) {
-        return NULL;
-    }
-    return &g_catalog[index];
-}
-
-const char* app_type_tag(app_type_t type) {
-    switch (type) {
-        case APP_TYPE_SYSTEM:
-            return "[SYS]";
-        case APP_TYPE_USER:
-            return "[USR]";
-        case APP_TYPE_GAME:
-            return "[GME]";
-        case APP_TYPE_TOOL:
-            return "[TOL]";
-        default:
-            return "";
-    }
-}
-
-void app_menu_init(app_menu_t* menu, int start_y, int row_h) {
-    if (!menu) {
-        return;
-    }
-    memset(menu, 0, sizeof(*menu));
-    menu->start_y = start_y > 0 ? start_y : 16;
-    menu->row_h = row_h > 0 ? row_h : 12;
-}
-
-void app_menu_clear(app_menu_t* menu) {
-    if (!menu) {
-        return;
-    }
-    menu->count = 0;
-    menu->selected = 0;
-    menu->first_visible = 0;
-}
-
-int app_menu_add(app_menu_t* menu, const char* id, const char* label, const char* tag) {
-    if (!menu || !id || !label || menu->count >= APP_KIT_MENU_MAX) {
-        return -1;
-    }
-    menu->items[menu->count].id = id;
-    menu->items[menu->count].label = label;
-    menu->items[menu->count].tag = tag;
-    menu->count++;
-    return 0;
-}
-
-int app_menu_load_catalog(app_menu_t* menu) {
-    if (!menu) {
-        return -1;
-    }
-    app_menu_clear(menu);
-    for (int i = 0; i < g_catalog_count; i++) {
-        const app_catalog_entry_t* e = &g_catalog[i];
-        if (app_menu_add(menu, e->name, e->name, app_type_tag(e->type)) != 0) {
-            break;
-        }
-    }
-    return menu->count;
-}
-
-static int app_menu_visible_rows(const app_menu_t* menu, int display_h) {
-    if (!menu || menu->row_h <= 0) {
-        return 0;
-    }
-    int rows = (display_h - menu->start_y) / menu->row_h;
-    if (rows < 0) {
-        rows = 0;
-    }
-    if (rows > menu->count) {
-        rows = menu->count;
-    }
-    return rows;
-}
-
-bool app_menu_move(app_menu_t* menu, int delta, int display_h) {
-    int visible;
-    if (!menu || menu->count <= 0 || delta == 0) {
-        return false;
-    }
-
-    int next = menu->selected + delta;
-    if (next < 0) {
-        next = 0;
-    }
-    if (next >= menu->count) {
-        next = menu->count - 1;
-    }
-    if (next == menu->selected) {
-        return false;
-    }
-
-    menu->selected = next;
-    visible = app_menu_visible_rows(menu, display_h);
-    if (visible <= 0) {
-        return true;
-    }
-    if (menu->selected < menu->first_visible) {
-        menu->first_visible = menu->selected;
-    } else if (menu->selected >= menu->first_visible + visible) {
-        menu->first_visible = menu->selected - visible + 1;
-    }
-    return true;
-}
-
-const app_menu_item_t* app_menu_selected(const app_menu_t* menu) {
-    if (!menu || menu->selected < 0 || menu->selected >= menu->count) {
-        return NULL;
-    }
-    return &menu->items[menu->selected];
-}
-
-void app_menu_draw(app_ctx_t* app, app_menu_t* menu, int display_h, const char* title,
-                   const char* help) {
-    int visible;
-    if (!app || !menu) {
-        return;
-    }
-
-    visible = app_menu_visible_rows(menu, display_h);
-
-    app_clear(app);
-    if (title) {
-        app_text(app, 0, 0, title);
-    }
-
-    for (int i = 0; i < visible; i++) {
-        int idx = menu->first_visible + i;
-        int y;
-        if (idx < 0 || idx >= menu->count) {
-            break;
-        }
-        y = menu->start_y + i * menu->row_h;
-        app_textf(app, 0, y, "%c %s", (idx == menu->selected) ? '>' : ' ',
-                  menu->items[idx].label ? menu->items[idx].label : "?");
-        if (menu->items[idx].tag) {
-            app_text(app, 72, y, menu->items[idx].tag);
-        }
-    }
-
-    if (help) {
-        int help_y = menu->start_y + visible * menu->row_h;
-        if (help_y < display_h - 8) {
-            app_text(app, 0, help_y, help);
-        }
-    }
-
-    app_flush(app);
 }
 
 int app_open(app_ctx_t* from, const char* name) {
@@ -333,7 +101,6 @@ int app_open(app_ctx_t* from, const char* name) {
     }
 
     if (app_suspend(from->desc->name) != 0) {
-        /* Child already started; best-effort leave it running. */
         APP_WARN("app_open: failed to suspend %s", from->desc->name);
     }
 
@@ -464,7 +231,6 @@ void app_kit_run(const app_desc_t* desc) {
 
     if (desc->on_init) {
         desc->on_init(&ctx);
-        /* Bindings registered in on_init — claim keys now that we are focused. */
         app_kit_remap_keys(&ctx);
     }
 

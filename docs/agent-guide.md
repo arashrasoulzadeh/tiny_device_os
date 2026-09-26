@@ -15,10 +15,10 @@ Implemented and exercised by host tests:
   `hal/arch/sim/` plus SDL/device models in `sim/`.
 - Board backends under `hal/arch/{esp32,esp8266,avr}/` exist as per-arch files;
   they are not the day-to-day development target.
-- App runtime: manifests, **`app_kit`** (`APP_DEFINE`, dirty redraw, key bind),
-  plus lower-level helpers (`apps/app_kit.h`, `apps/app_framework.h`, `apps/app.c`).
-  Authoring guide: `docs/apps.md`.
-- Built-in apps: `apps/stdapps/counter_app.c` (kit example), `apps/stdapps/launcher_app.c`.
+- App runtime: manifests, **`app_kit`** (`APP_DEFINE`, focus, key bind, open/exit),
+  plus UI components under `apps/ui/components/` (`canvas`, `screen`, `menu`,
+  `catalog`, `display`). Guides: `docs/appkit.md`, `docs/apps.md`.
+- Built-in apps: `apps/stdapps/counter_app.c`, `info_app.c`, `launcher_app.c`.
 - VFS, LittleFS/FatFS glue, config store, OTA stubs under `fs/`.
 - Driver ops (`probe`/`open`/`read`/`write`/`ioctl`) in `drivers/driver.h`.
 - Simulator CLI: headless mode, `--test=all`, JUnit, coverage

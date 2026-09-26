@@ -1,8 +1,8 @@
 #include "device_info.h"
 
 #include "app.h"
+#include "display.h"
 #include "scheduler.h"
-#include "ssd1306_model.h"
 
 #include <string.h>
 
@@ -54,8 +54,8 @@ int device_info_query(device_info_t* out) {
     out->os_version = ARDUBOT_VERSION_STR;
     out->target = device_target_name();
     out->arch = device_arch_name();
-    out->display_w = SSD1306_WIDTH;
-    out->display_h = SSD1306_HEIGHT;
+    out->display_w = APP_DISPLAY_WIDTH;
+    out->display_h = APP_DISPLAY_HEIGHT;
     out->uptime_ms = scheduler_get_tick_count();
 
     app_t* apps[APP_MAX];
