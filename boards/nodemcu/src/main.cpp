@@ -478,6 +478,7 @@ void setup() {
 #if defined(ARDUBOT_TARGET_ESP8266) && ARDUBOT_WIFI_HAS_CREDS
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
+  WiFi.setSleepMode(WIFI_NONE_SLEEP); /* modem sleep blanks the OLED */
   WiFi.setAutoReconnect(true);
   WiFi.begin(ARDUBOT_WIFI_SSID, ARDUBOT_WIFI_PASSWORD);
   Serial.printf("WiFi connecting to %s\n", ARDUBOT_WIFI_SSID);
@@ -486,6 +487,7 @@ void setup() {
 #endif
 
   Wire.begin(ARDUBOT_LCD_SDA_GPIO, ARDUBOT_LCD_SCL_GPIO);
+  Wire.setClock(400000);
   if (!display.begin()) {
     Serial.println(F("SSD1306 init failed — check wiring / address"));
     for (;;) {

@@ -27,6 +27,8 @@ uint32_t* sim_video_get_pixels(void);
 int sim_video_get_width(void);
 int sim_video_get_height(void);
 
+bool sim_key_is_system(sim_key_t key);
+
 #ifdef __cplusplus
 }
 #endif

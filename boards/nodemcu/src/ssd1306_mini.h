@@ -93,34 +93,36 @@ class Ssd1306 {
   }
 
   void display() {
-    const size_t nbytes = (size_t)width_ * (size_t)pages_;
-    /* Same pixels as last push — leave the panel alone so it does not flash. */
-    if (memcmp(fb_, sent_, nbytes) == 0) {
-      return;
-    }
-
-    cmd(0x21);  // column addr
-    cmd(0);
-    cmd((uint8_t)(width_ - 1));
-    cmd(0x22);  // page addr
-    cmd(0);
-    cmd((uint8_t)(pages_ - 1));
-
-    size_t off = 0;
-    while (off < nbytes) {
-      Wire.beginTransmission(addr_);
-      Wire.write(0x40);  // data
-      size_t chunk = nbytes - off;
-      if (chunk > 16) {
-        chunk = 16;
+    /* Push only pages that changed. A full-frame I2C rewrite scans as a flash. */
+    for (uint8_t page = 0; page < pages_; page++) {
+      uint8_t* row = fb_ + (size_t)page * width_;
+      uint8_t* prev = sent_ + (size_t)page * width_;
+      if (memcmp(row, prev, width_) == 0) {
+        continue;
       }
-      for (size_t i = 0; i < chunk; i++) {
-        Wire.write(fb_[off + i]);
+      cmd(0x21);  // column addr
+      cmd(0);
+      cmd((uint8_t)(width_ - 1));
+      cmd(0x22);  // single page
+      cmd(page);
+      cmd(page);
+
+      size_t off = 0;
+      while (off < width_) {
+        Wire.beginTransmission(addr_);
+        Wire.write(0x40);  // data
+        size_t chunk = (size_t)width_ - off;
+        if (chunk > 16) {
+          chunk = 16;
+        }
+        for (size_t i = 0; i < chunk; i++) {
+          Wire.write(row[off + i]);
+        }
+        Wire.endTransmission();
+        off += chunk;
       }
-      Wire.endTransmission();
-      off += chunk;
+      memcpy(prev, row, width_);
     }
-    memcpy(sent_, fb_, nbytes);
   }
 
  private:

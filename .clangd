@@ -1,3 +1,7 @@
-# Point clangd at the CMake build directory (see CMAKE_EXPORT_COMPILE_COMMANDS).
+# Point clangd at the host simulator compilation database.
+# `build/compile_commands.json` is empty; `make` writes the real one under build/sim/Debug.
+# -Ihal/include covers arch sources (ESP8266/ESP32) that the sim build does not compile.
 CompileFlags:
-  CompilationDatabase: build
+  CompilationDatabase: build/sim/Debug
+  Add:
+    - -Ihal/include

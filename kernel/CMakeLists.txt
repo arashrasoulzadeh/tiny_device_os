@@ -4,6 +4,7 @@ add_library(kernel STATIC
     os_time.c
     alloc.c
     event.c
+    power.c
 )
 
 target_include_directories(kernel PUBLIC

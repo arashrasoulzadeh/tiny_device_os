@@ -307,3 +307,14 @@ int sim_video_get_width(void) {
 int sim_video_get_height(void) {
     return g_height;
 }
+
+bool sim_key_is_system(sim_key_t key) {
+    switch (key) {
+        case SIM_KEY_SYS_NEXT_APP:
+        case SIM_KEY_SYS_ESCAPE:
+        case SIM_KEY_SYS_MENU:
+            return true;
+        default:
+            return false;
+    }
+}

@@ -17,4 +17,5 @@ target_sources(hal PRIVATE
 
 target_include_directories(hal PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../../kernel
 )

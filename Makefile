@@ -222,8 +222,15 @@ DRIVER_SRCS = drivers/driver.c drivers/device_registry.c drivers/display_driver.
               drivers/gpio_driver.c drivers/i2c_driver.c drivers/spi_driver.c \
               drivers/uart_driver.c drivers/wifi_driver.c drivers/module.c
 APP_SRCS    = apps/app.c apps/app_kit.c apps/app_utils.c apps/input.c apps/stdlog.c apps/syscall.c apps/ui.c apps/device_info.c \
-              apps/stdapps/counter/counter_app.c apps/stdapps/launcher/launcher_app.c \
-              apps/stdapps/info/info_app.c apps/stdapps/stopwatch/stopwatch_app.c apps/stdapps/pong/pong_app.c \
+              apps/stdapps/counter/counter_app.c apps/stdapps/counter/counter_icon.c \
+              apps/stdapps/launcher/launcher_app.c \
+              apps/stdapps/info/info_app.c apps/stdapps/info/info_icon.c \
+              apps/stdapps/stopwatch/stopwatch_app.c apps/stdapps/stopwatch/stopwatch_icon.c \
+              apps/stdapps/pong/pong_app.c apps/stdapps/pong/pong.c apps/stdapps/pong/pong_icon.c \
+              apps/stdapps/settings/settings_app.c apps/stdapps/settings/settings_icon.c \
+              apps/stdapps/fileman/fileman_app.c apps/stdapps/fileman/fileman_icon.c \
+              apps/stdapps/shell/shell_app.c apps/stdapps/shell/shell_icon.c \
+              apps/stdapps/demo/demo_app.c apps/stdapps/demo/demo_icon.c \
               apps/ui/components/canvas.c apps/ui/components/screen.c \
               apps/ui/components/menu.c apps/ui/components/catalog.c \
               apps/ui/components/icons.c apps/ui/components/status.c
