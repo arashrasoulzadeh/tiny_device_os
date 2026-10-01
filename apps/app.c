@@ -298,15 +298,24 @@ int app_stop(const char* name) {
 
 int app_suspend(const char* name) {
     if (!name) return -1;
-    
+
     app_t* app = app_find(name);
     if (!app) return -1;
     if (app->state != APP_STATE_RUNNING) return -1;
-    
+
+    /* Set state before task_suspend(), not after: when the app being
+     * suspended is the currently-running task (the common case - an app
+     * suspending itself to open another one), task_suspend() context-
+     * switches away immediately and never "returns" until this same task
+     * is resumed again much later. Code placed after it here would run
+     * then instead of now, leaving app->state stuck at RUNNING in the
+     * meantime - which meant nothing could ever see this app as resumable
+     * (app_resume() requires state == SUSPENDED) until it was too late to
+     * matter. */
+    app->state = APP_STATE_SUSPENDED;
     if (app->task) {
         task_suspend(app->task);
     }
-    app->state = APP_STATE_SUSPENDED;
     return 0;
 }
 
