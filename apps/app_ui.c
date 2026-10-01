@@ -39,7 +39,24 @@ void app_ui_deinit(app_ui_t* app) {
 static void ui_key_trampoline(int pin, void* arg) {
     app_key_binding_t* binding = (app_key_binding_t*)arg;
     (void)pin;
-    if (!binding || !binding->fn) {
+    if (!binding || !binding->fn || !binding->app) {
+        return;
+    }
+    /* Key bindings are never torn down when an app is merely suspended
+     * (just backgrounded via app_open()/app_request_exit(), not fully
+     * exited) - its pins stay registered. Without this check, every key
+     * press reaches every app that ever bound that key, not just the
+     * focused one: navigating inside a later-opened app also silently
+     * drives whichever background app is still listening (e.g. the
+     * launcher's own menu selection), and a later Enter press fires that
+     * background app's handler too - which is how opening an unrelated
+     * app out of nowhere, or two apps' frames alternating on screen, kept
+     * happening. kit_key_trampoline() in app_kit.c already guards this the
+     * same way; this is the same mechanism's other binding path. */
+    /* binding->app is &g_ui.ctx, a different struct instance from the real
+     * app_ctx_t that app_kit_run() focuses - compare by desc (shared
+     * between both via app_ui_init()) instead of by pointer. */
+    if (!app_kit_is_foreground_desc(((app_ctx_t*)binding->app)->desc)) {
         return;
     }
     binding->fn((app_ctx_t*)binding->app, binding->user);

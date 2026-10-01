@@ -73,6 +73,7 @@ int app_open(app_ctx_t* from, const char* name);
 void app_request_exit(app_ctx_t* app);
 
 bool app_kit_is_foreground(const app_ctx_t* app);
+bool app_kit_is_foreground_desc(const app_desc_t* desc);
 
 void app_kit_run(const app_desc_t* desc);
 

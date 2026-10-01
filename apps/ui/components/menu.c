@@ -245,11 +245,11 @@ int app_menu_bind_nav(app_ctx_t* app, app_menu_t* menu) {
     if (!app || !menu) {
         return -1;
     }
-    /* Up / Right = next (side-scroll forward). Down / Left = previous. */
-    if (app_bind_key(app, SIM_KEY_UP, menu_nav_next, menu) != 0) {
+    /* Down / Right = next. Up / Left = previous. */
+    if (app_bind_key(app, SIM_KEY_UP, menu_nav_prev, menu) != 0) {
         return -1;
     }
-    if (app_bind_key(app, SIM_KEY_DOWN, menu_nav_prev, menu) != 0) {
+    if (app_bind_key(app, SIM_KEY_DOWN, menu_nav_next, menu) != 0) {
         return -1;
     }
     if (app_bind_key(app, SIM_KEY_RIGHT, menu_nav_next, menu) != 0) {

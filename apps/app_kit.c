@@ -87,6 +87,15 @@ bool app_kit_is_foreground(const app_ctx_t* app) {
     return app != NULL && app == g_fg;
 }
 
+bool app_kit_is_foreground_desc(const app_desc_t* desc) {
+    /* For callers that only have a copy of the ctx (e.g. app_ui_t's
+     * embedded ctx, a separate struct from the real one app_kit_run()
+     * owns and focuses) rather than the real app_ctx_t* that app_kit_focus()
+     * tracks as g_fg - desc is shared between both (app_ui_init() links it),
+     * so it identifies "this app" just as reliably as the pointer does. */
+    return desc != NULL && g_fg != NULL && g_fg->desc == desc;
+}
+
 static void kit_key_trampoline(int pin, void* arg) {
     app_key_binding_t* binding = (app_key_binding_t*)arg;
     (void)pin;

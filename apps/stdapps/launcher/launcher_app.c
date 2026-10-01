@@ -34,8 +34,11 @@ static void on_init(void* app) {
         APP_INFO("Launcher icon strip ready (%d apps)", app_kit_catalog_count());
     }
 
-    app_ui_bind_key(&g_ui, SIM_KEY_UP, app_ui_menu_nav_next, &g_menu);
-    app_ui_bind_key(&g_ui, SIM_KEY_DOWN, app_ui_menu_nav_prev, &g_menu);
+    /* Up moves to the previous item, Down to the next - Left/Right below
+     * already get this right (Right=next, Left=prev); Up/Down had next and
+     * prev swapped, so Down moved the selection backward and vice versa. */
+    app_ui_bind_key(&g_ui, SIM_KEY_UP, app_ui_menu_nav_prev, &g_menu);
+    app_ui_bind_key(&g_ui, SIM_KEY_DOWN, app_ui_menu_nav_next, &g_menu);
     app_ui_bind_key(&g_ui, SIM_KEY_RIGHT, app_ui_menu_nav_next, &g_menu);
     app_ui_bind_key(&g_ui, SIM_KEY_LEFT, app_ui_menu_nav_prev, &g_menu);
     app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_launch, NULL);
