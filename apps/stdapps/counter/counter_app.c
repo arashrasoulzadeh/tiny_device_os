@@ -34,9 +34,10 @@ static void on_init(void* app) {
 static void on_frame(void* app) {
     (void)app;
     app_ui_begin_frame(&g_ui);
+    const int line_h = 8 * g_ui.ui.text_scale;
     app_ui_textf(&g_ui, 0, 0, "Count: %d", g_count);
-    app_ui_text(&g_ui, 0, 16, "Up:+  Sel:-");
-    app_ui_text(&g_ui, 0, 24, "hold Sel: back");
+    app_ui_text(&g_ui, 0, line_h * 2, "Up:+  Sel:-");
+    app_ui_text(&g_ui, 0, line_h * 3, "hold Sel: back");
     app_ui_end_frame(&g_ui);
 }
 

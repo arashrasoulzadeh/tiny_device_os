@@ -152,16 +152,19 @@ static void demo_frame(void* app) {
     (void)app;
     app_ui_begin_frame(&g_ui);
 
+    const int scale = g_ui.ui.text_scale;
+    const int line_h = 8 * scale;
+
     if (g_mode == DEMO_MENU) {
         app_ui_text(&g_ui, 0, 0, "=== HARDWARE DEMO ===");
-        app_ui_text(&g_ui, 0, 16, "Select test:");
+        app_ui_text(&g_ui, 0, line_h * 2, "Select test:");
 
         for (int i = 0; i < DEMO_MENU_COUNT; i++) {
-            int y = 32 + i * 12;
+            int y = line_h * 4 + i * (line_h + 4 * scale);
             bool sel = (i == g_selected);
             app_ui_textf(&g_ui, 0, y, "%s %s", sel ? ">" : " ", g_menu_items[i]);
         }
-        app_ui_text(&g_ui, 0, APP_DISPLAY_HEIGHT - 8, "Up/Dn:Nav Sel:Run Esc:Back");
+        app_ui_text(&g_ui, 0, APP_DISPLAY_HEIGHT - line_h, "Up/Dn:Nav Sel:Run Esc:Back");
     } else {
         const char* test_names[] = {
             "GPIO Test",
@@ -172,19 +175,19 @@ static void demo_frame(void* app) {
         app_ui_textf(&g_ui, 0, 0, "%s", test_names[g_mode]);
         
         if (g_mode == DEMO_GPIO) {
-            app_ui_text(&g_ui, 0, 16, "Toggling GPIO 0...");
+            app_ui_text(&g_ui, 0, line_h * 2, "Toggling GPIO 0...");
             gpio_test();
             g_mode = DEMO_MENU;
         } else if (g_mode == DEMO_I2C) {
-            app_ui_text(&g_ui, 0, 16, "Scanning I2C bus...");
+            app_ui_text(&g_ui, 0, line_h * 2, "Scanning I2C bus...");
             i2c_scan();
             g_mode = DEMO_MENU;
         } else if (g_mode == DEMO_SPI) {
-            app_ui_text(&g_ui, 0, 16, "SPI loopback...");
+            app_ui_text(&g_ui, 0, line_h * 2, "SPI loopback...");
             spi_loopback();
             g_mode = DEMO_MENU;
         } else if (g_mode == DEMO_ADC) {
-            app_ui_text(&g_ui, 0, 16, "Reading ADC...");
+            app_ui_text(&g_ui, 0, line_h * 2, "Reading ADC...");
             adc_read();
             g_mode = DEMO_MENU;
         }

@@ -84,7 +84,8 @@ static void on_down(void* app, void* user) {
     (void)user; (void)app;
     if (g_fm.selected < g_fm.count - 1) {
         g_fm.selected++;
-        int max_visible = (g_ui.ui.content_h - 18) / 10;
+        int scale = g_ui.ui.text_scale;
+        int max_visible = (g_ui.ui.content_h - 18 * scale) / (10 * scale);
         if (g_fm.selected >= g_fm.offset + max_visible) g_fm.offset = g_fm.selected - max_visible + 1;
         app_mark_dirty(app);
     }
@@ -155,14 +156,15 @@ static void fileman_frame(void* app) {
     (void)app;
     app_ui_begin_frame(&g_ui);
 
-    int max_visible = (g_ui.ui.content_h - 18) / 10;
+    int scale = g_ui.ui.text_scale;
+    int max_visible = (g_ui.ui.content_h - 18 * scale) / (10 * scale);
 
     // Path header
     app_ui_textf(&g_ui, 0, 0, "Path: %s", g_fm.path);
-    app_ui_text(&g_ui, 0, 8, "----------------");
+    app_ui_text(&g_ui, 0, 8 * scale, "----------------");
 
     for (int i = g_fm.offset; i < g_fm.count && i < g_fm.offset + max_visible; i++) {
-        int y = 18 + (i - g_fm.offset) * 10;
+        int y = 18 * scale + (i - g_fm.offset) * 10 * scale;
         vfs_dirent_t* entry = &g_fm.entries[i];
         bool is_selected = (i == g_fm.selected);
 

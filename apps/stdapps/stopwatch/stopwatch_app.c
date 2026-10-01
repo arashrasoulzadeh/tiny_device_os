@@ -197,9 +197,10 @@ static void on_frame(void* app) {
     uint8_t s = g_sw.seconds;
     bool running = g_sw.running;
     
+    const int line_h = 8 * g_ui.ui.text_scale;
     app_ui_textf(&g_ui, 0, 0, "%02u:%02u:%02u", (unsigned)h, (unsigned)m, (unsigned)s);
-    app_ui_text(&g_ui, 0, 16, running ? "RUN" : "STP");
-    app_ui_text(&g_ui, 0, 24, "Up:tog Sel:rst");
+    app_ui_text(&g_ui, 0, line_h * 2, running ? "RUN" : "STP");
+    app_ui_text(&g_ui, 0, line_h * 3, "Up:tog Sel:rst");
     app_ui_end_frame(&g_ui);
 }
 

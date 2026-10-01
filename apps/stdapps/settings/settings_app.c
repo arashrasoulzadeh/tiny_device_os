@@ -164,9 +164,11 @@ static void settings_init(void* app) {
 static void settings_frame(void* app) {
     (void)app;
     app_ui_begin_frame(&g_ui);
-    
+
     int y = 0;
-    const int line_h = 14;
+    const int scale = g_ui.ui.text_scale;
+    const int line_h = 14 * scale;
+    const int row_h = 18 * scale;
     
     for (int i = 0; i < SETTING_COUNT; i++) {
         bool is_selected = (i == g_selected);
@@ -184,16 +186,16 @@ static void settings_frame(void* app) {
         } else {
             load_setting(i, value, sizeof(value));
         }
-        app_ui_text(&g_ui, 0, y + 8, value);
-        
+        app_ui_text(&g_ui, 0, y + 8 * scale, value);
+
         // Cursor indicator when editing
         if (is_editing) {
             int cursor_x = 0;
-            for (int j = 0; j < g_edit_pos && j < 20; j++) cursor_x += 6;
-            app_ui_pixel(&g_ui, cursor_x, y + 15, true);
+            for (int j = 0; j < g_edit_pos && j < 20; j++) cursor_x += 6 * scale;
+            app_ui_pixel(&g_ui, cursor_x, y + 15 * scale, true);
         }
-        
-        y += 18;
+
+        y += row_h;
     }
     
     // Help text

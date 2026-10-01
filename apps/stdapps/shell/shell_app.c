@@ -361,12 +361,16 @@ static void shell_frame(void* app) {
         return;
     }
     app_ui_begin_frame(&g_ui);
-    
+
+    const int scale = g_ui.ui.text_scale;
+    const int char_w = 6 * scale;
+    const int prompt_w = 2 * char_w; /* "> " */
+
     // Prompt
     app_ui_text(&g_ui, 0, 0, "> ");
-    app_ui_text(&g_ui, 12, 0, g_line);
+    app_ui_text(&g_ui, prompt_w, 0, g_line);
     if (g_cursor < 20) {
-        app_ui_pixel(&g_ui, 12 + g_cursor * 6, 0, true);
+        app_ui_pixel(&g_ui, prompt_w + g_cursor * char_w, 0, true);
     }
     
     // Status
