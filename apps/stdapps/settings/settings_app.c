@@ -104,11 +104,22 @@ static void on_select(void* app, void* user) {
 }
 
 static void on_key_backspace(void* app, void* user) {
-    (void)user; (void)app;
-    if (g_editing && g_edit_pos > 0) {
-        memmove(&g_edit_buffer[g_edit_pos - 1], &g_edit_buffer[g_edit_pos], strlen(g_edit_buffer) - g_edit_pos + 1);
-        g_edit_pos--;
+    (void)user;
+    if (g_editing) {
+        if (g_edit_pos > 0) {
+            memmove(&g_edit_buffer[g_edit_pos - 1], &g_edit_buffer[g_edit_pos], strlen(g_edit_buffer) - g_edit_pos + 1);
+            g_edit_pos--;
+        } else {
+            /* Nothing left to delete - confirm and leave edit mode. Without
+             * this, editing was a dead end: Up/Down no-op while editing and
+             * Escape was also bound to app_request_exit, so there was no
+             * way back to the list short of quitting the whole app. */
+            save_setting(g_selected, g_edit_buffer);
+            g_editing = false;
+        }
         app_mark_dirty(app);
+    } else {
+        app_request_exit(app);
     }
 }
 
@@ -138,11 +149,15 @@ static void settings_init(void* app) {
     app_ui_bind_key(&g_ui, SIM_KEY_DOWN, on_down, NULL);
     app_ui_bind_key(&g_ui, SIM_KEY_LEFT, on_key_left, NULL);
     app_ui_bind_key(&g_ui, SIM_KEY_RIGHT, on_key_right, NULL);
+    /* on_key_backspace() owns all of Escape's behavior: backspace while
+     * editing, exit-edit-mode-and-save once the buffer is empty, or quit
+     * to the launcher when not editing. A second binding straight to
+     * app_request_exit() here would fire on every Escape regardless of
+     * editing state, fighting with backspace and making it impossible to
+     * back out of edit mode without quitting the whole app. */
     app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, on_key_backspace, NULL);
     app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_select, NULL);
-    
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL);
-    
+
     APP_INFO("Settings ready - Up/Down navigate, Enter: cycle char/select, Esc: backspace/back");
 }
 
