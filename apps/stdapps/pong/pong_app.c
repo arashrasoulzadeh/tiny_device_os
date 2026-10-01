@@ -21,6 +21,19 @@ static void on_init(void* app) {
     app_ui_config_game(&cfg);
     app_ui_init(&g_ui, app, &cfg);
     pong_reset(&g_pong);
+
+    /* on_frame polls these pins directly (continuous "held" state, unlike
+     * app_ui_bind_key's press/release callbacks) - register and map them
+     * ourselves since nothing else wires pins 0-2 to real keys. */
+    sim_gpio_register(0, false);
+    sim_gpio_register(1, false);
+    sim_gpio_register(2, false);
+    sim_gpio_set_key_mapping(SIM_KEY_UP, 0, true);
+    sim_gpio_set_key_mapping(SIM_KEY_DOWN, 1, true);
+    sim_gpio_set_key_mapping(SIM_KEY_ENTER, 2, true);
+
+    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL);
+
     APP_INFO("Pong ready - Up/Down/Enter to move paddle");
 }
 
