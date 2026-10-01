@@ -212,9 +212,12 @@ static inline int app_buttons_init(app_buttons_t* btns) {
     { .pin = pin_num, .key = key_code, .trigger = HAL_GPIO_IRQ_RISING, \
       .on_press = press_fn, .on_release = release_fn, .arg = user_arg }
 
-// Key button with both edges (press + release)
+// Used by app_ui_bind_key()'s trampoline, which can't tell press from
+// release apart - HAL_GPIO_IRQ_BOTH fired it on both edges of one tap,
+// doubling every nav/select action (e.g. one arrow press moving the
+// selection twice). Press-only, matching APP_BUTTON above.
 #define APP_KEY_BUTTON(pin_num, key_code, press_fn, release_fn, user_arg) \
-    { .pin = pin_num, .key = key_code, .trigger = HAL_GPIO_IRQ_BOTH, \
+    { .pin = pin_num, .key = key_code, .trigger = HAL_GPIO_IRQ_RISING, \
       .on_press = press_fn, .on_release = release_fn, .arg = user_arg }
 
 // ============================================================================
