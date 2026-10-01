@@ -62,6 +62,8 @@ int ota_verify_signature(const uint8_t* firmware, uint32_t size,
                          const uint8_t* signature, size_t sig_size,
                          const uint8_t* pubkey, size_t key_size);
 
+uint32_t ota_crc32_update(uint32_t crc, const void* data, size_t len);
+
 int ota_get_metadata(ota_metadata_t* meta);
 int ota_mark_valid(ota_partition_t partition);
 int ota_mark_invalid(ota_partition_t partition);

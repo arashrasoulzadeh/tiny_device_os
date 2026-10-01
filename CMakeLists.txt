@@ -18,7 +18,7 @@ option(ARDUBOT_BUILD_SIM "Build SDL2 simulator for host" ON)
 option(ARDUBOT_BUILD_ESP32 "Build for ESP32" OFF)
 option(ARDUBOT_BUILD_ESP8266 "Build for ESP8266" OFF)
 option(ARDUBOT_BUILD_AVR "Build for AVR (Mega2560)" OFF)
-option(ARDUBOT_SIM_BACKEND "Simulator backend" "sdl2")
+set(ARDUBOT_SIM_BACKEND "sdl2" CACHE STRING "Simulator backend")
 
 set(ARDUBOT_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(ARDUBOT_BUILD_TYPE ${CMAKE_BUILD_TYPE})

@@ -140,6 +140,10 @@ app_install_manifest(counter_app_manifest, "counter");
 app_install_manifest(info_app_manifest, "info");
 app_install_manifest(stopwatch_app_manifest, "stopwatch");
 app_install_manifest(pong_app_manifest, "pong");
+app_install_manifest(settings_app_manifest, "settings");
+app_install_manifest(fileman_app_manifest, "fileman");
+app_install_manifest(shell_app_manifest, "shell");
+app_install_manifest(demo_app_manifest, "demo");
 app_install_manifest(launcher_app_manifest, "launcher");
 app_kit_catalog_build("launcher");  /* launch list, once */
 app_start("launcher");              /* <-- main app */

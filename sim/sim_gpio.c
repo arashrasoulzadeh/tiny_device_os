@@ -3,6 +3,7 @@
 #include "hal_gpio.h"
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #define MAX_GPIO_PINS 64
 
@@ -137,7 +138,6 @@ void sim_gpio_handle_key(sim_key_t key, bool pressed) {
             if (g_callback) g_callback(i, true, g_callback_arg);
             hal_gpio_check_edge(i, true);
         } else if (!pressed) {
-            // If key_released is not set (0), fall back to key_pressed
             sim_key_t release_key = g_pins[i].key_released ? g_pins[i].key_released : g_pins[i].key_pressed;
             if (release_key == key) {
                 g_pins[i].level = false;

@@ -1,7 +1,9 @@
 #pragma once
 
-#include "app_framework.h"
+#include "app_types.h"
 #include "icons.h"
+#include "ardubot_keys.h"
+#include "app.h"
 
 #include <stdarg.h>
 
@@ -19,10 +21,8 @@ extern "C" {
 
 #define APP_KIT_MAX_KEYS 8
 
-struct app_ctx;
-
-typedef void (*app_fn_t)(struct app_ctx* app);
-typedef void (*app_key_fn_t)(struct app_ctx* app, void* user);
+typedef void (*app_fn_t)(void* app);
+typedef void (*app_key_fn_t)(void* app, void* user);
 
 typedef struct {
     const char* name;
@@ -33,7 +33,6 @@ typedef struct {
     uint32_t fps;
     uint32_t stack_size;
     uint32_t heap_size;
-    /** Optional 16×16 launcher icon (app provides this). */
     const app_icon_t* icon;
     app_fn_t on_init;
     app_fn_t on_frame;
@@ -45,7 +44,7 @@ typedef struct {
     int pin;
     app_key_fn_t fn;
     void* user;
-    struct app_ctx* app;
+    void* app;
 } app_key_binding_t;
 
 #ifndef APP_CTX_T_DECLARED
@@ -62,18 +61,15 @@ struct app_ctx {
     void* user;
     app_key_binding_t keys[APP_KIT_MAX_KEYS];
     uint32_t key_count;
+    app_ui_config_t ui;
 };
 
 int app_bind_key(app_ctx_t* app, sim_key_t key, app_key_fn_t fn, void* user);
 
-/** Bind Escape to app_request_exit. */
 int app_bind_back(app_ctx_t* app);
 
-/** Launch another installed app; suspends the caller and focuses the new app. */
 int app_open(app_ctx_t* from, const char* name);
 
-/** Leave the current app (Escape/back). Non-home apps soft-suspend and keep
- *  running in the background; the home/launcher is resumed and focused. */
 void app_request_exit(app_ctx_t* app);
 
 bool app_kit_is_foreground(const app_ctx_t* app);
@@ -84,31 +80,15 @@ app_manifest_t* app_kit_make_manifest(const app_desc_t* desc, void (*entry)(void
 
 void app_kit_apply_overrides(app_desc_t* dest, const app_desc_t* over);
 
-/** Publish / look up an app's launcher icon (set from APP_DEFINE `.icon`). */
 void app_kit_set_icon(const char* name, const app_icon_t* icon);
 const app_icon_t* app_kit_get_icon(const char* name);
 
-/* UI components (canvas / menu / catalog / screen) */
 #include "canvas.h"
 #include "catalog.h"
 #include "menu.h"
 #include "screen.h"
 #include "status.h"
 
-/**
- * Declare a builtin app.
- *
- * @param symbol       C prefix (`<symbol>_manifest` exported for the OS/sim)
- * @param install_name Runtime name passed to app_install/app_start
- *
- * Example:
- *   APP_DEFINE(counter_app, "counter",
- *       .version = "2.0.0",
- *       .icon = &counter_app_icon,
- *       .on_init = on_init,
- *       .on_frame = on_frame
- *   );
- */
 #define APP_DEFINE(symbol, install_name, ...)                                              \
     static app_desc_t symbol##_desc;                                                       \
     static void symbol##_entry(void);                                                      \
@@ -139,6 +119,8 @@ const app_icon_t* app_kit_get_icon(const char* name);
         }                                                                                  \
         symbol##_manifest = app_kit_make_manifest(&symbol##_desc, symbol##_entry);         \
     }
+
+extern int g_next_pin;
 
 #ifdef __cplusplus
 }

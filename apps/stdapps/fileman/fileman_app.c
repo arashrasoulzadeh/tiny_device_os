@@ -1,3 +1,4 @@
+#include "app_framework.h"
 #include "app_kit.h"
 #include "vfs.h"
 #include <stdint.h>
@@ -15,7 +16,7 @@ typedef struct {
 } fileman_state_t;
 
 static fileman_state_t g_fm;
-static app_timer_t g_timer;
+static app_ui_t g_ui;
 
 // --- Helpers ---
 static void refresh_list(void) {
@@ -30,7 +31,6 @@ static void refresh_list(void) {
         return;
     }
 
-    // Count entries first
     int count = 0;
     vfs_dirent_t ent;
     while (vfs_readdir(dir, &ent) == 0) count++;
@@ -51,7 +51,6 @@ static void refresh_list(void) {
     }
     vfs_closedir(dir);
 
-    // Sort: directories first, then alphabetically
     for (int i = 0; i < g_fm.count - 1; i++) {
         for (int j = i + 1; j < g_fm.count; j++) {
             if (g_fm.entries[i].is_dir && !g_fm.entries[j].is_dir) continue;
@@ -72,8 +71,8 @@ static void refresh_list(void) {
 }
 
 // --- Button Handlers ---
-static void on_up(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_up(void* app, void* user) {
+    (void)user; (void)app;
     if (g_fm.selected > 0) {
         g_fm.selected--;
         if (g_fm.selected < g_fm.offset) g_fm.offset = g_fm.selected;
@@ -81,18 +80,18 @@ static void on_up(app_ctx_t* app, void* user) {
     }
 }
 
-static void on_down(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_down(void* app, void* user) {
+    (void)user; (void)app;
     if (g_fm.selected < g_fm.count - 1) {
         g_fm.selected++;
-        int max_visible = (SSD1306_HEIGHT - 16) / 10;
+        int max_visible = (((app_ui_t*)app)->ui.content_h - 18) / 10;
         if (g_fm.selected >= g_fm.offset + max_visible) g_fm.offset = g_fm.selected - max_visible + 1;
         app_mark_dirty(app);
     }
 }
 
-static void on_select(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_select(void* app, void* user) {
+    (void)user; (void)app;
     if (g_fm.count == 0) return;
 
     vfs_dirent_t* entry = &g_fm.entries[g_fm.selected];
@@ -111,9 +110,8 @@ static void on_select(app_ctx_t* app, void* user) {
     }
 }
 
-static void on_back(app_ctx_t* app, void* user) {
-    (void)user;
-    // Go up one directory
+static void on_back(void* app, void* user) {
+    (void)user; (void)app;
     if (strcmp(g_fm.path, "/") != 0) {
         char* last_slash = strrchr(g_fm.path, '/');
         if (last_slash && last_slash > g_fm.path) {
@@ -131,12 +129,10 @@ static void on_back(app_ctx_t* app, void* user) {
 }
 
 // --- Lifecycle ---
-static void fileman_init(app_ctx_t* app) {
-    if (app_display_init(&app->display, "/dev/display0") != 0) {
-        APP_ERROR("Display init failed");
-        return;
-    }
-    app_timer_init(&g_timer, 30);
+static void fileman_init(void* app) {
+    app_ui_config_t cfg;
+    app_ui_config_ui(&cfg, "FILE MANAGER", "Up/Dn:Nav Sel:Open Bk:Back");
+    app_ui_init(&g_ui, &cfg);
 
     strncpy(g_fm.path, "/flash", sizeof(g_fm.path) - 1);
     g_fm.path[sizeof(g_fm.path) - 1] = '\0';
@@ -145,58 +141,62 @@ static void fileman_init(app_ctx_t* app) {
     g_fm.selected = 0;
     g_fm.offset = 0;
 
-    app_bind_key(app, SIM_KEY_UP, on_up, NULL);
-    app_bind_key(app, SIM_KEY_DOWN, on_down, NULL);
-    app_bind_key(app, SIM_KEY_ENTER, on_select, NULL);
-    app_bind_key(app, SIM_KEY_ESCAPE, on_back, NULL);
-    app_bind_back(app);
+    app_ui_bind_key(&g_ui, SIM_KEY_UP, on_up, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_DOWN, on_down, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_select, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, on_back, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL);
 
     refresh_list();
     APP_INFO("File Manager ready - /flash");
 }
 
-static void fileman_frame(app_ctx_t* app) {
-    if (!app_screen_begin(app, "FILE MANAGER")) return;
+static void fileman_frame(void* app) {
+    (void)app;
+    app_ui_begin_frame(app);
 
-    int y = 8;
-    int max_visible = (SSD1306_HEIGHT - 16) / 10;
+    int max_visible = (((app_ui_t*)app)->ui.content_h - 18) / 10;
 
     // Path header
-    app_textf(app, 0, 0, "Path: %s", g_fm.path);
-    app_text(app, 0, 8, "----------------");
+    app_ui_textf(app, 0, 0, "Path: %s", g_fm.path);
+    app_ui_text(app, 0, 8, "----------------");
 
     for (int i = g_fm.offset; i < g_fm.count && i < g_fm.offset + max_visible; i++) {
         int y = 18 + (i - g_fm.offset) * 10;
         vfs_dirent_t* entry = &g_fm.entries[i];
         bool is_selected = (i == g_fm.selected);
 
-        app_textf(app, 0, y, "%s%s  %s%u%s",
-                  i == g_fm.selected ? ">" : " ",
-                  g_fm.entries[i].is_dir ? "[DIR] " : "     ",
-                  g_fm.entries[i].name,
-                  g_fm.entries[i].is_dir ? 0 : g_fm.entries[i].size,
-                  g_fm.entries[i].is_dir ? "" : " B");
+        char size_str[16];
+        if (entry->is_dir) {
+            size_str[0] = '\0';
+        } else {
+            snprintf(size_str, sizeof(size_str), "%u B", (unsigned)entry->size);
+        }
+
+        app_ui_textf(app, 0, y, "%s%s  %s %s",
+                      i == g_fm.selected ? ">" : " ",
+                      entry->is_dir ? "[DIR] " : "     ",
+                      entry->name,
+                      size_str);
     }
 
     // Status bar
     char status[64];
     snprintf(status, sizeof(status), "Items: %d  Sel: %d", g_fm.count, g_fm.selected);
-    app_text(app, 0, SSD1306_HEIGHT - 8, status);
-
-    app_screen_end(app);
+    app_ui_end_frame(app);
 }
 
-static void fileman_cleanup(app_ctx_t* app) {
+static void fileman_cleanup(void* app) {
+    (void)app;
     if (g_fm.entries) {
         free(g_fm.entries);
         g_fm.entries = NULL;
         g_fm.count = 0;
     }
-    app_display_deinit(&app->display);
+    app_ui_deinit(app);
     APP_INFO("File Manager closed");
 }
 
-// --- App Definition ---
 APP_DEFINE(fileman_app, "fileman", .version = "1.0.0", .author = "ArdubotOS",
            .description = "File manager - browse flash/SD",
            .type = APP_TYPE_TOOL, .fps = 30,

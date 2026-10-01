@@ -1,4 +1,6 @@
+#include "app_framework.h"
 #include "app_kit.h"
+#include "config_store.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -37,11 +39,15 @@ static int g_selected = 0;
 static bool g_editing = false;
 static char g_edit_buffer[64];
 static int g_edit_pos = 0;
-static app_timer_t g_timer;
+static int g_last_key = 0;
+static app_ui_t g_ui;
 
 // --- Helpers ---
 static void load_setting(int idx, char* buf, size_t len) {
-    if (app_config_get_str(setting_keys[idx], buf, len) != 0) {
+    const char* val = app_config_get_str(setting_keys[idx], "");
+    if (val && *val) {
+        strncpy(buf, val, len - 1);
+    } else {
         buf[0] = '\0';
     }
 }
@@ -52,63 +58,53 @@ static void save_setting(int idx, const char* value) {
 }
 
 // --- Button Handlers ---
-static void on_up(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_up(void* app, void* user) {
+    (void)user; (void)app;
     if (!g_editing) {
         g_selected = (g_selected > 0) ? g_selected - 1 : SETTING_COUNT - 1;
         app_mark_dirty(app);
     }
 }
 
-static void on_down(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_down(void* app, void* user) {
+    (void)user; (void)app;
     if (!g_editing) {
         g_selected = (g_selected + 1) % SETTING_COUNT;
         app_mark_dirty(app);
     }
 }
 
-static void on_select(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_select(void* app, void* user) {
+    (void)user; (void)app;
     if (!g_editing) {
         g_editing = true;
         load_setting(g_selected, g_edit_buffer, sizeof(g_edit_buffer));
         g_edit_pos = strlen(g_edit_buffer);
         app_mark_dirty(app);
-    }
-}
-
-// Character input state for text entry
-static char g_last_key = 0;
-
-static void on_key_char(app_ctx_t* app, void* user) {
-    (void)user;
-    if (!g_editing) return;
-    
-    // Get the last pressed key from app context
-    // We'll use a simple approach: cycle through characters
-    static const char* chars = "abcdefghijklmnopqrstuvwxyz0123456789 -_=./@_";
-    if (g_last_key == 0) {
-        g_last_key = chars[0];
     } else {
-        const char* p = strchr(chars, g_last_key);
-        if (p && *(p + 1)) {
-            g_last_key = *(p + 1);
-        } else {
+        static const char* chars = "abcdefghijklmnopqrstuvwxyz0123456789 -_=./@_";
+        if (g_last_key == 0) {
             g_last_key = chars[0];
+        } else {
+            const char* p = strchr(chars, g_last_key);
+            if (p && *(p + 1)) {
+                g_last_key = *(p + 1);
+            } else {
+                g_last_key = chars[0];
+            }
+        }
+        
+        if (g_edit_pos < (int)sizeof(g_edit_buffer) - 1) {
+            memmove(&g_edit_buffer[g_edit_pos + 1], &g_edit_buffer[g_edit_pos], strlen(g_edit_buffer) - g_edit_pos + 1);
+            g_edit_buffer[g_edit_pos] = g_last_key;
+            g_edit_pos++;
+            app_mark_dirty(app);
         }
     }
-    
-    if (g_edit_pos < (int)sizeof(g_edit_buffer) - 1) {
-        memmove(&g_edit_buffer[g_edit_pos + 1], &g_edit_buffer[g_edit_pos], strlen(g_edit_buffer) - g_edit_pos + 1);
-        g_edit_buffer[g_edit_pos] = g_last_key;
-        g_edit_pos++;
-        app_mark_dirty(app);
-    }
 }
 
-static void on_key_backspace(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_key_backspace(void* app, void* user) {
+    (void)user; (void)app;
     if (g_editing && g_edit_pos > 0) {
         memmove(&g_edit_buffer[g_edit_pos - 1], &g_edit_buffer[g_edit_pos], strlen(g_edit_buffer) - g_edit_pos + 1);
         g_edit_pos--;
@@ -116,16 +112,16 @@ static void on_key_backspace(app_ctx_t* app, void* user) {
     }
 }
 
-static void on_key_left(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_key_left(void* app, void* user) {
+    (void)user; (void)app;
     if (g_editing && g_edit_pos > 0) {
         g_edit_pos--;
         app_mark_dirty(app);
     }
 }
 
-static void on_key_right(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_key_right(void* app, void* user) {
+    (void)user; (void)app;
     if (g_editing && g_edit_pos < (int)strlen(g_edit_buffer)) {
         g_edit_pos++;
         app_mark_dirty(app);
@@ -133,39 +129,38 @@ static void on_key_right(app_ctx_t* app, void* user) {
 }
 
 // --- Lifecycle ---
-static void settings_init(app_ctx_t* app) {
-    if (app_display_init(&app->display, "/dev/display0") != 0) {
-        APP_ERROR("Display init failed");
-        return;
-    }
+static void settings_init(void* app) {
+    app_ui_config_t cfg;
+    app_ui_config_ui(&cfg, "SETTINGS", "Up/Dn:Nav Sel:Edit Bk:Back");
+    app_ui_init(&g_ui, &cfg);
     
-    app_timer_init(&g_timer, 30);
+    app_ui_bind_key(&g_ui, SIM_KEY_UP, on_up, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_DOWN, on_down, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_LEFT, on_key_left, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_RIGHT, on_key_right, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, on_key_backspace, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_select, NULL);
     
-    // Bind navigation
-    app_bind_key(app, SIM_KEY_UP, on_up, NULL);
-    app_bind_key(app, SIM_KEY_DOWN, on_down, NULL);
-    app_bind_key(app, SIM_KEY_ENTER, on_select, NULL);
-    app_bind_key(app, SIM_KEY_LEFT, on_key_left, NULL);
-    app_bind_key(app, SIM_KEY_RIGHT, on_key_right, NULL);
-    app_bind_key(app, SIM_KEY_ESCAPE, on_key_backspace, NULL);
-    app_bind_key(app, SIM_KEY_ENTER, on_key_char, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL);
     
-    app_bind_back(app);
     APP_INFO("Settings ready - Up/Down navigate, Enter: cycle char/select, Esc: backspace/back");
 }
 
-static void settings_frame(app_ctx_t* app) {
-    if (!app_screen_begin(app, "SETTINGS")) return;
-
-    char buf[64];
-    int y = 8;
-
+static void settings_frame(void* app) {
+    (void)app;
+    app_ui_begin_frame(app);
+    
+    int y = 0;
+    const int line_h = 14;
+    
     for (int i = 0; i < SETTING_COUNT; i++) {
         bool is_selected = (i == g_selected);
         bool is_editing = g_editing && (i == g_selected);
-
+        
+        if (y + line_h > ((app_ui_t*)app)->ui.content_h) break;
+        
         // Selection indicator
-        app_textf(app, 0, y, "%s %s", is_selected ? ">" : " ", setting_names[i]);
+        app_ui_textf(app, 0, y, "%s %s", is_selected ? ">" : " ", setting_names[i]);
         
         // Value or edit buffer
         char value[64];
@@ -174,35 +169,32 @@ static void settings_frame(app_ctx_t* app) {
         } else {
             load_setting(i, value, sizeof(value));
         }
-        app_text(app, 0, y + 8, value);
-
+        app_ui_text(app, 0, y + 8, value);
+        
         // Cursor indicator when editing
         if (is_editing) {
             int cursor_x = 0;
             for (int j = 0; j < g_edit_pos && j < 20; j++) cursor_x += 6;
-            app_pixel(app, cursor_x, y + 15, true);
+            app_ui_pixel(app, cursor_x, y + 15, true);
         }
-
+        
         y += 18;
-        if (y > SSD1306_HEIGHT - 16) break;
     }
-
+    
     // Help text
     if (!g_editing) {
-        app_text(app, 0, SSD1306_HEIGHT - 8, "Up/Dn:Nav Sel:Edit Bk:Back");
+        app_ui_end_frame(app);
     } else {
-        app_text(app, 0, SSD1306_HEIGHT - 8, "Type:Edit Bk:Save Esc:Cancel");
+        app_ui_end_frame(app);
     }
-
-    app_screen_end(app);
 }
 
-static void settings_cleanup(app_ctx_t* app) {
-    app_display_deinit(&app->display);
+static void settings_cleanup(void* app) {
+    (void)app;
+    app_ui_deinit(app);
     APP_INFO("Settings closed");
 }
 
-// --- App Definition ---
 APP_DEFINE(settings_app, "settings", .version = "1.0.0", .author = "ArdubotOS",
            .description = "System settings - WiFi, display, sound, timezone",
            .type = APP_TYPE_SYSTEM, .fps = 30,

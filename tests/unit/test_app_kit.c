@@ -5,7 +5,7 @@
 
 static void dummy_entry(void) {}
 
-static void dummy_key(app_ctx_t* app, void* user) {
+static void dummy_key(void* app, void* user) {
     (void)app;
     (void)user;
 }

@@ -2,6 +2,7 @@ add_library(fs STATIC
     vfs.c
     config_store.c
     ota.c
+    ed25519.c
 )
 
 target_include_directories(fs PUBLIC

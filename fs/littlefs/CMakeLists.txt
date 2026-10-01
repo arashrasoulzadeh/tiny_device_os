@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20)
 # LittleFS library
 add_library(littlefs_lib STATIC
     ${CMAKE_SOURCE_DIR}/third_party/littlefs/lfs.c
+    ${CMAKE_SOURCE_DIR}/third_party/littlefs/lfs_util.c
     littlefs_vfs.c
 )
 

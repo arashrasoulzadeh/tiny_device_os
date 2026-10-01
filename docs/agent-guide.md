@@ -19,8 +19,15 @@ Implemented and exercised by host tests:
   plus UI components under `apps/ui/components/` (`canvas`, `screen`, `menu`,
   `catalog`, `icons`, `status`, `display`). Guides: `docs/appkit.md`, `docs/apps.md`.
 - Built-in apps under `apps/stdapps/<name>/`: `counter`, `info`, `launcher`,
-  `stopwatch` (three worker tasks: sec/min/hour), `pong` (Up/Down paddle).
-- VFS, LittleFS/FatFS glue, config store, OTA stubs under `fs/`.
+  `stopwatch` (three worker tasks: sec/min/hour), `pong` (Up/Down paddle),
+  `settings`, `fileman` (file manager over the VFS), `shell`, `demo`.
+- VFS (`fs/vfs.c`) with LittleFS/FatFS backends (`fs/littlefs/`, `fs/fatfs/`),
+  config KV store (`fs/config_store.c`), and OTA with A/B partitions + ed25519
+  signature verification (`fs/ota.c`, `fs/ed25519.c`).
+- Power management (`kernel/power.c`) — sleep modes, wake sources, CPU
+  frequency scaling, per-driver suspend/resume callbacks. **No host unit test
+  exists for it yet** (`tests/unit/` has none named `*power*`); treat it as
+  unverified until one lands, and write that test before extending the module.
 - Driver ops (`probe`/`open`/`read`/`write`/`ioctl`) in `drivers/driver.h`.
 - Simulator CLI: headless mode, `--test=all`, JUnit, coverage
   (`sim/sim_main.c`, `sim/sim_args.c`). The sim main loop advances

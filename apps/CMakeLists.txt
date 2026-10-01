@@ -8,6 +8,7 @@ add_library(apps STATIC
     ardubot_keys.c
     device_info.c
     stdlog.c
+    app_ui.c
     ui/components/canvas.c
     ui/components/menu.c
     ui/components/catalog.c
@@ -23,6 +24,12 @@ if(NOT DEFINED ARDUBOT_DISPLAY_WIDTH)
 endif()
 if(NOT DEFINED ARDUBOT_DISPLAY_HEIGHT)
     set(ARDUBOT_DISPLAY_HEIGHT 32)
+endif()
+
+# Simulator uses larger logical resolution for better UI development
+if(ARDUBOT_BUILD_SIM)
+    set(ARDUBOT_DISPLAY_WIDTH 320)
+    set(ARDUBOT_DISPLAY_HEIGHT 172)
 endif()
 
 target_include_directories(apps PUBLIC

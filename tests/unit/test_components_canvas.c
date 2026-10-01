@@ -1,5 +1,6 @@
 #include "unity.h"
 #include "app_kit.h"
+#include "app_framework.h"
 #include "canvas.h"
 #include "scheduler.h"
 #include <string.h>

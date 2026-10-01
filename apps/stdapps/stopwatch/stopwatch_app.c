@@ -1,3 +1,4 @@
+#include "app_framework.h"
 #include "app_kit.h"
 #include "stopwatch.h"
 
@@ -5,9 +6,7 @@
 
 extern const app_icon_t stopwatch_app_icon;
 
-/* Shared stopwatch state — updated by three worker tasks. */
 static stopwatch_t g_sw;
-static app_ctx_t* g_app;
 static volatile bool g_workers_alive;
 
 static task_tcb_t* g_sec_task;
@@ -58,16 +57,12 @@ void stopwatch_tick_hour(stopwatch_t* sw) {
     }
 }
 
-static void notify_dirty(void) {
-    if (g_app) {
-        app_mark_dirty(g_app);
+static void notify_dirty(void* app) {
+    if (app) {
+        app_mark_dirty(app);
     }
 }
 
-/*
- * Second worker: sleeps 1s, ticks seconds, resumes minute task on wrap.
- * Minute / hour workers: self-suspend until resumed by the lower unit.
- */
 static void task_seconds(void* arg) {
     (void)arg;
     while (g_workers_alive) {
@@ -87,7 +82,7 @@ static void task_seconds(void* arg) {
             task_resume(g_min_task);
         }
         if (changed) {
-            notify_dirty();
+            notify_dirty(NULL);
         }
     }
 }
@@ -99,13 +94,16 @@ static void task_minutes(void* arg) {
         if (!g_workers_alive) {
             break;
         }
+        bool hour_due = false;
         scheduler_lock();
-        bool hour_due = stopwatch_tick_minute(&g_sw);
+        if (g_sw.running) {
+            hour_due = stopwatch_tick_minute(&g_sw);
+        }
         scheduler_unlock();
         if (hour_due && g_hour_task) {
             task_resume(g_hour_task);
         }
-        notify_dirty();
+        notify_dirty(NULL);
     }
 }
 
@@ -119,7 +117,7 @@ static void task_hours(void* arg) {
         scheduler_lock();
         stopwatch_tick_hour(&g_sw);
         scheduler_unlock();
-        notify_dirty();
+        notify_dirty(NULL);
     }
 }
 
@@ -145,86 +143,74 @@ static void delete_workers(void) {
     }
 }
 
-static void on_toggle(app_ctx_t* app, void* user) {
-    (void)user;
+static app_ui_t g_ui;
+
+static void on_toggle(void* app, void* user) {
+    (void)user; (void)app;
     scheduler_lock();
     g_sw.running = !g_sw.running;
     scheduler_unlock();
-    app_mark_dirty(app);
+    app_mark_dirty(NULL);
     APP_INFO("stopwatch %s", g_sw.running ? "running" : "stopped");
 }
 
-static void on_reset(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_reset(void* app, void* user) {
+    (void)user; (void)app;
     scheduler_lock();
     stopwatch_reset(&g_sw);
     scheduler_unlock();
-    app_mark_dirty(app);
+    app_mark_dirty(NULL);
     APP_INFO("stopwatch reset");
 }
 
-static void on_init(app_ctx_t* app) {
-    g_app = app;
-    stopwatch_reset(&g_sw);
+static void on_init(void* app) {
+    app_ui_config_t cfg;
+    app_ui_config_ui(&cfg, "STOPWATCH", "Up:start/stop Sel:reset Bk:back");
+    app_ui_init(&g_ui, &cfg);
+    
+    app_ui_bind_key(&g_ui, SIM_KEY_1, on_toggle, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_2, on_reset, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_UP, on_toggle, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_reset, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL);
+    
     g_workers_alive = true;
-
+    stopwatch_reset(&g_sw);
+    
     if (task_create("sw_sec", task_seconds, NULL, TASK_PRIO_NORMAL, 0, &g_sec_task) != 0 ||
         task_create("sw_min", task_minutes, NULL, TASK_PRIO_NORMAL, 0, &g_min_task) != 0 ||
         task_create("sw_hour", task_hours, NULL, TASK_PRIO_NORMAL, 0, &g_hour_task) != 0) {
         APP_ERROR("Failed to create stopwatch worker tasks");
         delete_workers();
-        app_bind_back(app);
         return;
     }
-
-    app_bind_key(app, SIM_KEY_1, on_toggle, NULL);
-    app_bind_key(app, SIM_KEY_2, on_reset, NULL);
-    app_bind_key(app, SIM_KEY_UP, on_toggle, NULL);
-    app_bind_key(app, SIM_KEY_ENTER, on_reset, NULL);
-    app_bind_back(app);
-    app_mark_dirty(app);
-    APP_INFO("Stopwatch ready — Up:start/stop  Enter:reset  Esc:back");
+    
+    APP_INFO("Stopwatch ready");
 }
 
-static void on_frame(app_ctx_t* app) {
-    uint8_t h;
-    uint8_t m;
-    uint8_t s;
-    bool running;
-
-    /* Keep the display live while the clock is running. */
-    scheduler_lock();
-    running = g_sw.running;
-    scheduler_unlock();
-    if (running) {
-        app_mark_dirty(app);
-    }
-
-    if (!app_screen_begin(app, "Stopwatch")) {
-        return;
-    }
-
-    scheduler_lock();
-    h = g_sw.hours;
-    m = g_sw.minutes;
-    s = g_sw.seconds;
-    running = g_sw.running;
-    scheduler_unlock();
-
-    app_textf(app, 0, 8, "%02u:%02u:%02u", (unsigned)h, (unsigned)m, (unsigned)s);
-    app_text(app, 0, 16, running ? "RUN" : "STP");
-    app_text(app, 0, 24, "Up:tog Sel:rst");
-    app_screen_end(app);
+static void on_frame(void* app) {
+    (void)app;
+    app_ui_begin_frame(app);
+    
+    uint8_t h = g_sw.hours;
+    uint8_t m = g_sw.minutes;
+    uint8_t s = g_sw.seconds;
+    bool running = g_sw.running;
+    
+    app_ui_textf(app, 0, 0, "%02u:%02u:%02u", (unsigned)h, (unsigned)m, (unsigned)s);
+    app_ui_text(app, 0, 16, running ? "RUN" : "STP");
+    app_ui_text(app, 0, 24, "Up:tog Sel:rst");
+    app_ui_end_frame(app);
 }
 
-static void on_cleanup(app_ctx_t* app) {
+static void on_cleanup(void* app) {
     (void)app;
     delete_workers();
-    g_app = NULL;
+    app_ui_deinit(app);
     APP_INFO("Stopwatch workers stopped");
 }
 
 APP_DEFINE(stopwatch_app, "stopwatch", .version = "1.0.0", .author = "ArdubotOS",
            .description = "Multithread stopwatch (sec/min/hour tasks)", .type = APP_TYPE_TOOL,
-           .icon = &stopwatch_app_icon, .fps = 30, .on_init = on_init, .on_frame = on_frame,
-           .on_cleanup = on_cleanup)
+           .icon = &stopwatch_app_icon, .fps = 30,
+           .on_init = on_init, .on_frame = on_frame, .on_cleanup = on_cleanup)

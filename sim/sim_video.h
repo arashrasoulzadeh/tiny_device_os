@@ -29,6 +29,8 @@ int sim_video_get_height(void);
 
 bool sim_key_is_system(sim_key_t key);
 
+void sim_video_ensure_focus(void);
+
 #ifdef __cplusplus
 }
 #endif

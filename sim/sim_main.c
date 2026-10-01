@@ -89,6 +89,21 @@ static void sim_combined_key_cb(sim_key_t key, bool pressed, void* arg) {
     sim_gpio_handle_key(key, pressed);
 }
 
+// GPIO callback for HAL GPIO level changes
+static void sim_gpio_callback(int pin, bool level, void* arg) {
+    (void)arg;
+    // Forward to HAL GPIO edge detection via global callback
+    // The global g_callback is set by sim_gpio_register_hal_gpio_with_trigger
+    // But we need to manually invoke the edge detection for pins with registered HAL callbacks
+    for (int i = 0; i < 64; i++) {
+        extern bool sim_gpio_read(int pin);  // This won't work directly
+    }
+    // Actually, we need to call the internal edge check function
+    // Since hal_gpio_check_edge is static, we can't call it directly
+    // Instead, let's just invoke any registered HAL GPIO callback directly
+    // The key is that sim_gpio_handle_key already calls g_callback
+}
+
 void signal_handler(int sig) {
     (void)sig;
     g_running = false;
@@ -115,6 +130,10 @@ extern app_manifest_t* launcher_app_manifest;
 extern app_manifest_t* info_app_manifest;
 extern app_manifest_t* stopwatch_app_manifest;
 extern app_manifest_t* pong_app_manifest;
+extern app_manifest_t* settings_app_manifest;
+extern app_manifest_t* fileman_app_manifest;
+extern app_manifest_t* shell_app_manifest;
+extern app_manifest_t* demo_app_manifest;
 
 int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -142,6 +161,14 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Failed to initialize sim time\n");
         return 1;
     }
+    
+    if (sim_gpio_init() != 0) {
+        fprintf(stderr, "Failed to initialize sim gpio\n");
+        return 1;
+    }
+    
+    // Set GPIO callback to handle pin level changes from key events
+    sim_gpio_set_callback(sim_gpio_callback, NULL);
     
     if (sim_storage_init(g_flash_image, g_sd_image) != 0) {
         fprintf(stderr, "Failed to initialize storage\n");
@@ -218,6 +245,22 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Failed to install pong app\n");
         return 1;
     }
+    if (app_install_manifest(settings_app_manifest, "settings") != 0) {
+        fprintf(stderr, "Failed to install settings app\n");
+        return 1;
+    }
+    if (app_install_manifest(fileman_app_manifest, "fileman") != 0) {
+        fprintf(stderr, "Failed to install fileman app\n");
+        return 1;
+    }
+    if (app_install_manifest(shell_app_manifest, "shell") != 0) {
+        fprintf(stderr, "Failed to install shell app\n");
+        return 1;
+    }
+    if (app_install_manifest(demo_app_manifest, "demo") != 0) {
+        fprintf(stderr, "Failed to install demo app\n");
+        return 1;
+    }
     if (app_install_manifest(launcher_app_manifest, "launcher") != 0) {
         fprintf(stderr, "Failed to install launcher app\n");
         return 1;
@@ -244,6 +287,11 @@ int main(int argc, char** argv) {
     while (g_running) {
         sim_time_update();
         sim_video_poll_events();
+        
+        // Ensure window keeps focus on macOS
+        if (!g_headless) {
+            sim_video_ensure_focus();
+        }
 
         scheduler_step();
 

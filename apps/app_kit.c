@@ -1,6 +1,7 @@
 #include "app_kit.h"
-
 #include "icons.h"
+#include "app_ui.h"
+#include "app_framework.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,7 +13,7 @@
 
 static app_ctx_t* g_fg = NULL;
 static app_ctx_t* g_home = NULL;
-static int g_next_pin = APP_KIT_PIN_BASE;
+int g_next_pin = APP_KIT_PIN_BASE;
 
 typedef struct {
     const char* name;
@@ -129,11 +130,11 @@ int app_bind_key(app_ctx_t* app, sim_key_t key, app_key_fn_t fn, void* user) {
 
 static void kit_back_trampoline(app_ctx_t* app, void* user) {
     (void)user;
-    app_request_exit(app);
+    app_request_exit((app_ctx_t*)app);
 }
 
 int app_bind_back(app_ctx_t* app) {
-    return app_bind_key(app, SIM_KEY_ESCAPE, kit_back_trampoline, NULL);
+    return app_bind_key(app, SIM_KEY_ESCAPE, (app_key_fn_t)kit_back_trampoline, NULL);
 }
 
 void app_request_exit(app_ctx_t* app) {
@@ -141,9 +142,12 @@ void app_request_exit(app_ctx_t* app) {
         return;
     }
 
-    /* Home actually quits. Other apps soft-leave: stay alive in the background. */
+    /* Home app should not quit - restart it instead. Other apps soft-leave: stay alive in the background. */
     if (!app->desc || !app->desc->name || strcmp(app->desc->name, APP_KIT_HOME_NAME) == 0) {
-        app->running = false;
+        /* For home app, just re-focus it (it stays running) */
+        if (g_home) {
+            app_kit_focus(g_home);
+        }
         return;
     }
 
@@ -358,6 +362,14 @@ void app_kit_run(const app_desc_t* desc) {
     }
     app_timer_init(&ctx.timer, fps);
 
+    /* Initialize UI config based on display size */
+    if (APP_DISPLAY_HEIGHT > 64) {
+        app_ui_config_ui(&ctx.ui, desc->name, "");
+    } else {
+        app_ui_config_game(&ctx.ui);
+    }
+    ctx.ui.text_scale = (APP_DISPLAY_HEIGHT > 64) ? 2 : 1;
+
     if (desc->name && strcmp(desc->name, APP_KIT_HOME_NAME) == 0) {
         g_home = &ctx;
     }
@@ -366,8 +378,8 @@ void app_kit_run(const app_desc_t* desc) {
     app_kit_focus(&ctx);
 
     if (desc->on_init) {
-        desc->on_init(&ctx);
-        app_kit_remap_keys(&ctx);
+        desc->on_init((void*)&ctx);
+        app_kit_remap_keys((void*)&ctx);
     }
 
     while (ctx.running) {
@@ -375,11 +387,11 @@ void app_kit_run(const app_desc_t* desc) {
         if (app_kit_find_ctx(desc->name) == &ctx && g_fg != &ctx) {
             app_t* self = desc->name ? app_find(desc->name) : NULL;
             if (self && self->state == APP_STATE_RUNNING) {
-                app_kit_focus(&ctx);
+                app_kit_focus((void*)&ctx);
             }
         }
         if (desc->on_frame) {
-            desc->on_frame(&ctx);
+            desc->on_frame((void*)&ctx);
         }
         {
             uint32_t frame_ms = 1000u / fps;
@@ -391,7 +403,7 @@ void app_kit_run(const app_desc_t* desc) {
     }
 
     if (desc->on_cleanup) {
-        desc->on_cleanup(&ctx);
+        desc->on_cleanup((void*)&ctx);
     }
     app_display_deinit(&ctx.display);
     app_kit_unregister_ctx(desc->name);

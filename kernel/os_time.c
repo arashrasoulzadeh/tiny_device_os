@@ -2,12 +2,49 @@
 #include "scheduler.h"
 #include <stdlib.h>
 
+/* On host/sim builds nothing ever drives time forward via time_set_now_us(),
+ * so time_now_us() reads the real host clock instead of a frozen offset.
+ * Board targets still rely on their platform tick feeding time_set_now_us(). */
+#if defined(ARDUBOT_SIM_SDL2)
+#if defined(_WIN32)
+#include <windows.h>
+static time_us_t host_monotonic_us(void) {
+    static LARGE_INTEGER freq;
+    static bool have_freq = false;
+    LARGE_INTEGER counter;
+    if (!have_freq) {
+        QueryPerformanceFrequency(&freq);
+        have_freq = true;
+    }
+    QueryPerformanceCounter(&counter);
+    return (time_us_t)((counter.QuadPart * 1000000ULL) / (uint64_t)freq.QuadPart);
+}
+#else
+#include <time.h>
+static time_us_t host_monotonic_us(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (time_us_t)ts.tv_sec * 1000000ULL + (time_us_t)(ts.tv_nsec / 1000);
+}
+#endif
+#endif
+
 static time_us_t g_boot_time = 0;
 static time_us_t g_time_offset = 0;
 static timer_t* g_timer_list = NULL;
 
 time_us_t time_now_us(void) {
+#if defined(ARDUBOT_SIM_SDL2)
+    static time_us_t host_epoch_us = 0;
+    static bool host_epoch_init = false;
+    if (!host_epoch_init) {
+        host_epoch_us = host_monotonic_us();
+        host_epoch_init = true;
+    }
+    return g_time_offset + (host_monotonic_us() - host_epoch_us);
+#else
     return g_time_offset + g_boot_time;
+#endif
 }
 
 time_ms_t time_now_ms(void) {

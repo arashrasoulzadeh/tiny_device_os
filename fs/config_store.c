@@ -404,3 +404,7 @@ int config_list_keys(config_store_t* store, char** keys, size_t max_keys, size_t
     *count = found;
     return 0;
 }
+
+int config_flush(config_store_t* store) {
+    return config_store_flush(store);
+}

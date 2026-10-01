@@ -62,6 +62,7 @@ void ssd1306_model_render(void);
 
 void ssd1306_model_clear(void);
 void ssd1306_model_draw_text(int x, int y, const char* text);
+void ssd1306_model_draw_text_scaled(int x, int y, const char* text, int scale);
 void ssd1306_model_set_pixel(int x, int y, bool on);
 
 #ifdef __cplusplus

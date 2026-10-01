@@ -115,13 +115,15 @@ static sim_key_t sdl_key_to_sim(SDL_Keycode key) {
 int sim_video_init(int width, int height, const char* title) {
     g_width = width;
     g_height = height;
-    /* 128x32 OLED is tiny at 2x — use 4x so the sim matches the physical panel readably. */
-    int scale = (height <= 32) ? 4 : 2;
+    /* Fixed simulator window resolution: 320x172 */
+    int window_width = 320;
+    int window_height = 172;
 
     // macOS: ensure window gets keyboard focus
     SDL_SetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES, "0");
     SDL_SetHint(SDL_HINT_VIDEO_ALLOW_SCREENSAVER, "0");
     SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
+    SDL_SetHint(SDL_HINT_MAC_CTRL_CLICK_EMULATE_RIGHT_CLICK, "0");
     
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) < 0) {
         fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
@@ -131,7 +133,7 @@ int sim_video_init(int width, int height, const char* title) {
     g_window = SDL_CreateWindow(
         title,
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-        width * scale, height * scale,
+        window_width, window_height,
         SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI | SDL_WINDOW_INPUT_FOCUS
     );
     
@@ -316,5 +318,12 @@ bool sim_key_is_system(sim_key_t key) {
             return true;
         default:
             return false;
+    }
+}
+
+void sim_video_ensure_focus(void) {
+    if (g_window) {
+        SDL_RaiseWindow(g_window);
+        SDL_SetWindowInputFocus(g_window);
     }
 }

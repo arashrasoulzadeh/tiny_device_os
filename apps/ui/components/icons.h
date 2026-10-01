@@ -21,9 +21,10 @@ extern const app_icon_t app_icon_default;
 /**
  * Blit @p icon at (x,y). If @p selected, draw a 1px frame.
  * @p set_pixel must clip out-of-range coordinates.
+ * @p scale: 1 = normal, 2 = 2x, etc.
  */
 void app_icon_blit(int x, int y, const app_icon_t* icon, bool selected,
-                   void (*set_pixel)(int px, int py, bool on, void* user), void* user);
+                   void (*set_pixel)(int px, int py, bool on, void* user), void* user, int scale);
 
 #ifdef __cplusplus
 }

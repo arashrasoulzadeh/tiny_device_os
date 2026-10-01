@@ -135,11 +135,14 @@ static void menu_icon_set_pixel(int px, int py, bool on, void* user) {
 
 static void app_menu_draw_icons(app_ctx_t* app, app_menu_t* menu, const char* title,
                                 const char* help) {
-    const int icon_y = 8; /* leave y=0..7 for status bar */
-    const int label_y = 24;
-    const int center_x = (APP_DISPLAY_WIDTH / 2) - (APP_ICON_SIZE / 2);
+    const int scale = app->ui.text_scale;
+    const int icon_size = APP_ICON_SIZE * scale;
+    const int icon_pitch = APP_ICON_PITCH * scale;
+    const int icon_y = 8 * scale; /* leave y=0..7 for status bar */
+    const int label_y = 24 * scale;
+    const int center_x = (APP_DISPLAY_WIDTH / 2) - (APP_ICON_SIZE * scale / 2);
     /* How many icons fit each side of the focused one (keep clear of status). */
-    int side = ((APP_DISPLAY_WIDTH - APP_STATUS_WIDTH) / APP_ICON_PITCH) / 2;
+    int side = ((APP_DISPLAY_WIDTH - APP_STATUS_WIDTH) / icon_pitch) / 2;
     int off;
     const app_menu_item_t* sel;
 
@@ -161,11 +164,11 @@ static void app_menu_draw_icons(app_ctx_t* app, app_menu_t* menu, const char* ti
         while (idx >= menu->count) {
             idx -= menu->count;
         }
-        x = center_x + off * APP_ICON_PITCH;
-        if (x + APP_ICON_SIZE > APP_DISPLAY_WIDTH - APP_STATUS_WIDTH && off != 0) {
+        x = center_x + off * icon_pitch;
+        if (x + icon_size > APP_DISPLAY_WIDTH - APP_STATUS_WIDTH && off != 0) {
             continue; /* don't cover status icons */
         }
-        app_icon_blit(x, icon_y, menu->items[idx].icon, off == 0, menu_icon_set_pixel, app);
+        app_icon_blit(x, icon_y, menu->items[idx].icon, off == 0, menu_icon_set_pixel, app, app->ui.text_scale);
     }
 
     sel = app_menu_selected(menu);
@@ -177,6 +180,10 @@ static void app_menu_draw_icons(app_ctx_t* app, app_menu_t* menu, const char* ti
         }
         app_text(app, lx, label_y, sel->label);
     }
+
+    (void)help;
+    app_status_draw(app);
+    app_flush(app);
 
     (void)help;
     app_status_draw(app);
@@ -226,12 +233,12 @@ void app_menu_draw(app_ctx_t* app, app_menu_t* menu, const char* title, const ch
     app_flush(app);
 }
 
-static void menu_nav_next(app_ctx_t* app, void* user) {
-    app_menu_move(app, (app_menu_t*)user, APP_MENU_ONE_DOWN, user);
+static void menu_nav_next(void* app, void* user) {
+    app_menu_move((app_ctx_t*)app, (app_menu_t*)user, APP_MENU_ONE_DOWN, user);
 }
 
-static void menu_nav_prev(app_ctx_t* app, void* user) {
-    app_menu_move(app, (app_menu_t*)user, APP_MENU_ONE_UP, user);
+static void menu_nav_prev(void* app, void* user) {
+    app_menu_move((app_ctx_t*)app, (app_menu_t*)user, APP_MENU_ONE_UP, user);
 }
 
 int app_menu_bind_nav(app_ctx_t* app, app_menu_t* menu) {

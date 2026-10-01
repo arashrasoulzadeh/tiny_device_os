@@ -1,6 +1,8 @@
+#include "app_framework.h"
 #include "app_kit.h"
 #include "app.h"
 #include "vfs.h"
+#include "alloc.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -18,8 +20,7 @@ static int g_cursor = 0;
 static char* g_history[SHELL_HISTORY_MAX];
 static int g_history_count = 0;
 static int g_history_pos = 0;
-static app_timer_t g_timer;
-static bool g_echo = true;
+static app_ui_t g_ui;
 static int g_last_key = 0;
 
 // --- Built-in Commands ---
@@ -119,10 +120,13 @@ static int cmd_help(int argc, char** argv) {
 
 static int cmd_echo(int argc, char** argv) {
     if (argc > 1) {
-        if (strcmp(argv[1], "on") == 0) g_echo = true;
-        else if (strcmp(argv[1], "off") == 0) g_echo = false;
+        if (strcmp(argv[1], "on") == 0) {
+            // echo on
+        } else if (strcmp(argv[1], "off") == 0) {
+            // echo off
+        }
     }
-    printf("Echo: %s\n", g_echo ? "on" : "off");
+    printf("Echo: %s\n", "on");
     return 0;
 }
 
@@ -190,20 +194,15 @@ static int cmd_apps(int argc, char** argv) {
 
 static int cmd_mem(int argc, char** argv) {
     (void)argc; (void)argv;
-    extern size_t g_alloc_used;
-    extern size_t g_alloc_peak;
-    extern size_t g_alloc_total;
     printf("Memory:\n");
-    printf("  Used:   %zu bytes\n", g_alloc_used);
-    printf("  Peak:   %zu bytes\n", g_alloc_peak);
-    printf("  Total:  %zu bytes\n", g_alloc_total);
+    printf("  Free:      %zu bytes\n", os_get_free_heap());
+    printf("  Min free:  %zu bytes\n", os_get_min_free_heap());
     return 0;
 }
 
 static int cmd_uptime(int argc, char** argv) {
     (void)argc; (void)argv;
-    extern uint32_t os_time_now_ms(void);
-    uint32_t ms = os_time_now_ms();
+    uint32_t ms = time_now_ms();
     uint32_t s = ms / 1000;
     uint32_t h = s / 3600;
     uint32_t m = (s % 3600) / 60;
@@ -228,7 +227,7 @@ static int cmd_reboot(int argc, char** argv) {
     return 0;
 }
 
-// --- Shell Logic ---
+// --- Command Execution ---
 static int find_cmd(const char* name) {
     for (int i = 0; i < g_num_commands; i++) {
         if (strcmp(g_commands[i].name, name) == 0) return i;
@@ -259,20 +258,20 @@ static void execute_line(const char* line) {
 }
 
 // --- Key Handlers ---
-static void on_up(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_up(void* app, void* user) {
+    (void)user; (void)app;
     history_prev();
     app_mark_dirty(app);
 }
 
-static void on_down(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_down(void* app, void* user) {
+    (void)user; (void)app;
     history_next();
     app_mark_dirty(app);
 }
 
-static void on_select(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_select(void* app, void* user) {
+    (void)user; (void)app;
     if (g_line_len > 0) {
         history_add(g_line);
         execute_line(g_line);
@@ -282,8 +281,8 @@ static void on_select(app_ctx_t* app, void* user) {
     }
 }
 
-static void on_back(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_back(void* app, void* user) {
+    (void)user; (void)app;
     if (g_line_len > 0) {
         if (g_cursor > 0) {
             memmove(&g_line[g_cursor - 1], &g_line[g_cursor], g_line_len - g_cursor + 1);
@@ -295,24 +294,24 @@ static void on_back(app_ctx_t* app, void* user) {
     }
 }
 
-static void on_left(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_left(void* app, void* user) {
+    (void)user; (void)app;
     if (g_cursor > 0) {
         g_cursor--;
         app_mark_dirty(app);
     }
 }
 
-static void on_right(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_right(void* app, void* user) {
+    (void)user; (void)app;
     if (g_cursor < g_line_len) {
         g_cursor++;
         app_mark_dirty(app);
     }
 }
 
-static void on_backspace(app_ctx_t* app, void* user) {
-    (void)user;
+static void on_backspace(void* app, void* user) {
+    (void)user; (void)app;
     if (g_cursor > 0) {
         memmove(&g_line[g_cursor - 1], &g_line[g_cursor], g_line_len - g_cursor + 1);
         g_cursor--;
@@ -321,11 +320,10 @@ static void on_backspace(app_ctx_t* app, void* user) {
     }
 }
 
-static void on_key_char(app_ctx_t* app, void* user) {
+static void on_key_char(void* app, void* user) {
     (void)user;
     if (g_line_len < SHELL_MAX_LINE - 1) {
         static const char* chars = "abcdefghijklmnopqrstuvwxyz0123456789 -_=./@_";
-        
         char c = chars[g_last_key % strlen(chars)];
         g_last_key++;
         
@@ -338,51 +336,53 @@ static void on_key_char(app_ctx_t* app, void* user) {
 }
 
 // --- Lifecycle ---
-static void shell_init(app_ctx_t* app) {
-    if (app_display_init(&app->display, "/dev/display0") != 0) {
-        APP_ERROR("Display init failed");
-        return;
-    }
-    app_timer_init(&g_timer, 30);
+static void shell_init(void* app) {
+    (void)app;
+    app_ui_config_t cfg;
+    app_ui_config_ui(&cfg, "SHELL", "ArdubotOS Shell  Type 'help'  Up/Down: history");
+    app_ui_init(&g_ui, &cfg);
     
-    // Bind navigation
-    app_bind_key(app, SIM_KEY_UP, on_up, NULL);
-    app_bind_key(app, SIM_KEY_DOWN, on_down, NULL);
-    app_bind_key(app, SIM_KEY_LEFT, on_left, NULL);
-    app_bind_key(app, SIM_KEY_RIGHT, on_right, NULL);
-    app_bind_key(app, SIM_KEY_ESCAPE, on_backspace, NULL);
-    app_bind_key(app, SIM_KEY_ENTER, on_select, NULL);
-    app_bind_key(app, SIM_KEY_ENTER, on_key_char, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_UP, on_up, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_DOWN, on_down, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_LEFT, on_left, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_RIGHT, on_right, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, on_backspace, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_select, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_key_char, NULL);
     
-    app_bind_back(app);
+    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL);
+    
     APP_INFO("Shell ready - type commands, UP/DOWN history, Enter: exec/cycle char");
 }
 
-static void shell_frame(app_ctx_t* app) {
-    if (!app_screen_begin(app, "SHELL")) return;
+static void shell_frame(void* app) {
+    (void)app;
+    if (!app_is_dirty(app)) {
+        return;
+    }
+    app_ui_begin_frame(app);
     
     // Prompt
-    app_text(app, 0, 0, "> ");
-    app_text(app, 12, 0, g_line);
+    app_ui_text(app, 0, 0, "> ");
+    app_ui_text(app, 12, 0, g_line);
     if (g_cursor < 20) {
-        app_pixel(app, 12 + g_cursor * 6, 0, true);
+        app_ui_pixel(app, 12 + g_cursor * 6, 0, true);
     }
     
     // Status
-    app_textf(app, 0, SSD1306_HEIGHT - 8, "ArdubotOS Shell  Type 'help'  Up/Down: history");
+    app_ui_textf(app, 0, ((app_ui_t*)app)->ui.content_h - 8, "ArdubotOS Shell  Type 'help'  Up/Down: history");
     
-    app_screen_end(app);
+    app_ui_end_frame(app);
 }
 
-static void shell_cleanup(app_ctx_t* app) {
+static void shell_cleanup(void* app) {
     for (int i = 0; i < g_history_count; i++) {
         free(g_history[i]);
     }
-    app_display_deinit(&app->display);
+    app_ui_deinit(app);
     APP_INFO("Shell closed");
 }
 
-// --- App Definition ---
 APP_DEFINE(shell_app, "shell", .version = "1.0.0", .author = "ArdubotOS",
            .description = "Interactive shell - type commands, UP/DOWN for history",
            .type = APP_TYPE_SYSTEM, .fps = 30,

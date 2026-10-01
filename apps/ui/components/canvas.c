@@ -1,5 +1,6 @@
 #include "canvas.h"
 #include "app_kit.h"
+#include "app_framework.h"
 
 #include <stdio.h>
 

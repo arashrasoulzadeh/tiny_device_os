@@ -25,6 +25,10 @@
 #include "bmp280_model.h"
 #endif
 #include "display.h"
+#include "config_store.h"
+#include "app_types.h"
+#include "app_kit.h"
+#include "app_ui.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,53 +38,9 @@ extern "C" {
 // SIMPLIFIED MANIFEST CREATION
 // ============================================================================
 
-// Common capability presets
-#define APP_CAPS_NONE           {}
-#define APP_CAPS_BASIC          { CAP_DISPLAY_ACCESS, CAP_EVENT_ACCESS }
-#define APP_CAPS_DISPLAY        { CAP_DISPLAY_ACCESS }
-#define APP_CAPS_AUDIO          { CAP_AUDIO_ACCESS }
-#define APP_CAPS_STORAGE        { CAP_STORAGE_ACCESS, CAP_FS_ACCESS }
-#define APP_CAPS_NETWORK        { CAP_NET_ACCESS, CAP_WIFI_ACCESS }
-#define APP_CAPS_GPIO           { CAP_GPIO_READ, CAP_GPIO_WRITE }
-#define APP_CAPS_I2C            { CAP_I2C_ACCESS }
-#define APP_CAPS_SPI            { CAP_SPI_ACCESS }
-#define APP_CAPS_UART           { CAP_UART_ACCESS }
-#define APP_CAPS_FULL           { CAP_DISPLAY_ACCESS, CAP_EVENT_ACCESS, CAP_GPIO_READ, CAP_GPIO_WRITE, \
-                                  CAP_I2C_ACCESS, CAP_SPI_ACCESS, CAP_UART_ACCESS, CAP_AUDIO_ACCESS, \
-                                  CAP_STORAGE_ACCESS, CAP_FS_ACCESS, CAP_NET_ACCESS, CAP_WIFI_ACCESS, \
-                                  CAP_CONFIG_ACCESS, CAP_POWER_MGMT }
-
-// Stack/heap size presets
-#define APP_STACK_TINY      4096
-#define APP_STACK_SMALL     8192
-#define APP_STACK_MEDIUM    16384
-#define APP_STACK_LARGE     32768
-#define APP_STACK_HUGE      65536
-
-#define APP_HEAP_TINY       8192
-#define APP_HEAP_SMALL      32768
-#define APP_HEAP_MEDIUM     65536
-#define APP_HEAP_LARGE      131072
-#define APP_HEAP_HUGE       262144
-
-#if defined(ARDUBOT_PIO) || defined(ARDUBOT_TARGET_ESP8266)
-#undef APP_STACK_TINY
-#undef APP_STACK_SMALL
-#undef APP_STACK_MEDIUM
-#undef APP_HEAP_TINY
-#undef APP_HEAP_SMALL
-#define APP_STACK_TINY   1536
-#define APP_STACK_SMALL  3072
-#define APP_STACK_MEDIUM 4096
-#define APP_HEAP_TINY    2048
-#define APP_HEAP_SMALL   4096
-#endif
-
-// App type presets
-#define APP_TYPE_DEFAULT    APP_TYPE_USER
-#define APP_TYPE_GAME_APP   APP_TYPE_GAME
-#define APP_TYPE_TOOL_APP   APP_TYPE_TOOL
-#define APP_TYPE_SYS_APP    APP_TYPE_SYSTEM
+// Capability presets, stack/heap size presets, and app type presets now live
+// in app_types.h (a dependency-free leaf header app_kit.h can include without
+// pulling this umbrella header back in).
 
 // Manifest builder function - call in app init or constructor
 static inline app_manifest_t* app_manifest_create(const char* name, const char* version,
@@ -139,12 +99,7 @@ int app_run_with_lifecycle(const app_lifecycle_t* lifecycle);
 // ============================================================================
 
 // Simple display wrapper using the build-time panel size
-typedef struct {
-    bool initialized;
-    uint16_t width;
-    uint16_t height;
-} app_display_t;
-
+// (app_display_t and app_timer_t defined in app_types.h)
 static inline int app_display_init(app_display_t* disp, const char* dev_path) {
     (void)dev_path;
     if (!disp) return -1;
@@ -257,18 +212,16 @@ static inline int app_buttons_init(app_buttons_t* btns) {
     { .pin = pin_num, .key = key_code, .trigger = HAL_GPIO_IRQ_RISING, \
       .on_press = press_fn, .on_release = release_fn, .arg = user_arg }
 
+// Key button with both edges (press + release)
+#define APP_KEY_BUTTON(pin_num, key_code, press_fn, release_fn, user_arg) \
+    { .pin = pin_num, .key = key_code, .trigger = HAL_GPIO_IRQ_BOTH, \
+      .on_press = press_fn, .on_release = release_fn, .arg = user_arg }
+
 // ============================================================================
 // TIMING/FPS HELPERS
 // ============================================================================
 
-typedef struct {
-    uint32_t target_fps;
-    uint32_t frame_time_ms;
-    uint32_t last_frame_ms;
-    uint32_t frame_count;
-    uint32_t delta_ms;
-} app_timer_t;
-
+// app_timer_t defined in app_types.h
 static inline void app_timer_init(app_timer_t* timer, uint32_t fps) {
     timer->target_fps = fps;
     timer->frame_time_ms = (fps > 0) ? (1000 / fps) : 0;
@@ -325,42 +278,47 @@ static inline void _app_log(log_level_t level, const char* fmt, ...) {
 #define APP_ERROR(fmt, ...)       _app_log(LOG_LEVEL_ERROR, "[APP] " fmt, ##__VA_ARGS__)
 
 // ============================================================================
-// CONFIG/SETTINGS HELPERS
+// CONFIG/SETTINGS HELPERS - global store (for built-in settings)
 // ============================================================================
 
+static config_store_t* g_config_store = NULL;
+
 static inline int app_config_set_str(const char* key, const char* value) {
-    extern int config_set_string(const char*, const char*);
-    return config_set_string(key, value);
+    if (!g_config_store) return -1;
+    return config_set_string(g_config_store, key, value);
 }
 
-static inline int app_config_get_str(const char* key, char* value, size_t max_len) {
-    extern int config_get_string(const char*, char*, size_t);
-    return config_get_string(key, value, max_len);
+static inline const char* app_config_get_str(const char* key, const char* def) {
+    if (!g_config_store) return def;
+    return config_get_string(g_config_store, key, def);
 }
 
 static inline int app_config_set_int(const char* key, int32_t value) {
-    extern int config_set_int(const char*, int32_t);
-    return config_set_int(key, value);
+    if (!g_config_store) return -1;
+    return config_set_int(g_config_store, key, value);
 }
 
-static inline int app_config_get_int(const char* key, int32_t* value) {
-    extern int config_get_int(const char*, int32_t*);
-    return config_get_int(key, value);
+static inline int app_config_get_int(const char* key, int32_t def) {
+    if (!g_config_store) return def;
+    return config_get_int(g_config_store, key, def);
 }
 
 static inline int app_config_set_bool(const char* key, bool value) {
-    extern int config_set_bool(const char*, bool);
-    return config_set_bool(key, value);
+    if (!g_config_store) return -1;
+    return config_set_bool(g_config_store, key, value);
 }
 
-static inline int app_config_get_bool(const char* key, bool* value) {
-    extern int config_get_bool(const char*, bool*);
-    return config_get_bool(key, value);
+static inline bool app_config_get_bool(const char* key, bool def) {
+    if (!g_config_store) return def;
+    return config_get_bool(g_config_store, key, def);
+}
+
+static inline void app_config_init(config_store_t* store) {
+    g_config_store = store;
 }
 
 static inline void app_config_save(void) {
-    extern int config_flush(void);
-    config_flush();
+    if (g_config_store) config_flush(g_config_store);
 }
 
 // ============================================================================
@@ -458,6 +416,9 @@ static inline int app_audio_play(app_audio_t* audio, const int16_t* samples, siz
     if (!audio || !audio->handle || !samples) return -1;
     return hal_audio_write(audio->handle, samples, count);
 }
+
+// ============================================================================
+// UI Framework - see app_ui.h for full definitions
 
 // ============================================================================
 // SIMPLE APP TEMPLATE

@@ -1,4 +1,5 @@
 #include "ota.h"
+#include "ed25519.h"
 #include "hal_storage.h"
 #include <stdlib.h>
 #include <string.h>
@@ -65,7 +66,7 @@ static const uint32_t crc32_table[256] = {
     0x5A05DF1B, 0x2D02EF8D
 };
 
-static uint32_t crc32_update(uint32_t crc, const void* data, size_t len) {
+uint32_t ota_crc32_update(uint32_t crc, const void* data, size_t len) {
     const uint8_t* p = (const uint8_t*)data;
     crc = ~crc;
     while (len--) {
@@ -124,7 +125,7 @@ int ota_write(ota_handle_t* handle, const void* data, size_t size) {
     int ret = hal_storage_write(handle->storage, handle->offset + handle->written, data, size);
     if (ret != 0) return -1;
     
-    handle->crc32 = crc32_update(handle->crc32, data, size);
+    handle->crc32 = ota_crc32_update(handle->crc32, data, size);
     handle->written += size;
     
     if (handle->progress_cb) {
@@ -197,9 +198,13 @@ ota_partition_t ota_get_running_partition(void) {
 int ota_verify_signature(const uint8_t* firmware, uint32_t size,
                          const uint8_t* signature, size_t sig_size,
                          const uint8_t* pubkey, size_t key_size) {
-    (void)firmware; (void)size; (void)signature; (void)sig_size; (void)pubkey; (void)key_size;
-    // Would implement ECDSA/Ed25519 verification
-    return -1;
+    if (!firmware || size == 0 || !signature || sig_size != 64 || !pubkey || key_size != 32) {
+        return -1;
+    }
+    
+    // Verify Ed25519 signature
+    int ret = ed25519_verify(signature, firmware, size, pubkey);
+    return ret == 0 ? 0 : -1;
 }
 
 int ota_get_metadata(ota_metadata_t* meta) {

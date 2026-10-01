@@ -42,28 +42,17 @@ static inline uint32_t tlsf_fls(uint32_t x) {
     return r;
 }
 
-static inline int tlsf_ffs(uint32_t x) {
-    if (!x) return -1;
-    int r = 0;
-    if (!(x & 0xFFFF)) { x >>= 16; r += 16; }
-    if (!(x & 0xFF))   { x >>= 8;  r += 8;  }
-    if (!(x & 0xF))    { x >>= 4;  r += 4;  }
-    if (!(x & 0x3))    { x >>= 2;  r += 2;  }
-    if (!(x & 0x1))    { r += 1; }
-    return r;
-}
-
 static inline int tlsf_get_fl_index(size_t size) {
     return tlsf_fls(size);
 }
 
-static inline int tlsf_get_sl_index(size_t size, int fl) {
-    return (int)((size ^ (1u << fl)) >> (fl > 5 ? fl - 5 : 0));
-}
-
+/* Single-level segregated free list: bucket fl holds every free block with
+ * size in [2^fl, 2^(fl+1)), so a bucket's blocks are not all guaranteed big
+ * enough for a given request - tlsf_malloc scans within a bucket for one
+ * that fits. 32 buckets covers up to 2^31 bytes, well past TLSF_MAX_POOL_SIZE. */
 static inline int tlsf_get_index(size_t size) {
     int fl = tlsf_get_fl_index(size);
-    return (fl << 3) + tlsf_get_sl_index(size, fl);
+    return (fl >= 32) ? 31 : fl;
 }
 
 static block_header_t* block_from_ptr(void* ptr) {
@@ -184,33 +173,31 @@ void* tlsf_malloc(tlsf_pool_t* pool, size_t size) {
     size = ALIGN_UP(size, TLSF_BLOCK_ALIGN);
     size_t total_size = size + BLOCK_OVERHEAD;
     
-    int idx = tlsf_get_index(total_size);
-    
-    for (int fl = idx >> 3; fl < 32; fl++) {
-        int sl_start = (fl == (idx >> 3)) ? (idx & 7) : 0;
-        uint32_t fl_map = 0;
-        for (int sl = sl_start; sl < 8; sl++) {
-            if (pool->free_list[(fl << 3) + sl]) {
-                fl_map |= (1u << sl);
+    int start_fl = tlsf_get_index(total_size);
+
+    for (int fl = start_fl; fl < 32; fl++) {
+        /* Every block in a bucket past start_fl is >= 2^fl > total_size, so
+         * the first one fits; in start_fl itself a smaller block may share
+         * the bucket, so scan for one that's actually big enough. */
+        block_header_t* block = pool->free_list[fl];
+        if (fl == start_fl) {
+            while (block && block->size < total_size) {
+                block = block->next_free;
             }
         }
-        
-        if (fl_map) {
-            int sl = tlsf_ffs(fl_map);
-            int list_idx = (fl << 3) + sl;
-            
-            block_header_t* block = pool->free_list[list_idx];
+
+        if (block) {
             block_remove_free(pool, block);
-            
+
             if (block->size >= total_size + MIN_BLOCK_SIZE) {
                 block_split(pool, block, size);
             }
-            
+
             block->flags |= TLSF_BLOCK_USED;
             pool->used_size += block->size + BLOCK_OVERHEAD;
             size_t free = tlsf_pool_free_size(pool);
             if (free < pool->min_free) pool->min_free = free;
-            
+
             return ptr_from_block(block);
         }
     }

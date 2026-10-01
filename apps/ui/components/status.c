@@ -1,5 +1,6 @@
 #include "status.h"
 #include "display.h"
+#include "app_framework.h"
 
 #include <stddef.h>
 
