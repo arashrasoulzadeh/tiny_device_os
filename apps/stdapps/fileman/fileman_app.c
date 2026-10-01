@@ -132,7 +132,7 @@ static void on_back(void* app, void* user) {
 static void fileman_init(void* app) {
     app_ui_config_t cfg;
     app_ui_config_ui(&cfg, "FILE MANAGER", "Up/Dn:Nav Sel:Open Bk:Back");
-    app_ui_init(&g_ui, &cfg);
+    app_ui_init(&g_ui, app, &cfg);
 
     strncpy(g_fm.path, "/flash", sizeof(g_fm.path) - 1);
     g_fm.path[sizeof(g_fm.path) - 1] = '\0';

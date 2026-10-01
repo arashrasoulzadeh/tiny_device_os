@@ -166,7 +166,7 @@ static void on_reset(void* app, void* user) {
 static void on_init(void* app) {
     app_ui_config_t cfg;
     app_ui_config_ui(&cfg, "STOPWATCH", "Up:start/stop Sel:reset Bk:back");
-    app_ui_init(&g_ui, &cfg);
+    app_ui_init(&g_ui, app, &cfg);
     
     app_ui_bind_key(&g_ui, SIM_KEY_1, on_toggle, NULL);
     app_ui_bind_key(&g_ui, SIM_KEY_2, on_reset, NULL);

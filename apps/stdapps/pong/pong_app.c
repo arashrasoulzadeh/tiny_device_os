@@ -19,7 +19,7 @@ static void on_init(void* app) {
     (void)app;
     app_ui_config_t cfg;
     app_ui_config_game(&cfg);
-    app_ui_init(&g_ui, &cfg);
+    app_ui_init(&g_ui, app, &cfg);
     pong_reset(&g_pong);
     APP_INFO("Pong ready - Up/Down/Enter to move paddle");
 }

@@ -45,7 +45,7 @@ static inline void app_ui_config_game(app_ui_config_t* cfg) {
     cfg->text_scale = (APP_DISPLAY_HEIGHT > 64) ? 2 : 1;
 }
 
-int app_ui_init(app_ui_t* app, const app_ui_config_t* cfg);
+int app_ui_init(app_ui_t* app, void* real_app, const app_ui_config_t* cfg);
 void app_ui_deinit(app_ui_t* app);
 int app_ui_bind_key(app_ui_t* app, sim_key_t key, app_key_fn_t fn, void* user);
 void app_ui_clear(app_ui_t* app);

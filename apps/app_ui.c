@@ -6,13 +6,19 @@
 
 extern int g_next_pin;
 
-int app_ui_init(app_ui_t* app, const app_ui_config_t* cfg) {
+int app_ui_init(app_ui_t* app, void* real_app, const app_ui_config_t* cfg) {
     if (!app || !cfg) return -1;
-    
+
     memset(app, 0, sizeof(*app));
     app->ctx.ui = *cfg;
     app->ctx.dirty = false;
-    
+    /* app_kit_run() passes the real, registered app_ctx_t here; without
+     * linking desc, app_open()/app_request_exit() on this ctx see desc as
+     * NULL and silently no-op (e.g. Enter doing nothing in the launcher). */
+    if (real_app) {
+        app->ctx.desc = ((app_ctx_t*)real_app)->desc;
+    }
+
     if (app_display_init(&app->ctx.display, "/dev/display0") != 0) {
         return -1;
     }

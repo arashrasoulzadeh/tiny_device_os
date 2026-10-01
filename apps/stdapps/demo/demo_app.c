@@ -139,7 +139,7 @@ static app_ui_t g_ui;
 static void demo_init(void* app) {
     app_ui_config_t cfg;
     app_ui_config_ui(&cfg, "HARDWARE DEMO", "Up/Dn:Nav Sel:Run Esc:Back");
-    app_ui_init(&g_ui, &cfg);
+    app_ui_init(&g_ui, app, &cfg);
 
     app_ui_bind_key(&g_ui, SIM_KEY_UP, on_up, NULL);
     app_ui_bind_key(&g_ui, SIM_KEY_DOWN, on_down, NULL);

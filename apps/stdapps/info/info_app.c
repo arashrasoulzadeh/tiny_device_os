@@ -20,7 +20,7 @@ static void on_refresh(void* app, void* user) {
 static void on_init(void* app) {
     app_ui_config_t cfg;
     app_ui_config_ui(&cfg, "INFO", "Sel:Refresh  Bk:Back");
-    app_ui_init(&g_ui, &cfg);
+    app_ui_init(&g_ui, app, &cfg);
     
     app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_refresh, NULL);
     app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL);

@@ -19,7 +19,7 @@ static void on_init(void* app) {
     (void)app;
     app_ui_config_t cfg;
     app_ui_config_ui(&cfg, "LAUNCHER", "Up/Dn:Nav Sel:Launch Bk:Back");
-    app_ui_init(&g_ui, &cfg);
+    app_ui_init(&g_ui, app, &cfg);
 
     app_kit_catalog_build("launcher");
     /* Use icon strip on larger displays, list layout on small (32px) displays */

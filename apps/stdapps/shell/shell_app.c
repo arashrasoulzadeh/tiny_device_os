@@ -340,7 +340,7 @@ static void shell_init(void* app) {
     (void)app;
     app_ui_config_t cfg;
     app_ui_config_ui(&cfg, "SHELL", "ArdubotOS Shell  Type 'help'  Up/Down: history");
-    app_ui_init(&g_ui, &cfg);
+    app_ui_init(&g_ui, app, &cfg);
     
     app_ui_bind_key(&g_ui, SIM_KEY_UP, on_up, NULL);
     app_ui_bind_key(&g_ui, SIM_KEY_DOWN, on_down, NULL);

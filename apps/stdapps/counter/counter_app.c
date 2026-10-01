@@ -20,7 +20,7 @@ static void on_dec(void* app, void* user) {
 static void on_init(void* app) {
     app_ui_config_t cfg;
     app_ui_config_ui(&cfg, "COUNTER", "Up:+  Sel:-  hold:back");
-    app_ui_init(&g_ui, &cfg);
+    app_ui_init(&g_ui, app, &cfg);
     
     app_ui_bind_key(&g_ui, SIM_KEY_1, on_inc, NULL);
     app_ui_bind_key(&g_ui, SIM_KEY_2, on_dec, NULL);
