@@ -23,13 +23,19 @@ static inline void app_ui_config_ui(app_ui_config_t* cfg, const char* title, con
     cfg->title[sizeof(cfg->title) - 1] = '\0';
     strncpy(cfg->help_text, help ? help : "", sizeof(cfg->help_text) - 1);
     cfg->help_text[sizeof(cfg->help_text) - 1] = '\0';
-    cfg->show_top_bar = true;
+    /* The top bar fills its row with "on" pixels then draws the title with
+     * the same "on" pixels - on this monochrome display that's invisible
+     * text on its own background, so it only ever showed as a blank white
+     * strip. Left off until it can actually invert (on bg, off text). */
+    cfg->show_top_bar = false;
     cfg->show_help_bar = true;
-    cfg->content_x = 0;
-    cfg->content_y = 10;
-    cfg->content_w = APP_DISPLAY_WIDTH;
-    cfg->content_h = APP_DISPLAY_HEIGHT - 18;
     cfg->text_scale = (APP_DISPLAY_HEIGHT > 64) ? 2 : 1;
+    cfg->content_x = 0;
+    cfg->content_y = 0;
+    cfg->content_w = APP_DISPLAY_WIDTH;
+    /* Must match app_ui_end_frame()'s help_y = HEIGHT - 8*text_scale, or
+     * the last content row overlaps the help bar it draws over. */
+    cfg->content_h = APP_DISPLAY_HEIGHT - 8 * cfg->text_scale;
 }
 
 static inline void app_ui_config_game(app_ui_config_t* cfg) {

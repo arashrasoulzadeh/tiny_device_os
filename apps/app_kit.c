@@ -151,11 +151,13 @@ void app_request_exit(app_ctx_t* app) {
         return;
     }
 
-    if (app_suspend(app->desc->name) != 0) {
-        app->running = false;
-        return;
-    }
-
+    /* Resume/focus home BEFORE suspending self: app_suspend() on the
+     * currently-running task context-switches away immediately (it never
+     * "returns" until this same task is resumed again), so anything placed
+     * after it here would only run much later, reacting to a stale escape
+     * press right as this app happens to be resumed for an unrelated
+     * reason - which is what made back-navigation land on a leftover
+     * previous app instead of the OS/launcher. */
     app_t* home = app_find(APP_KIT_HOME_NAME);
     if (home) {
         if (home->state == APP_STATE_SUSPENDED) {
@@ -167,6 +169,10 @@ void app_request_exit(app_ctx_t* app) {
 
     if (g_home) {
         app_kit_focus(g_home);
+    }
+
+    if (app_suspend(app->desc->name) != 0) {
+        app->running = false;
     }
 }
 
@@ -191,13 +197,19 @@ int app_open(app_ctx_t* from, const char* name) {
         }
     }
 
-    if (app_suspend(from->desc->name) != 0) {
-        APP_WARN("app_open: failed to suspend %s", from->desc->name);
-    }
-
+    /* Focus the target BEFORE suspending the caller - see the comment in
+     * app_request_exit() for why code after a self-suspend never runs when
+     * expected. This also matters for re-opening an already-suspended app:
+     * its own app_kit_run() won't call app_kit_focus() again on resume, so
+     * without this, the focus would silently stay on whatever was focused
+     * before. */
     app_ctx_t* to_ctx = app_kit_find_ctx(name);
     if (to_ctx) {
         app_kit_focus(to_ctx);
+    }
+
+    if (app_suspend(from->desc->name) != 0) {
+        APP_WARN("app_open: failed to suspend %s", from->desc->name);
     }
 
     return 0;
