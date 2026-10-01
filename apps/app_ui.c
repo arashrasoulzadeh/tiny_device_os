@@ -10,6 +10,12 @@ int app_ui_init(app_ui_t* app, void* real_app, const app_ui_config_t* cfg) {
     if (!app || !cfg) return -1;
 
     memset(app, 0, sizeof(*app));
+    /* app_ui_text()/app_ui_textf()/app_ui_pixel()/app_ui_begin_frame() all
+     * read app->ui (the top-level config), not app->ctx.ui - without this,
+     * content_h stays 0 and every "draw_y < content_h" bounds check fails,
+     * so nothing ever draws (e.g. the pitch-black screen after opening an
+     * app whose on_frame uses the app_ui_t/g_ui pattern). */
+    app->ui = *cfg;
     app->ctx.ui = *cfg;
     app->ctx.dirty = false;
     /* app_kit_run() passes the real, registered app_ctx_t here; without

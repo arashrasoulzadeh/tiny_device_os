@@ -134,8 +134,6 @@ static void adc_read(void) {
 }
 
 // --- Lifecycle ---
-static app_ui_t g_ui;
-
 static void demo_init(void* app) {
     app_ui_config_t cfg;
     app_ui_config_ui(&cfg, "HARDWARE DEMO", "Up/Dn:Nav Sel:Run Esc:Back");

@@ -32,26 +32,26 @@ static void on_init(void* app) {
 static void on_frame(void* app) {
     uint32_t up_s;
     device_info_t info;
-    
+
     if (!app_is_dirty(app)) {
         return;
     }
-    
+
     device_info_query(&info);
     up_s = info.uptime_ms / 1000u;
-    
-    app_ui_begin_frame(app);
-    app_ui_textf(app, 0, 0, "ArdubotOS %s", info.target ? info.target : "?");
-    app_ui_textf(app, 0, 16, "Disp %ux%u", (unsigned)info.display_w,
+
+    app_ui_begin_frame(&g_ui);
+    app_ui_textf(&g_ui, 0, 0, "ArdubotOS %s", info.target ? info.target : "?");
+    app_ui_textf(&g_ui, 0, 16, "Disp %ux%u", (unsigned)info.display_w,
                  (unsigned)info.display_h);
-    app_ui_textf(app, 0, 24, "Up:%us Apps:%u", (unsigned)up_s,
+    app_ui_textf(&g_ui, 0, 24, "Up:%us Apps:%u", (unsigned)up_s,
                  (unsigned)info.installed_apps);
-    app_ui_end_frame(app);
+    app_ui_end_frame(&g_ui);
 }
 
 static void on_cleanup(void* app) {
     (void)app;
-    app_ui_deinit(app);
+    app_ui_deinit(&g_ui);
 }
 
 APP_DEFINE(info_app, "info", .version = "1.0.0", .author = "ArdubotOS",

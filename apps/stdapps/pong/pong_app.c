@@ -38,29 +38,29 @@ static void on_frame(void* app) {
     if (!app_is_dirty(app)) {
         return;
     }
-    app_ui_begin_frame(app);
+    app_ui_begin_frame(&g_ui);
     
     int wall_x = g_ui.ui.content_w - 2;
     for (int y = 0; y < g_ui.ui.content_h; y++) {
-        app_ui_pixel(app, wall_x, y, true);
-        app_ui_pixel(app, wall_x + 1, y, true);
+        app_ui_pixel(&g_ui, wall_x, y, true);
+        app_ui_pixel(&g_ui, wall_x + 1, y, true);
     }
     
-    fill_rect(app, PONG_PADDLE_X, g_pong.paddle_y, PONG_PADDLE_W, PONG_PADDLE_H);
-    fill_rect(app, g_pong.ball_x, g_pong.ball_y, PONG_BALL, PONG_BALL);
+    fill_rect(&g_ui, PONG_PADDLE_X, g_pong.paddle_y, PONG_PADDLE_W, PONG_PADDLE_H);
+    fill_rect(&g_ui, g_pong.ball_x, g_pong.ball_y, PONG_BALL, PONG_BALL);
     
     if (g_pong.game_over) {
-        app_ui_textf(app, 46, 4, "END");
-        app_ui_textf(app, 28, 16, "S:%u", g_pong.score);
+        app_ui_textf(&g_ui, 46, 4, "END");
+        app_ui_textf(&g_ui, 28, 16, "S:%u", g_pong.score);
     } else {
-        app_ui_textf(app, 0, 0, "%u", g_pong.score);
+        app_ui_textf(&g_ui, 0, 0, "%u", g_pong.score);
     }
-    app_ui_end_frame(app);
+    app_ui_end_frame(&g_ui);
 }
 
 static void on_cleanup(void* app) {
     (void)app;
-    app_ui_deinit(app);
+    app_ui_deinit(&g_ui);
 }
 
 APP_DEFINE(pong_app, "pong", .version = "1.0.0", .author = "ArdubotOS",

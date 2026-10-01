@@ -148,7 +148,7 @@ static void settings_init(void* app) {
 
 static void settings_frame(void* app) {
     (void)app;
-    app_ui_begin_frame(app);
+    app_ui_begin_frame(&g_ui);
     
     int y = 0;
     const int line_h = 14;
@@ -157,10 +157,10 @@ static void settings_frame(void* app) {
         bool is_selected = (i == g_selected);
         bool is_editing = g_editing && (i == g_selected);
         
-        if (y + line_h > ((app_ui_t*)app)->ui.content_h) break;
+        if (y + line_h > g_ui.ui.content_h) break;
         
         // Selection indicator
-        app_ui_textf(app, 0, y, "%s %s", is_selected ? ">" : " ", setting_names[i]);
+        app_ui_textf(&g_ui, 0, y, "%s %s", is_selected ? ">" : " ", setting_names[i]);
         
         // Value or edit buffer
         char value[64];
@@ -169,13 +169,13 @@ static void settings_frame(void* app) {
         } else {
             load_setting(i, value, sizeof(value));
         }
-        app_ui_text(app, 0, y + 8, value);
+        app_ui_text(&g_ui, 0, y + 8, value);
         
         // Cursor indicator when editing
         if (is_editing) {
             int cursor_x = 0;
             for (int j = 0; j < g_edit_pos && j < 20; j++) cursor_x += 6;
-            app_ui_pixel(app, cursor_x, y + 15, true);
+            app_ui_pixel(&g_ui, cursor_x, y + 15, true);
         }
         
         y += 18;
@@ -183,15 +183,15 @@ static void settings_frame(void* app) {
     
     // Help text
     if (!g_editing) {
-        app_ui_end_frame(app);
+        app_ui_end_frame(&g_ui);
     } else {
-        app_ui_end_frame(app);
+        app_ui_end_frame(&g_ui);
     }
 }
 
 static void settings_cleanup(void* app) {
     (void)app;
-    app_ui_deinit(app);
+    app_ui_deinit(&g_ui);
     APP_INFO("Settings closed");
 }
 

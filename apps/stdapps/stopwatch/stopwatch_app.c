@@ -190,23 +190,23 @@ static void on_init(void* app) {
 
 static void on_frame(void* app) {
     (void)app;
-    app_ui_begin_frame(app);
+    app_ui_begin_frame(&g_ui);
     
     uint8_t h = g_sw.hours;
     uint8_t m = g_sw.minutes;
     uint8_t s = g_sw.seconds;
     bool running = g_sw.running;
     
-    app_ui_textf(app, 0, 0, "%02u:%02u:%02u", (unsigned)h, (unsigned)m, (unsigned)s);
-    app_ui_text(app, 0, 16, running ? "RUN" : "STP");
-    app_ui_text(app, 0, 24, "Up:tog Sel:rst");
-    app_ui_end_frame(app);
+    app_ui_textf(&g_ui, 0, 0, "%02u:%02u:%02u", (unsigned)h, (unsigned)m, (unsigned)s);
+    app_ui_text(&g_ui, 0, 16, running ? "RUN" : "STP");
+    app_ui_text(&g_ui, 0, 24, "Up:tog Sel:rst");
+    app_ui_end_frame(&g_ui);
 }
 
 static void on_cleanup(void* app) {
     (void)app;
     delete_workers();
-    app_ui_deinit(app);
+    app_ui_deinit(&g_ui);
     APP_INFO("Stopwatch workers stopped");
 }
 

@@ -360,26 +360,26 @@ static void shell_frame(void* app) {
     if (!app_is_dirty(app)) {
         return;
     }
-    app_ui_begin_frame(app);
+    app_ui_begin_frame(&g_ui);
     
     // Prompt
-    app_ui_text(app, 0, 0, "> ");
-    app_ui_text(app, 12, 0, g_line);
+    app_ui_text(&g_ui, 0, 0, "> ");
+    app_ui_text(&g_ui, 12, 0, g_line);
     if (g_cursor < 20) {
-        app_ui_pixel(app, 12 + g_cursor * 6, 0, true);
+        app_ui_pixel(&g_ui, 12 + g_cursor * 6, 0, true);
     }
     
     // Status
-    app_ui_textf(app, 0, ((app_ui_t*)app)->ui.content_h - 8, "ArdubotOS Shell  Type 'help'  Up/Down: history");
+    app_ui_textf(&g_ui, 0, g_ui.ui.content_h - 8, "ArdubotOS Shell  Type 'help'  Up/Down: history");
     
-    app_ui_end_frame(app);
+    app_ui_end_frame(&g_ui);
 }
 
 static void shell_cleanup(void* app) {
     for (int i = 0; i < g_history_count; i++) {
         free(g_history[i]);
     }
-    app_ui_deinit(app);
+    app_ui_deinit(&g_ui);
     APP_INFO("Shell closed");
 }
 

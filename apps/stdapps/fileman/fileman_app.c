@@ -84,7 +84,7 @@ static void on_down(void* app, void* user) {
     (void)user; (void)app;
     if (g_fm.selected < g_fm.count - 1) {
         g_fm.selected++;
-        int max_visible = (((app_ui_t*)app)->ui.content_h - 18) / 10;
+        int max_visible = (g_ui.ui.content_h - 18) / 10;
         if (g_fm.selected >= g_fm.offset + max_visible) g_fm.offset = g_fm.selected - max_visible + 1;
         app_mark_dirty(app);
     }
@@ -153,13 +153,13 @@ static void fileman_init(void* app) {
 
 static void fileman_frame(void* app) {
     (void)app;
-    app_ui_begin_frame(app);
+    app_ui_begin_frame(&g_ui);
 
-    int max_visible = (((app_ui_t*)app)->ui.content_h - 18) / 10;
+    int max_visible = (g_ui.ui.content_h - 18) / 10;
 
     // Path header
-    app_ui_textf(app, 0, 0, "Path: %s", g_fm.path);
-    app_ui_text(app, 0, 8, "----------------");
+    app_ui_textf(&g_ui, 0, 0, "Path: %s", g_fm.path);
+    app_ui_text(&g_ui, 0, 8, "----------------");
 
     for (int i = g_fm.offset; i < g_fm.count && i < g_fm.offset + max_visible; i++) {
         int y = 18 + (i - g_fm.offset) * 10;
@@ -173,7 +173,7 @@ static void fileman_frame(void* app) {
             snprintf(size_str, sizeof(size_str), "%u B", (unsigned)entry->size);
         }
 
-        app_ui_textf(app, 0, y, "%s%s  %s %s",
+        app_ui_textf(&g_ui, 0, y, "%s%s  %s %s",
                       i == g_fm.selected ? ">" : " ",
                       entry->is_dir ? "[DIR] " : "     ",
                       entry->name,
@@ -183,7 +183,7 @@ static void fileman_frame(void* app) {
     // Status bar
     char status[64];
     snprintf(status, sizeof(status), "Items: %d  Sel: %d", g_fm.count, g_fm.selected);
-    app_ui_end_frame(app);
+    app_ui_end_frame(&g_ui);
 }
 
 static void fileman_cleanup(void* app) {
@@ -193,7 +193,7 @@ static void fileman_cleanup(void* app) {
         g_fm.entries = NULL;
         g_fm.count = 0;
     }
-    app_ui_deinit(app);
+    app_ui_deinit(&g_ui);
     APP_INFO("File Manager closed");
 }
 
