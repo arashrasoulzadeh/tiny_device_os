@@ -6,6 +6,7 @@
 #include <getopt.h>
 #include <signal.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "scheduler.h"
 #include "os_time.h"
@@ -25,6 +26,49 @@
 #include "status.h"
 #include "littlefs_vfs.h"
 #include "config_store.h"
+
+#if defined(__APPLE__) || defined(__linux__)
+#define ARDUBOT_SIM_HAVE_BACKTRACE 1
+#include <execinfo.h>
+#endif
+
+/* Crash-dump-to-flash (Phase 7): the sim equivalent of a hardware crash
+ * dump is a plain host file, since there is no real flash sector to write
+ * to and the fault may happen before/during VFS mount. Written directly
+ * with write()/async-signal-safe calls only - no malloc, no printf - since
+ * this runs inside a signal handler after memory may already be corrupt. */
+#define CRASH_LOG_PATH "crash.log"
+
+static void crash_write(const char* s) {
+    write(STDERR_FILENO, s, strlen(s));
+    int fd = open(CRASH_LOG_PATH, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd >= 0) {
+        write(fd, s, strlen(s));
+        close(fd);
+    }
+}
+
+static void crash_handler(int sig) {
+    char buf[64];
+    snprintf(buf, sizeof(buf), "\n=== ArdubotOS sim crash: signal %d ===\n", sig);
+    crash_write(buf);
+
+#ifdef ARDUBOT_SIM_HAVE_BACKTRACE
+    void* frames[64];
+    int n = backtrace(frames, 64);
+    int fd = open(CRASH_LOG_PATH, O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (fd >= 0) {
+        backtrace_symbols_fd(frames, n, fd);
+        close(fd);
+    }
+    backtrace_symbols_fd(frames, n, STDERR_FILENO);
+#else
+    crash_write("(no backtrace support on this platform)\n");
+#endif
+
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
 
 // Key callback that forwards app keys to GPIO (ignores system keys)
 static void sim_key_to_gpio_cb(sim_key_t key, bool pressed, void* arg) {
@@ -140,6 +184,11 @@ int main(int argc, char** argv) {
     
     signal(SIGINT, signal_handler);
     signal(SIGTERM, signal_handler);
+    signal(SIGSEGV, crash_handler);
+    signal(SIGABRT, crash_handler);
+#ifndef _WIN32
+    signal(SIGBUS, crash_handler);
+#endif
     
     if (parse_args(argc, argv) != 0) {
         return 1;

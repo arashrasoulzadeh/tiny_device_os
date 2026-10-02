@@ -21,6 +21,9 @@ CMakeFiles/
 cmake_install.cmake
 *.cmake.orig
 
+# Crash dumps from the sim's signal handler (sim/sim_main.c)
+crash.log
+
 # Generated docs (make docs / mkdocs build)
 docs/doxygen/
 docs/site/
