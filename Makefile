@@ -71,6 +71,19 @@ else
   $(error Unknown ARCH: $(ARCH). Valid: sim, esp32, esp8266, avr, rp2040)
 endif
 
+# For real hardware (not sim), compile in only the stdapps that fit this
+# device's profile - explicit device_config.yaml `apps:` list, or an
+# auto-fit against each app's package.json "min_display" otherwise. Sim
+# always gets everything, since it's the dev-iteration target.
+ifneq ($(ARCH),sim)
+  ifneq (,$(wildcard $(DEVICE_CONFIG)))
+    ENABLED_APPS := $(shell python3 scripts/device_config.py --config $(DEVICE_CONFIG) apps --cmake-list 2>/dev/null)
+    ifneq ($(ENABLED_APPS),)
+      CMAKE_ARCH_OPTS += -DARDUBOT_ENABLED_APPS="$(ENABLED_APPS)"
+    endif
+  endif
+endif
+
 # ============================================================================
 # Build directory setup
 # ============================================================================

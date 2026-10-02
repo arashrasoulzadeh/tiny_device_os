@@ -31,3 +31,13 @@ inputs:
 outputs:
   leds: []
   sound: null
+
+# Optional: which stdapps to compile in for this device (ARDUBOT_ENABLED_APPS).
+# Omit this section entirely to auto-select instead - every stdapp whose
+# apps/stdapps/<name>/package.json "min_display" fits the lcd size above
+# gets compiled in, everything else is left out. Only applies to non-sim
+# ARCH builds (`make usb` / `make ARCH=esp8266 ...`) - sim always builds
+# everything. Check with: python3 scripts/device_config.py apps
+# apps:
+#   - counter
+#   - info

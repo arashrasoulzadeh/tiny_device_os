@@ -3,5 +3,9 @@
   "version": "1.0.0",
   "author": "ArdubotOS",
   "description": "Multithread stopwatch (sec/min/hour tasks)",
-  "depends": []
+  "depends": [],
+  "min_display": {
+    "width": 0,
+    "height": 0
+  }
 }

@@ -9,11 +9,14 @@ from __future__ import annotations
 
 import argparse
 import glob
+import json
 import os
 import re
 import sys
 from pathlib import Path
 from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 # NodeMCU (ESP8266) silkscreen label → GPIO number
 NODEMCU_PINS: dict[str, int] = {
@@ -192,6 +195,62 @@ def resolve_pin(label: str | int, board: str = "nodemcu") -> int:
     return table[text]
 
 
+def load_stdapp_packages(stdapps_dir: str | Path | None = None) -> dict[str, dict]:
+    """Maps stdapp name -> parsed package.json (apps without one are {})."""
+    base = Path(stdapps_dir) if stdapps_dir else (REPO_ROOT / "apps" / "stdapps")
+    pkgs: dict[str, dict] = {}
+    if not base.is_dir():
+        return pkgs
+    for d in sorted(base.iterdir()):
+        if not d.is_dir():
+            continue
+        manifest = d / "package.json"
+        pkgs[d.name] = json.loads(manifest.read_text()) if manifest.is_file() else {}
+    return pkgs
+
+
+def resolve_apps(
+    cfg: dict[str, Any], stdapps_dir: str | Path | None = None
+) -> tuple[list[str], list[tuple[str, str]]]:
+    """Decides which stdapps to compile in for this device profile.
+
+    An explicit `apps:` list in device_config.yaml is used as-is (unknown
+    names are dropped with a reason). Without one, every stdapp whose
+    package.json "min_display" fits the configured lcd size is included -
+    this is the "compile what's suited to the device" behavior. A
+    min_display of 0 (the default) means "fits anything."
+    """
+    pkgs = load_stdapp_packages(stdapps_dir)
+    lcd = cfg.get("lcd") or {}
+    width = int(lcd.get("width") or 0)
+    height = int(lcd.get("height") or 0)
+
+    excluded: list[tuple[str, str]] = []
+    explicit = cfg.get("apps")
+
+    if explicit:
+        enabled = []
+        for name in explicit:
+            if name not in pkgs:
+                excluded.append((name, "not a known stdapp (no apps/stdapps/<name>/)"))
+                continue
+            enabled.append(name)
+        return enabled, excluded
+
+    enabled = []
+    for name, meta in pkgs.items():
+        min_disp = meta.get("min_display") or {}
+        min_w = int(min_disp.get("width") or 0)
+        min_h = int(min_disp.get("height") or 0)
+        if (width and min_w and min_w > width) or (height and min_h and min_h > height):
+            excluded.append(
+                (name, f"needs >= {min_w}x{min_h} display, device has {width}x{height}")
+            )
+            continue
+        enabled.append(name)
+    return enabled, excluded
+
+
 def list_serial_ports() -> list[str]:
     found: list[str] = []
     for pattern in USB_PORT_GLOBS:
@@ -348,6 +407,15 @@ def main(argv: list[str] | None = None) -> int:
 
     p_ports = sub.add_parser("ports", help="List USB serial ports")
 
+    p_apps = sub.add_parser(
+        "apps", help="Resolve which stdapps fit this device (for ARDUBOT_ENABLED_APPS)"
+    )
+    p_apps.add_argument(
+        "--cmake-list",
+        action="store_true",
+        help="Print only the semicolon-joined enabled list (for CMAKE_OPTS)",
+    )
+
     args = parser.parse_args(argv)
 
     if args.cmd == "ports":
@@ -381,6 +449,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "gen-header":
         path = write_header(cfg, args.output)
         print(f"Wrote {path}")
+        return 0
+
+    if args.cmd == "apps":
+        enabled, excluded = resolve_apps(cfg)
+        if args.cmake_list:
+            print(";".join(enabled))
+            return 0
+        print(f"enabled  : {', '.join(enabled) if enabled else '(none)'}")
+        for name, reason in excluded:
+            print(f"excluded : {name} - {reason}")
         return 0
 
     return 1

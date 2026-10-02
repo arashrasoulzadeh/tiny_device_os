@@ -3,5 +3,9 @@
   "version": "1.0.0",
   "author": "ArdubotOS",
   "description": "Device settings editor",
-  "depends": []
+  "depends": [],
+  "min_display": {
+    "width": 0,
+    "height": 0
+  }
 }

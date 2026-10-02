@@ -40,6 +40,7 @@ target_include_directories(sim PUBLIC
     ${CMAKE_SOURCE_DIR}/hal/include
     ${CMAKE_SOURCE_DIR}/kernel
     ${CMAKE_SOURCE_DIR}/apps
+    ${CMAKE_BINARY_DIR}/generated
 )
 
 # Add SDL2 and PortAudio include directories if available

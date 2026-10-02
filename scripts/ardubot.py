@@ -152,23 +152,17 @@ def installed_packages() -> dict[str, dict]:
     return pkgs
 
 
-def register_stdapp(name: str, sources: list[str]) -> None:
-    """Appends `sources` (paths relative to apps/stdapps/) to the stdapps
-    library's CMakeLists.txt and adds the app's own include directory -
-    the same two edits create-app and install both need to make."""
+def register_stdapp(name: str) -> None:
+    """Adds `name` to apps/stdapps/CMakeLists.txt's ARDUBOT_ALL_STDAPPS list.
+    Sources are picked up by that file's own file(GLOB ...) per app
+    directory, so create-app and install only need this one edit."""
     cmake_path = stdapps_dir() / "CMakeLists.txt"
     cmake_text = cmake_path.read_text()
-    added_sources = "".join(f"    {s}\n" for s in sources)
-    cmake_text = cmake_text.replace(
-        "    demo/demo_icon.c\n)",
-        f"    demo/demo_icon.c\n{added_sources})",
-        1,
-    )
-    cmake_text = cmake_text.replace(
-        "    ${CMAKE_CURRENT_SOURCE_DIR}/demo\n",
-        f"    ${{CMAKE_CURRENT_SOURCE_DIR}}/demo\n    ${{CMAKE_CURRENT_SOURCE_DIR}}/{name}\n",
-        1,
-    )
+    marker = "    demo\n)"
+    if marker not in cmake_text:
+        raise RuntimeError(f"{cmake_path}: expected marker {marker!r} not found - "
+                            "edit ARDUBOT_ALL_STDAPPS there by hand")
+    cmake_text = cmake_text.replace(marker, f"    demo\n    {name}\n)", 1)
     cmake_path.write_text(cmake_text)
 
 
@@ -194,9 +188,10 @@ def cmd_create_app(args: argparse.Namespace) -> int:
         "author": "",
         "description": title,
         "depends": [],
+        "min_display": {"width": 0, "height": 0},
     }, indent=2) + "\n")
 
-    register_stdapp(name, [f"{name}/{name}_app.c", f"{name}/{name}_icon.c"])
+    register_stdapp(name)
 
     print(f"Created apps/stdapps/{name}/ ({name}_app.c, {name}_icon.c, package.json) "
           f"and registered it in apps/stdapps/CMakeLists.txt.")
@@ -255,11 +250,11 @@ def cmd_install(args: argparse.Namespace) -> int:
         shutil.rmtree(dest)
     shutil.copytree(src, dest)
 
-    register_stdapp(name, [f"{name}/{f}" for f in c_sources])
+    register_stdapp(name)
 
     print(f"Installed {name} {manifest.get('version', '?')} into apps/stdapps/{name}/ "
-          f"and registered {len(c_sources)} source file(s) in "
-          "apps/stdapps/CMakeLists.txt.")
+          f"({len(c_sources)} source file(s)) and added it to "
+          "apps/stdapps/CMakeLists.txt's ARDUBOT_ALL_STDAPPS.")
     manifest_name = f"{name}_app_manifest"
     print()
     print("To actually install it, add to sim/sim_main.c:")
@@ -278,8 +273,11 @@ def cmd_list(args: argparse.Namespace) -> int:
         version = meta.get("version", "?")
         deps = meta.get("depends", [])
         dep_str = f" (depends: {', '.join(deps)})" if deps else ""
+        min_disp = meta.get("min_display") or {}
+        min_w, min_h = min_disp.get("width", 0), min_disp.get("height", 0)
+        fit_str = f" (needs >={min_w}x{min_h})" if min_w or min_h else ""
         desc = meta.get("description", "")
-        print(f"{name:<16} {version:<10} {desc}{dep_str}")
+        print(f"{name:<16} {version:<10} {desc}{dep_str}{fit_str}")
     return 0
 
 

@@ -26,6 +26,7 @@
 #include "status.h"
 #include "littlefs_vfs.h"
 #include "config_store.h"
+#include "ardubot_enabled_apps.h"
 
 #if defined(__APPLE__) || defined(__linux__)
 #define ARDUBOT_SIM_HAVE_BACKTRACE 1
@@ -172,11 +173,23 @@ static void demo_task_entry(void* arg) {
 }
 
 // External builtin app manifests (from APP_DEFINE)
-extern app_manifest_t* counter_app_manifest;
+/* Each extern is guarded by the ARDUBOT_APP_*_ENABLED macro CMake generates
+ * from ARDUBOT_ENABLED_APPS (apps/stdapps/CMakeLists.txt) - an app that
+ * wasn't compiled in has no manifest symbol to link against. launcher is
+ * always compiled in (enforced there too), so it's never guarded. */
 extern app_manifest_t* launcher_app_manifest;
+#ifdef ARDUBOT_APP_COUNTER_ENABLED
+extern app_manifest_t* counter_app_manifest;
+#endif
+#ifdef ARDUBOT_APP_INFO_ENABLED
 extern app_manifest_t* info_app_manifest;
+#endif
+#ifdef ARDUBOT_APP_STOPWATCH_ENABLED
 extern app_manifest_t* stopwatch_app_manifest;
+#endif
+#ifdef ARDUBOT_APP_PONG_ENABLED
 extern app_manifest_t* pong_app_manifest;
+#endif
 
 int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -295,26 +308,35 @@ int main(int argc, char** argv) {
         }
     }
 
-    /* Install builtins, then start the home/launcher app.
-     * Main app is selected here via app_start("launcher"). */
+    /* Install builtins, then start the home/launcher app. Main app is
+     * selected here via app_start("launcher"). Each block is guarded by
+     * whether ARDUBOT_ENABLED_APPS actually compiled that app in - see the
+     * extern declarations above. Disabled regardless of that list: settings,
+     * fileman, shell, demo - not exposed in the launcher catalog for now. */
+#ifdef ARDUBOT_APP_COUNTER_ENABLED
     if (app_install_manifest(counter_app_manifest, "counter") != 0) {
         fprintf(stderr, "Failed to install counter app\n");
         return 1;
     }
+#endif
+#ifdef ARDUBOT_APP_INFO_ENABLED
     if (app_install_manifest(info_app_manifest, "info") != 0) {
         fprintf(stderr, "Failed to install info app\n");
         return 1;
     }
+#endif
+#ifdef ARDUBOT_APP_STOPWATCH_ENABLED
     if (app_install_manifest(stopwatch_app_manifest, "stopwatch") != 0) {
         fprintf(stderr, "Failed to install stopwatch app\n");
         return 1;
     }
+#endif
+#ifdef ARDUBOT_APP_PONG_ENABLED
     if (app_install_manifest(pong_app_manifest, "pong") != 0) {
         fprintf(stderr, "Failed to install pong app\n");
         return 1;
     }
-    /* Disabled for now: settings, fileman, shell, demo. Only
-     * info/pong/counter/stopwatch are exposed in the launcher catalog. */
+#endif
     if (app_install_manifest(launcher_app_manifest, "launcher") != 0) {
         fprintf(stderr, "Failed to install launcher app\n");
         return 1;
