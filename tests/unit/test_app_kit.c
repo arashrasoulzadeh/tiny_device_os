@@ -48,6 +48,20 @@ void test_app_request_exit_stops_running_flag(void) {
     app_ctx_t ctx;
     memset(&ctx, 0, sizeof(ctx));
     ctx.running = true;
+    
+    /* Create a minimal app_desc for a non-home app */
+    static app_desc_t test_desc = {
+        .name = "test_app",
+        .version = "1.0",
+        .author = "Test",
+        .description = "Test app",
+        .type = APP_TYPE_TOOL,
+        .fps = 30,
+        .stack_size = APP_STACK_SMALL,
+        .heap_size = APP_HEAP_SMALL,
+    };
+    ctx.desc = &test_desc;
+    
     app_request_exit(&ctx);
     TEST_ASSERT_FALSE(ctx.running);
 }

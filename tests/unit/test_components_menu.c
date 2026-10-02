@@ -47,8 +47,15 @@ void test_menu_add_rejects_overflow(void) {
 }
 
 void test_app_display_matches_device_panel(void) {
+#ifdef ARDUBOT_SIM_SDL2
+    /* Simulator uses larger logical resolution for UI development */
+    TEST_ASSERT_EQUAL(320, APP_DISPLAY_WIDTH);
+    TEST_ASSERT_EQUAL(172, APP_DISPLAY_HEIGHT);
+#else
+    /* Device panel (SSD1306 128x32) */
     TEST_ASSERT_EQUAL(128, APP_DISPLAY_WIDTH);
     TEST_ASSERT_EQUAL(32, APP_DISPLAY_HEIGHT);
+#endif
 }
 
 void test_menu_icon_strip_unlimited_wrap(void) {

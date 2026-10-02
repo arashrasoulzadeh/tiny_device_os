@@ -94,4 +94,6 @@ void run_tests(void) {
             printf("Coverage data written to %s\n", g_coverage_file);
         }
     }
+    
+    g_running = false;
 }

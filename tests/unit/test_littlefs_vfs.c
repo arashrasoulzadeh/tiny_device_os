@@ -16,7 +16,8 @@ void setUp(void) {
     int ret_init = hal_storage_init(storage);
     TEST_ASSERT_EQUAL(0, ret_init);
     
-    int ret_mount = littlefs_mount(storage, 0, 4*1024*1024, 4096, "/flash");
+    /* Use smaller size (256KB) for faster testing */
+    int ret_mount = littlefs_mount(storage, 0, 256*1024, 4096, "/flash");
     TEST_ASSERT_EQUAL(0, ret_mount);
     
     g_test_storage = storage;
@@ -205,7 +206,7 @@ void test_littlefs_persistence(void) {
     
     littlefs_unmount("/flash");
     
-    int ret_remount = littlefs_mount(NULL, 0, 4*1024*1024, 4096, "/flash");
+    int ret_remount = littlefs_mount(NULL, 0, 256*1024, 4096, "/flash");
     TEST_ASSERT_EQUAL(0, ret_remount);
     
     vfs_file_t* file_p2;

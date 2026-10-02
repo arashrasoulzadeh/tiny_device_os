@@ -9,7 +9,7 @@ void tearDown(void) {
 }
 
 void test_coverage_check_script_exists(void) {
-    FILE* f = fopen("scripts/check_coverage.cmake", "r");
+    FILE* f = fopen(COVERAGE_SCRIPT_DIR "/scripts/check_coverage.cmake", "r");
     TEST_ASSERT_NOT_NULL(f);
     if (f) fclose(f);
 }
@@ -53,7 +53,7 @@ void test_coverage_passes_at_80_percent(void) {
     fclose(f);
     
     char cmd[256];
-    snprintf(cmd, sizeof(cmd), "lcov --summary coverage_test.info 2>&1 | grep -q 'lines......: 85.0%%'");
+    snprintf(cmd, sizeof(cmd), "lcov --summary coverage_test.info 2>&1 | grep -q 'lines.......: 85.0%%'");
     int ret = system(cmd);
     TEST_ASSERT_EQUAL(0, ret);
     

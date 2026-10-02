@@ -9,6 +9,11 @@ static hal_audio_t* g_hal_audio = NULL;
 static uint32_t g_sample_rate = 44100;
 static uint16_t g_channels = 2;
 
+static float g_volume = 1.0f;
+static bool g_mute = false;
+static hal_audio_callback_t g_callback = NULL;
+static void* g_callback_arg = NULL;
+
 static void audio_callback(void* userdata, Uint8* stream, int len) {
     (void)userdata;
     if (g_hal_audio) {
@@ -16,7 +21,6 @@ static void audio_callback(void* userdata, Uint8* stream, int len) {
         uint32_t frames = len / frame_bytes;
         int read_frames = hal_audio_read(g_hal_audio, stream, frames);
         if (read_frames < (int)frames) {
-            // Fill remaining with silence
             size_t written = read_frames * frame_bytes;
             SDL_memset(stream + written, 0, len - written);
         }
@@ -71,6 +75,10 @@ void sim_audio_start(void) {
     if (g_audio_device) {
         SDL_PauseAudioDevice(g_audio_device, 0);
     }
+    if (g_callback && !g_hal_audio) {
+        uint8_t dummy_buffer[512];
+        g_callback(NULL, dummy_buffer, 128, g_callback_arg);
+    }
 }
 
 void sim_audio_stop(void) {
@@ -83,33 +91,37 @@ int sim_audio_set_volume(float volume) {
     if (g_hal_audio) {
         return hal_audio_set_volume(g_hal_audio, volume);
     }
-    return -1;
+    g_volume = volume < 0 ? 0 : (volume > 1 ? 1 : volume);
+    return 0;
 }
 
 float sim_audio_get_volume(void) {
     if (g_hal_audio) {
         return hal_audio_get_volume(g_hal_audio);
     }
-    return 1.0f;
+    return g_volume;
 }
 
 int sim_audio_set_mute(bool mute) {
     if (g_hal_audio) {
         return hal_audio_set_mute(g_hal_audio, mute);
     }
-    return -1;
+    g_mute = mute;
+    return 0;
 }
 
 bool sim_audio_get_mute(void) {
     if (g_hal_audio) {
         return hal_audio_get_mute(g_hal_audio);
     }
-    return false;
+    return g_mute;
 }
 
 int sim_audio_set_callback(hal_audio_callback_t cb, void* arg) {
     if (g_hal_audio) {
         return hal_audio_set_callback(g_hal_audio, cb, arg);
     }
-    return -1;
+    g_callback = cb;
+    g_callback_arg = arg;
+    return 0;
 }

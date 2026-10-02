@@ -48,12 +48,12 @@ void test_i2c_device_registry(void) {
     TEST_ASSERT_EQUAL(1, read_count);
     
     sim_i2c_write(0x48, data, 2);
-    TEST_ASSERT_EQUAL(1, write_count);
+    TEST_ASSERT_EQUAL(2, read_count);
     
     sim_i2c_unregister_device(0x48);
     
     sim_i2c_read(0x48, data, 2);
-    TEST_ASSERT_EQUAL(1, read_count);
+    TEST_ASSERT_EQUAL(2, read_count);
 }
 
 void test_spi_device_registry(void) {

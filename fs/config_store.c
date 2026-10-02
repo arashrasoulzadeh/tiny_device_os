@@ -88,6 +88,12 @@ int config_store_init(config_store_t* store) {
         store->header.count = 0;
         store->header.data_offset = sizeof(config_header_t) + 1024 * sizeof(config_entry_t);
         store->header.data_size = 0;
+        /* config_set_string/_int/_bool() index store->entries[count++] on
+         * the first write to a new key - without allocating it here, that
+         * write lands on a NULL pointer the first time any value is ever
+         * saved to a brand-new store. */
+        store->entries = calloc(1024, sizeof(config_entry_t));
+        if (!store->entries) return -1;
         return 0;
     }
     

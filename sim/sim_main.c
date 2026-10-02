@@ -21,7 +21,10 @@
 #include "bmp280_model.h"
 #include "sim_gpio.h"
 #include "app_kit.h"
+#include "app_framework.h"
 #include "status.h"
+#include "littlefs_vfs.h"
+#include "config_store.h"
 
 // Key callback that forwards app keys to GPIO (ignores system keys)
 static void sim_key_to_gpio_cb(sim_key_t key, bool pressed, void* arg) {
@@ -226,6 +229,26 @@ int main(int argc, char** argv) {
     }
     /* Simulated pack level (USB host ≈ full). */
     app_status_set_battery_percent(92);
+
+    /* Mount /flash and open the config store the Settings app (and anything
+     * else using vfs_open()/app_config_*) reads and writes through - without
+     * this nothing persisted even within a single run, since app_config_*
+     * silently no-ops with no store set and /flash didn't exist as a VFS
+     * mount point at all. */
+    {
+        hal_storage_t* flash_storage = hal_storage_open("/dev/flash0", HAL_STORAGE_TYPE_FLASH);
+        if (!flash_storage || hal_storage_init(flash_storage) != 0 ||
+            littlefs_mount(flash_storage, 0, 4 * 1024 * 1024, 4096, "/flash") != 0) {
+            fprintf(stderr, "Failed to mount /flash\n");
+        } else {
+            config_store_t* cfg_store = config_store_open("/flash/config.dat");
+            if (!cfg_store || config_store_init(cfg_store) != 0) {
+                fprintf(stderr, "Failed to open config store\n");
+            } else {
+                app_config_init(cfg_store);
+            }
+        }
+    }
 
     /* Install builtins, then start the home/launcher app.
      * Main app is selected here via app_start("launcher"). */
