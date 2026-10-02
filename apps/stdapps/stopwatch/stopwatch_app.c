@@ -168,12 +168,15 @@ static void on_init(void* app) {
     app_ui_config_ui(&cfg, "STOPWATCH", "Up:start/stop Sel:reset Bk:back");
     app_ui_init(&g_ui, app, &cfg);
     
-    app_ui_bind_key(&g_ui, SIM_KEY_1, on_toggle, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_2, on_reset, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_UP, on_toggle, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_reset, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL);
-    
+    app_ui_bind_keys(&g_ui, (app_ui_key_def_t[]){
+        {SIM_KEY_1, on_toggle, NULL},
+        {SIM_KEY_2, on_reset, NULL},
+        {SIM_KEY_UP, on_toggle, NULL},
+        {SIM_KEY_ENTER, on_reset, NULL},
+        {SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL},
+        {0, NULL, NULL},
+    });
+
     g_workers_alive = true;
     stopwatch_reset(&g_sw);
     
@@ -197,10 +200,9 @@ static void on_frame(void* app) {
     uint8_t s = g_sw.seconds;
     bool running = g_sw.running;
     
-    const int line_h = 8 * g_ui.ui.text_scale;
-    app_ui_textf(&g_ui, 0, 0, "%02u:%02u:%02u", (unsigned)h, (unsigned)m, (unsigned)s);
-    app_ui_text(&g_ui, 0, line_h * 2, running ? "RUN" : "STP");
-    app_ui_text(&g_ui, 0, line_h * 3, "Up:tog Sel:rst");
+    app_ui_linef(&g_ui, 0, "%02u:%02u:%02u", (unsigned)h, (unsigned)m, (unsigned)s);
+    app_ui_line(&g_ui, 2, running ? "RUN" : "STP");
+    app_ui_line(&g_ui, 3, "Up:tog Sel:rst");
     app_ui_end_frame(&g_ui);
 }
 

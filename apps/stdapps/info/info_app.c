@@ -22,9 +22,12 @@ static void on_init(void* app) {
     app_ui_config_ui(&cfg, "INFO", "Sel:Refresh  Bk:Back");
     app_ui_init(&g_ui, app, &cfg);
     
-    app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_refresh, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL);
-    
+    app_ui_bind_keys(&g_ui, (app_ui_key_def_t[]){
+        {SIM_KEY_ENTER, on_refresh, NULL},
+        {SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL},
+        {0, NULL, NULL},
+    });
+
     refresh(app);
     APP_INFO("Info app ready");
 }
@@ -41,10 +44,10 @@ static void on_frame(void* app) {
     up_s = info.uptime_ms / 1000u;
 
     app_ui_begin_frame(&g_ui);
-    app_ui_textf(&g_ui, 0, 0, "ArdubotOS %s", info.target ? info.target : "?");
-    app_ui_textf(&g_ui, 0, 16, "Disp %ux%u", (unsigned)info.display_w,
+    app_ui_linef(&g_ui, 0, "ArdubotOS %s", info.target ? info.target : "?");
+    app_ui_linef(&g_ui, 1, "Disp %ux%u", (unsigned)info.display_w,
                  (unsigned)info.display_h);
-    app_ui_textf(&g_ui, 0, 24, "Up:%us Apps:%u", (unsigned)up_s,
+    app_ui_linef(&g_ui, 2, "Up:%us Apps:%u", (unsigned)up_s,
                  (unsigned)info.installed_apps);
     app_ui_end_frame(&g_ui);
 }

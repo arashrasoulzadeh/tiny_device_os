@@ -62,6 +62,26 @@ void app_ui_textf(app_ui_t* app, int x, int y, const char* fmt, ...);
 void app_ui_pixel(app_ui_t* app, int x, int y, bool on);
 void app_ui_rect(app_ui_t* app, int x, int y, int w, int h, bool fill);
 
+/* Row-based text: row 0 is the top content line, row 1 the next, etc. -
+ * the row height always matches app->ui.text_scale, so apps never hardcode
+ * a *_scale pixel offset themselves (that was a recurring bug: every stdapp
+ * had its own hand-computed "8*scale"/"18*scale" line math). */
+static inline int app_ui_row_h(const app_ui_t* app) {
+    return 8 * app->ui.text_scale;
+}
+void app_ui_line(app_ui_t* app, int row, const char* text);
+void app_ui_linef(app_ui_t* app, int row, const char* fmt, ...);
+
+/* Binds a whole table of keys in one call: {SIM_KEY_UP, on_up, NULL}, ...
+ * terminated by a {0, NULL, NULL} sentinel (key 0 is never a real binding).
+ * Returns the number of keys bound, or -1 on the first failure. */
+typedef struct {
+    sim_key_t key;
+    app_key_fn_t fn;
+    void* user;
+} app_ui_key_def_t;
+int app_ui_bind_keys(app_ui_t* app, const app_ui_key_def_t* defs);
+
 void app_ui_mark_dirty(app_ui_t* app);
 void app_ui_clear_dirty(app_ui_t* app);
 bool app_ui_is_dirty(const app_ui_t* app);

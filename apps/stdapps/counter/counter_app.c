@@ -21,23 +21,25 @@ static void on_init(void* app) {
     app_ui_config_t cfg;
     app_ui_config_ui(&cfg, "COUNTER", "Up:+  Sel:-  hold:back");
     app_ui_init(&g_ui, app, &cfg);
-    
-    app_ui_bind_key(&g_ui, SIM_KEY_1, on_inc, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_2, on_dec, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_UP, on_inc, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_dec, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL);
-    
+
+    app_ui_bind_keys(&g_ui, (app_ui_key_def_t[]){
+        {SIM_KEY_1, on_inc, NULL},
+        {SIM_KEY_2, on_dec, NULL},
+        {SIM_KEY_UP, on_inc, NULL},
+        {SIM_KEY_ENTER, on_dec, NULL},
+        {SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL},
+        {0, NULL, NULL},
+    });
+
     APP_INFO("Counter ready");
 }
 
 static void on_frame(void* app) {
     (void)app;
     app_ui_begin_frame(&g_ui);
-    const int line_h = 8 * g_ui.ui.text_scale;
-    app_ui_textf(&g_ui, 0, 0, "Count: %d", g_count);
-    app_ui_text(&g_ui, 0, line_h * 2, "Up:+  Sel:-");
-    app_ui_text(&g_ui, 0, line_h * 3, "hold Sel: back");
+    app_ui_linef(&g_ui, 0, "Count: %d", g_count);
+    app_ui_line(&g_ui, 2, "Up:+  Sel:-");
+    app_ui_line(&g_ui, 3, "hold Sel: back");
     app_ui_end_frame(&g_ui);
 }
 

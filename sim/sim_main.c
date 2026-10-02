@@ -133,10 +133,6 @@ extern app_manifest_t* launcher_app_manifest;
 extern app_manifest_t* info_app_manifest;
 extern app_manifest_t* stopwatch_app_manifest;
 extern app_manifest_t* pong_app_manifest;
-extern app_manifest_t* settings_app_manifest;
-extern app_manifest_t* fileman_app_manifest;
-extern app_manifest_t* shell_app_manifest;
-extern app_manifest_t* demo_app_manifest;
 
 int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -268,22 +264,8 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Failed to install pong app\n");
         return 1;
     }
-    if (app_install_manifest(settings_app_manifest, "settings") != 0) {
-        fprintf(stderr, "Failed to install settings app\n");
-        return 1;
-    }
-    if (app_install_manifest(fileman_app_manifest, "fileman") != 0) {
-        fprintf(stderr, "Failed to install fileman app\n");
-        return 1;
-    }
-    if (app_install_manifest(shell_app_manifest, "shell") != 0) {
-        fprintf(stderr, "Failed to install shell app\n");
-        return 1;
-    }
-    if (app_install_manifest(demo_app_manifest, "demo") != 0) {
-        fprintf(stderr, "Failed to install demo app\n");
-        return 1;
-    }
+    /* Disabled for now: settings, fileman, shell, demo. Only
+     * info/pong/counter/stopwatch are exposed in the launcher catalog. */
     if (app_install_manifest(launcher_app_manifest, "launcher") != 0) {
         fprintf(stderr, "Failed to install launcher app\n");
         return 1;

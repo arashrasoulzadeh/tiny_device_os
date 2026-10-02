@@ -137,6 +137,31 @@ void app_ui_textf(app_ui_t* app, int x, int y, const char* fmt, ...) {
     app_ui_text(app, x, y, buf);
 }
 
+void app_ui_line(app_ui_t* app, int row, const char* text) {
+    app_ui_text(app, 0, row * app_ui_row_h(app), text);
+}
+
+void app_ui_linef(app_ui_t* app, int row, const char* fmt, ...) {
+    if (!fmt || !app) return;
+    char buf[128];
+    va_list args;
+    va_start(args, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, args);
+    va_end(args);
+    app_ui_line(app, row, buf);
+}
+
+int app_ui_bind_keys(app_ui_t* app, const app_ui_key_def_t* defs) {
+    if (!app || !defs) return -1;
+    int n = 0;
+    for (; defs[n].fn != NULL; n++) {
+        if (app_ui_bind_key(app, defs[n].key, defs[n].fn, defs[n].user) != 0) {
+            return -1;
+        }
+    }
+    return n;
+}
+
 void app_ui_pixel(app_ui_t* app, int x, int y, bool on) {
     int draw_y = y + app->ui.content_y;
     if (draw_y >= 0 && draw_y < app->ui.content_h) {
