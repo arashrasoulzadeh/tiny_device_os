@@ -20,6 +20,19 @@ option(ARDUBOT_BUILD_ESP8266 "Build for ESP8266" OFF)
 option(ARDUBOT_BUILD_AVR "Build for AVR (Mega2560)" OFF)
 set(ARDUBOT_SIM_BACKEND "sdl2" CACHE STRING "Simulator backend")
 
+# Real gcov/lcov instrumentation (`make coverage`) - host-only, GCC/Clang only.
+# Separate from sim_args.c's --coverage=FILE flag, which just writes a
+# placeholder lcov file for the headless --test runner; this is actual
+# -fprofile-arcs/-ftest-coverage line/branch data from running the test suite.
+option(ARDUBOT_COVERAGE "Instrument host build for gcov/lcov coverage" OFF)
+if(ARDUBOT_COVERAGE)
+    if(NOT (CMAKE_C_COMPILER_ID MATCHES "GNU|Clang"))
+        message(FATAL_ERROR "ARDUBOT_COVERAGE needs GCC or Clang (got ${CMAKE_C_COMPILER_ID})")
+    endif()
+    add_compile_options(--coverage -O0 -g)
+    add_link_options(--coverage)
+endif()
+
 set(ARDUBOT_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(ARDUBOT_BUILD_TYPE ${CMAKE_BUILD_TYPE})
 

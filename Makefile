@@ -93,7 +93,7 @@ CMAKE_CACHE = $(BUILD_DIR)/CMakeCache.txt
 # ============================================================================
 # Main targets
 # ============================================================================
-.PHONY: all configure build run test clean clean-all config help compile compile-clean compile-info usb usb-ports device-config monitor create-app install-app list-apps docs docs-doxygen docs-site
+.PHONY: all configure build run test clean clean-all config help compile compile-clean compile-info usb usb-ports device-config monitor create-app install-app list-apps docs docs-doxygen docs-site coverage
 
 all: build
 
@@ -216,6 +216,26 @@ docs-site:
 	@echo "Docs site: docs/site/index.html"
 
 docs: docs-doxygen docs-site
+
+# Real line/branch coverage from the host test suite (separate build dir,
+# since instrumented objects shouldn't mix with normal ones). Prints lcov's
+# own summary - see docs/agent-guide.md for what this actually measures
+# and why it isn't, and may never realistically be, 100%.
+COVERAGE_DIR = build/coverage
+coverage:
+	@command -v lcov >/dev/null || (echo "lcov not found - brew install lcov / apt install lcov"; exit 1)
+	cmake -B $(COVERAGE_DIR) -DARDUBOT_BUILD_SIM=ON -DARDUBOT_COVERAGE=ON -DCMAKE_BUILD_TYPE=Debug
+	cmake --build $(COVERAGE_DIR) -j$(JOBS)
+	ctest --test-dir $(COVERAGE_DIR) -j$(JOBS) || true
+	lcov --capture --directory $(COVERAGE_DIR) --output-file $(COVERAGE_DIR)/coverage.info \
+	  --ignore-errors inconsistent,unused 2>/dev/null
+	lcov --remove $(COVERAGE_DIR)/coverage.info \
+	  '*/tests/*' '*/third_party/*' '*/build/*' '/usr/*' '/Applications/*' \
+	  --output-file $(COVERAGE_DIR)/coverage.filtered.info \
+	  --ignore-errors unused 2>/dev/null
+	genhtml $(COVERAGE_DIR)/coverage.filtered.info --output-directory $(COVERAGE_DIR)/html -q
+	@lcov --summary $(COVERAGE_DIR)/coverage.filtered.info
+	@echo "HTML report: $(COVERAGE_DIR)/html/index.html"
 
 # Generate compile_commands.json for IDE
 compile-commands: configure
@@ -402,10 +422,6 @@ compile-info:
 	@echo "SOURCES     : $(words $(ARCH_SRCS)) files"
 	@echo "LIB         : $(COMPILED_LIB)"
 	@echo "BINARY      : $(COMPILED_BIN_DIR)/ardubot_$(ARCH).bin"
-
-# Coverage report (requires lcov)
-coverage: test
-	@which lcov >/dev/null && lcov --capture --directory $(BUILD_DIR) --output-file $(COVERAGE_FILE) && genhtml $(COVERAGE_FILE) --output-directory coverage_html || echo "lcov not installed"
 
 # Help
 help:
