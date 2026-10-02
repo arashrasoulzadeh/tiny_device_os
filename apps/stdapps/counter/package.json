@@ -1,0 +1,7 @@
+{
+  "name": "counter",
+  "version": "1.0.0",
+  "author": "ArdubotOS",
+  "description": "Simple counter demo",
+  "depends": []
+}

@@ -1,0 +1,7 @@
+{
+  "name": "info",
+  "version": "1.0.0",
+  "author": "ArdubotOS",
+  "description": "Device and OS information",
+  "depends": []
+}

@@ -1,0 +1,7 @@
+{
+  "name": "settings",
+  "version": "1.0.0",
+  "author": "ArdubotOS",
+  "description": "Device settings editor",
+  "depends": []
+}

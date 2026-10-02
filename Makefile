@@ -15,6 +15,8 @@
 #   make usb DEVICE=nodemcu # Non-interactive USB flash for NodeMCU
 #   make monitor            # Open a serial monitor on the configured device
 #   make create-app NAME=x  # Scaffold a new stdapp at apps/stdapps/x
+#   make install-app SRC=.. # Install a package.json app from a local dir
+#   make list-apps          # List installed stdapps and their metadata
 #   make docs                # Build Doxygen API reference + mkdocs site
 #
 # Config file: build.mk (optional, auto-loaded if exists)
@@ -78,7 +80,7 @@ CMAKE_CACHE = $(BUILD_DIR)/CMakeCache.txt
 # ============================================================================
 # Main targets
 # ============================================================================
-.PHONY: all configure build run test clean clean-all config help compile compile-clean compile-info usb usb-ports device-config monitor create-app docs docs-doxygen docs-site
+.PHONY: all configure build run test clean clean-all config help compile compile-clean compile-info usb usb-ports device-config monitor create-app install-app list-apps docs docs-doxygen docs-site
 
 all: build
 
@@ -180,6 +182,14 @@ monitor:
 create-app:
 	@test -n "$(NAME)" || (echo "usage: make create-app NAME=<app_name>"; exit 1)
 	@python3 scripts/ardubot.py create-app $(NAME)
+
+# Install a package.json-described app: make install-app SRC=../mygame
+install-app:
+	@test -n "$(SRC)" || (echo "usage: make install-app SRC=<path to package dir>"; exit 1)
+	@python3 scripts/ardubot.py install $(SRC) $(if $(FORCE),--force,)
+
+list-apps:
+	@python3 scripts/ardubot.py list
 
 # Doxygen (API reference) + mkdocs (narrative docs), both gitignored outputs
 docs-doxygen:

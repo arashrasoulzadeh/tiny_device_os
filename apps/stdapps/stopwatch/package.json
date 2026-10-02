@@ -1,0 +1,7 @@
+{
+  "name": "stopwatch",
+  "version": "1.0.0",
+  "author": "ArdubotOS",
+  "description": "Multithread stopwatch (sec/min/hour tasks)",
+  "depends": []
+}

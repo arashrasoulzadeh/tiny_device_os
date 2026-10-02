@@ -1,0 +1,7 @@
+{
+  "name": "launcher",
+  "version": "1.0.0",
+  "author": "ArdubotOS",
+  "description": "App launcher / home screen",
+  "depends": []
+}
