@@ -1,5 +1,6 @@
 #include "ui.h"
 #include "input.h"
+#include "app_framework.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -14,26 +15,25 @@
 #define UI_COLOR_LTGRAY  ((ui_color_t){200, 200, 200, 255})
 #define UI_COLOR_DKGRAY  ((ui_color_t){64, 64, 64, 255})
 
-static ui_color_t color_blend(ui_color_t a, ui_color_t b, float t) {
-    ui_color_t c;
-    c.r = (uint8_t)(a.r + (b.r - a.r) * t);
-    c.g = (uint8_t)(a.g + (b.g - a.g) * t);
-    c.b = (uint8_t)(a.b + (b.b - a.b) * t);
-    c.a = (uint8_t)(a.a + (b.a - a.a) * t);
-    return c;
-}
-
-static bool rect_contains(const ui_rect_t* rect, int16_t x, int16_t y) {
-    return x >= rect->x && x < (int16_t)(rect->x + rect->w) &&
-           y >= rect->y && y < (int16_t)(rect->y + rect->h);
+/* The real display is monochrome (1 bit/pixel, "on" = lit), but this
+ * framework's theme model assumes a conventional white-page/black-ink
+ * desktop display. White is treated as "blank" and anything else (black
+ * ink, the blue focus highlight, borders, ...) is drawn as lit pixels -
+ * an approximation, since a single bit plane can't represent a focused
+ * widget's highlight and its label text as genuinely different colors. */
+static bool color_is_ink(ui_color_t c) {
+    return !(c.r >= 250 && c.g >= 250 && c.b >= 250);
 }
 
 static void draw_rect(void* canvas, const ui_rect_t* rect, ui_color_t color) {
-    (void)canvas; (void)rect; (void)color;
+    if (!canvas || !rect || !color_is_ink(color)) return;
+    app_display_rect((app_display_t*)canvas, rect->x, rect->y, rect->w, rect->h, true);
 }
 
 static void draw_text(void* canvas, const char* text, int16_t x, int16_t y, ui_color_t color) {
-    (void)canvas; (void)text; (void)x; (void)y; (void)color;
+    (void)color;
+    if (!canvas || !text) return;
+    app_display_text((app_display_t*)canvas, x, y, text);
 }
 
 ui_context_t* ui_context_create(uint16_t logical_w, uint16_t logical_h, 
@@ -118,10 +118,18 @@ void ui_theme_set_text_style(ui_theme_t* theme, uint32_t index, const ui_text_st
     }
 }
 
-ui_widget_t* ui_widget_create(ui_context_t* ctx, ui_widget_type_t type, const char* name) {
-    ui_widget_t* w = calloc(1, sizeof(ui_widget_t));
+/* ui_container_t embeds a ui_widget_t plus extra fields (flex_dir/justify/
+ * align/gap) - allocating only sizeof(ui_widget_t) for one and then
+ * writing/reading those extra fields through a cast, as ui_flex_create()
+ * used to, is a heap buffer overflow. alloc_size lets callers that need
+ * the larger struct ask for it; ui_widget_create() is the sizeof(ui_widget_t)
+ * case every plain widget uses. */
+static ui_widget_t* widget_alloc(ui_context_t* ctx, ui_widget_type_t type,
+                                  const char* name, size_t alloc_size) {
+    (void)ctx;
+    ui_widget_t* w = calloc(1, alloc_size);
     if (!w) return NULL;
-    
+
     w->type = type;
     if (name) strncpy(w->name, name, 31);
     w->rect = (ui_rect_t){0, 0, 0, 0};
@@ -144,8 +152,12 @@ ui_widget_t* ui_widget_create(ui_context_t* ctx, ui_widget_type_t type, const ch
     w->enabled = true;
     w->ref_count = 1;
     w->dirty = true;
-    
+
     return w;
+}
+
+ui_widget_t* ui_widget_create(ui_context_t* ctx, ui_widget_type_t type, const char* name) {
+    return widget_alloc(ctx, type, name, sizeof(ui_widget_t));
 }
 
 void ui_widget_destroy(ui_widget_t* widget) {
@@ -317,11 +329,11 @@ static void container_layout(ui_widget_t* widget) {
     }
 }
 
-ui_container_t* ui_flex_create(ui_context_t* ctx, ui_flex_dir_t dir, ui_justify_t justify, 
+ui_container_t* ui_flex_create(ui_context_t* ctx, ui_flex_dir_t dir, ui_justify_t justify,
                                ui_align_t align, uint16_t gap) {
-    ui_widget_t* w = ui_widget_create(ctx, UI_WIDGET_CONTAINER, "flex");
+    ui_widget_t* w = widget_alloc(ctx, UI_WIDGET_CONTAINER, "flex", sizeof(ui_container_t));
     if (!w) return NULL;
-    
+
     ui_container_t* cont = (ui_container_t*)w;
     cont->flex_dir = dir;
     cont->justify = justify;
@@ -516,27 +528,41 @@ ui_widget_t* ui_image_create(ui_context_t* ctx, const void* image_data, uint16_t
     return widget;
 }
 
+static void render_widget(ui_widget_t* widget, void* canvas) {
+    if (!widget || !widget->visible) return;
+    if (widget->draw) widget->draw(widget, canvas);
+    for (uint32_t i = 0; i < widget->child_count; i++) {
+        render_widget(widget->children[i], canvas);
+    }
+}
+
 void ui_render(ui_context_t* ctx) {
     if (!ctx || !ctx->root) return;
-    
-    // Render root and children
-    ui_widget_t* root = ctx->root;
-    if (root->draw) root->draw(root, NULL);
-    
-    for (uint32_t i = 0; i < root->child_count; i++) {
-        ui_widget_t* child = root->children[i];
-        if (child->visible && child->draw) {
-            child->draw(child, NULL);
-        }
+    render_widget(ctx->root, ctx->display);
+}
+
+void ui_context_set_display(ui_context_t* ctx, void* display) {
+    if (ctx) ctx->display = display;
+}
+
+static void layout_widget(ui_widget_t* widget) {
+    if (!widget) return;
+    if (widget->layout_fn) {
+        /* container_layout lays out its own children (and recurses into
+         * any of THEIR layout_fns) as part of positioning them, so don't
+         * also walk this widget's children here - that would double-apply
+         * positions computed from stale rects. */
+        widget->layout_fn(widget);
+        return;
+    }
+    for (uint32_t i = 0; i < widget->child_count; i++) {
+        layout_widget(widget->children[i]);
     }
 }
 
 void ui_layout(ui_context_t* ctx) {
     if (!ctx || !ctx->root) return;
-    
-    if (ctx->root->layout_fn) {
-        ctx->root->layout_fn(ctx->root);
-    }
+    layout_widget(ctx->root);
 }
 
 void ui_input_event(ui_context_t* ctx, const input_event_t* event) {

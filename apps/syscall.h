@@ -149,6 +149,17 @@ typedef struct {
     capability_t caps[CAPABILITY_MAX / 32];
 } capability_set_t;
 
+/* NOTE for whoever wires capabilities up to real syscalls: these look like
+ * pre-shifted bitmask values, but capability_set_add/has/remove (syscall.c)
+ * treat `cap` as a bit INDEX (cap/32 selects the word, 1u<<(cap%32) the bit
+ * within it) - so capability_set_add(set, CAP_GPIO_WRITE) actually sets bit
+ * index 2 (value 4), not bit 1 (value 2). add/has/remove all apply this
+ * same transform, so used one flag at a time through this API it's
+ * internally consistent; it breaks the moment anyone ORs two CAP_* values
+ * together (e.g. CAP_GPIO_READ | CAP_GPIO_WRITE == 3) and passes that
+ * combined mask in, expecting both bits to be set - 3 would be treated as
+ * index 3, not "indices 0 and 1." Nothing calls this today, so it's never
+ * been hit; fix before building a real capability check on it. */
 #define CAP_GPIO_READ      (1u << 0)
 #define CAP_GPIO_WRITE     (1u << 1)
 #define CAP_I2C_ACCESS     (1u << 2)

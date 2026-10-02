@@ -176,11 +176,16 @@ typedef struct {
     float scale_x, scale_y;
     input_callback_t input_cb;
     void* input_arg;
+    void* display;  // app_display_t* to actually draw to - set via ui_context_set_display()
 } ui_context_t;
 
-ui_context_t* ui_context_create(uint16_t logical_w, uint16_t logical_h, 
+ui_context_t* ui_context_create(uint16_t logical_w, uint16_t logical_h,
                                 uint16_t canvas_w, uint16_t canvas_h);
 void ui_context_destroy(ui_context_t* ctx);
+
+// Must be called before ui_render() actually draws anything - display is an
+// app_display_t* (see apps/app_framework.h), typically &your_app_ctx->display.
+void ui_context_set_display(ui_context_t* ctx, void* display);
 
 void ui_context_set_theme(ui_context_t* ctx, ui_theme_t* theme);
 ui_theme_t* ui_theme_create_default(void);
