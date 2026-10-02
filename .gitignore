@@ -21,6 +21,10 @@ CMakeFiles/
 cmake_install.cmake
 *.cmake.orig
 
+# Generated docs (make docs / mkdocs build)
+docs/doxygen/
+docs/site/
+
 # IDE
 .vscode/
 .idea/

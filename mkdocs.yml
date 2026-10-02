@@ -1,0 +1,12 @@
+site_name: ArdubotOS
+docs_dir: docs
+site_dir: docs/site
+
+nav:
+  - Architecture: architecture.md
+  - Agent Guide: agent-guide.md
+  - App Kit: appkit.md
+  - Apps: apps.md
+
+theme:
+  name: readthedocs

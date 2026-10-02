@@ -13,6 +13,9 @@
 #   make run                # Run the SDL2 emulator
 #   make usb                # Ask target, read device_config.yaml, build + flash USB
 #   make usb DEVICE=nodemcu # Non-interactive USB flash for NodeMCU
+#   make monitor            # Open a serial monitor on the configured device
+#   make create-app NAME=x  # Scaffold a new stdapp at apps/stdapps/x
+#   make docs                # Build Doxygen API reference + mkdocs site
 #
 # Config file: build.mk (optional, auto-loaded if exists)
 # Device pins/port: device_config.yaml (required for make usb)
@@ -75,7 +78,7 @@ CMAKE_CACHE = $(BUILD_DIR)/CMakeCache.txt
 # ============================================================================
 # Main targets
 # ============================================================================
-.PHONY: all configure build run test clean clean-all config help compile compile-clean compile-info usb usb-ports device-config
+.PHONY: all configure build run test clean clean-all config help compile compile-clean compile-info usb usb-ports device-config monitor create-app docs docs-doxygen docs-site
 
 all: build
 
@@ -167,6 +170,29 @@ device-config:
 	  -o build/generated/device_config.h
 	@python3 scripts/device_secrets.py gen-header \
 	  -o build/generated/device_secrets.h
+
+# Serial monitor on the configured (or DEVICE=/PORT=) target
+monitor:
+	@python3 scripts/ardubot.py monitor --config $(DEVICE_CONFIG) \
+	  $(if $(PORT),--port $(PORT),)
+
+# Scaffold a new stdapp: make create-app NAME=mygame
+create-app:
+	@test -n "$(NAME)" || (echo "usage: make create-app NAME=<app_name>"; exit 1)
+	@python3 scripts/ardubot.py create-app $(NAME)
+
+# Doxygen (API reference) + mkdocs (narrative docs), both gitignored outputs
+docs-doxygen:
+	@command -v doxygen >/dev/null || (echo "doxygen not found - brew install doxygen"; exit 1)
+	doxygen Doxyfile
+	@echo "API docs: docs/doxygen/html/index.html"
+
+docs-site:
+	@command -v mkdocs >/dev/null || (echo "mkdocs not found - pip install mkdocs"; exit 1)
+	mkdocs build
+	@echo "Docs site: docs/site/index.html"
+
+docs: docs-doxygen docs-site
 
 # Generate compile_commands.json for IDE
 compile-commands: configure
