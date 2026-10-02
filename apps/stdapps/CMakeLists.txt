@@ -10,6 +10,7 @@ set(ARDUBOT_ALL_STDAPPS
     fileman
     shell
     demo
+    widgets
 )
 
 # A device profile can restrict what actually gets compiled in, via

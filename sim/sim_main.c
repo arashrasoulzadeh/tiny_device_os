@@ -190,6 +190,9 @@ extern app_manifest_t* stopwatch_app_manifest;
 #ifdef ARDUBOT_APP_PONG_ENABLED
 extern app_manifest_t* pong_app_manifest;
 #endif
+#ifdef ARDUBOT_APP_WIDGETS_ENABLED
+extern app_manifest_t* widgets_app_manifest;
+#endif
 
 int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -334,6 +337,12 @@ int main(int argc, char** argv) {
 #ifdef ARDUBOT_APP_PONG_ENABLED
     if (app_install_manifest(pong_app_manifest, "pong") != 0) {
         fprintf(stderr, "Failed to install pong app\n");
+        return 1;
+    }
+#endif
+#ifdef ARDUBOT_APP_WIDGETS_ENABLED
+    if (app_install_manifest(widgets_app_manifest, "widgets") != 0) {
+        fprintf(stderr, "Failed to install widgets app\n");
         return 1;
     }
 #endif

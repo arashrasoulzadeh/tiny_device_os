@@ -1,0 +1,11 @@
+{
+  "name": "widgets",
+  "version": "1.0.0",
+  "author": "ArdubotOS",
+  "description": "Widget framework demo (flex layout, label/button)",
+  "depends": [],
+  "min_display": {
+    "width": 0,
+    "height": 0
+  }
+}
