@@ -80,10 +80,17 @@ int vfs_unmount(const char* prefix) {
 }
 
 static int vfs_do_open(const char* path, vfs_mode_t mode, vfs_file_t** file) {
+    /* Every failure path below used to just `return` without touching
+     * *file, leaving it as whatever garbage the caller's own
+     * uninitialized local pointer held - the common "check *file for
+     * NULL on failure" idiom (which tests/unit/test_vfs_mounts.c's
+     * test_vfs_error_handling relies on) wasn't actually honored. */
+    *file = NULL;
+
     const char* rel_path;
     vfs_mount_t* mount = vfs_find_mount(path, &rel_path);
     if (!mount || !mount->ops->open) return -1;
-    
+
     vfs_file_t* f = calloc(1, sizeof(vfs_file_t));
     if (!f) return -1;
     

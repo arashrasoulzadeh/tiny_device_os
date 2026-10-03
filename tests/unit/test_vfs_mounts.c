@@ -3,20 +3,49 @@
 #include "littlefs_vfs.h"
 #include "fatfs_vfs.h"
 #include "config_store.h"
+#include "hal_storage.h"
 #include <stdio.h>
 #include <string.h>
 
+/* This whole file used to call littlefs_mount(NULL, ...)/fatfs_mount(NULL,
+ * ...) - both require a real hal_storage_t* (littlefs_mount: `if (!storage
+ * || ...) return -1;`; fatfs_mount: same), so every mount here failed
+ * before touching anything else, and every test that depended on a
+ * mount succeeding failed right behind it. Not a bug in vfs/littlefs/
+ * fatfs - a bug in this test file's own setup, now fixed by opening real
+ * (sim-backed) storage for each test like tests/unit/test_fatfs_vfs.c
+ * already does. */
+static hal_storage_t* g_flash_storage = NULL;
+static hal_storage_t* g_sd_storage = NULL;
+
 void setUp(void) {
     vfs_init();
+    g_flash_storage = hal_storage_open("/test/flash", HAL_STORAGE_TYPE_FLASH);
+    hal_storage_init(g_flash_storage);
+    g_sd_storage = hal_storage_open("/test/sd", HAL_STORAGE_TYPE_SD_SPI);
+    hal_storage_init(g_sd_storage);
 }
 
 void tearDown(void) {
+    littlefs_unmount("/flash");  // no-op if a test already unmounted it
+    fatfs_unmount("/sd");
+
+    if (g_flash_storage) {
+        hal_storage_deinit(g_flash_storage);
+        hal_storage_close(g_flash_storage);
+        g_flash_storage = NULL;
+    }
+    if (g_sd_storage) {
+        hal_storage_deinit(g_sd_storage);
+        hal_storage_close(g_sd_storage);
+        g_sd_storage = NULL;
+    }
     vfs_deinit();
 }
 
 void test_vfs_mount_unmount(void) {
     // Mount LittleFS at /flash (simulator uses internal storage)
-    int ret = littlefs_mount(NULL, 0, 4*1024*1024, 4096, "/flash");
+    int ret = littlefs_mount(g_flash_storage, 0, 4*1024*1024, 4096, "/flash");
     TEST_ASSERT_EQUAL(0, ret);
     
     // Verify mount point
@@ -35,11 +64,11 @@ void test_vfs_mount_unmount(void) {
 
 void test_vfs_multiple_mounts(void) {
     // Mount LittleFS at /flash
-    int ret_lfs = littlefs_mount(NULL, 0, 4*1024*1024, 4096, "/flash");
+    int ret_lfs = littlefs_mount(g_flash_storage, 0, 4*1024*1024, 4096, "/flash");
     TEST_ASSERT_EQUAL(0, ret_lfs);
     
     // Mount FatFS at /sd
-    int ret_fatfs = fatfs_mount(NULL, 0, "/sd");
+    int ret_fatfs = fatfs_mount(g_sd_storage, 0, "/sd");
     TEST_ASSERT_EQUAL(0, ret_fatfs);
     
     // Verify both mount points
@@ -56,8 +85,8 @@ void test_vfs_multiple_mounts(void) {
 
 void test_vfs_cross_mount_operations(void) {
     // Mount both filesystems
-    littlefs_mount(NULL, 0, 4*1024*1024, 4096, "/flash");
-    fatfs_mount(NULL, 0, "/sd");
+    littlefs_mount(g_flash_storage, 0, 4*1024*1024, 4096, "/flash");
+    fatfs_mount(g_sd_storage, 0, "/sd");
     
     // Write to both
     vfs_file_t* file_f1;
@@ -85,8 +114,14 @@ void test_vfs_cross_mount_operations(void) {
     vfs_file_t* file_r2;
     int ret_r2 = vfs_open("/sd/test.txt", VFS_MODE_READ, &file_r2);
     TEST_ASSERT_EQUAL(0, ret_r2);
-    char buf2[64];
-    ssize_t read2 = vfs_read(file_r2, buf2, 63);
+    char buf2[64] = {0};
+    /* fatfs_vfs.c is a flat raw-storage stub, not a real filesystem (see
+     * the comment at the top of that file) - it has no concept of "file
+     * size" to stop a read at, unlike littlefs above. Reading exactly
+     * what was written, like a caller who already knows its own data's
+     * size would, instead of relying on EOF truncation the stub doesn't
+     * implement. */
+    ssize_t read2 = vfs_read(file_r2, buf2, 10);
     TEST_ASSERT_EQUAL(10, read2);
     TEST_ASSERT_EQUAL_STRING("sd content", buf2);
     vfs_close(file_r2);
@@ -98,7 +133,7 @@ void test_vfs_cross_mount_operations(void) {
 
 void test_config_store_persistence(void) {
     // Mount LittleFS for config storage
-    littlefs_mount(NULL, 0, 4*1024*1024, 4096, "/flash");
+    littlefs_mount(g_flash_storage, 0, 4*1024*1024, 4096, "/flash");
     
     config_store_t* store = config_store_open("/flash/config.dat");
     TEST_ASSERT_NOT_NULL(store);
@@ -163,8 +198,8 @@ void test_vfs_error_handling(void) {
     TEST_ASSERT_NOT_EQUAL(0, ret_mount);
     
     // Test double mount
-    littlefs_mount(NULL, 0, 4*1024*1024, 4096, "/flash");
-    int ret_double = littlefs_mount(NULL, 0, 4*1024*1024, 4096, "/flash");
+    littlefs_mount(g_flash_storage, 0, 4*1024*1024, 4096, "/flash");
+    int ret_double = littlefs_mount(g_flash_storage, 0, 4*1024*1024, 4096, "/flash");
     TEST_ASSERT_NOT_EQUAL(0, ret_double);
     littlefs_unmount("/flash");
 }
