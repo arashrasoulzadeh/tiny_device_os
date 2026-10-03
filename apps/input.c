@@ -6,6 +6,8 @@
 
 #define INPUT_EVENT_QUEUE_SIZE 64
 
+static void process_key_event(input_key_t key, bool pressed);
+
 static struct {
     input_device_t devices[INPUT_MAX_DEVICES];
     uint32_t device_count;
@@ -125,6 +127,23 @@ input_device_t* input_device_find(const char* name) {
 
 int input_post_event(const input_event_t* event) {
     if (!event) return -1;
+
+    /* process_key_event() does real tap/double-tap/long-press/hold
+     * classification (via last_key_states/key_repeat_states + the
+     * configured thresholds) and queues its own, upgraded event - but
+     * nothing ever called it, so every posted key event stayed exactly
+     * KEY_DOWN/KEY_UP no matter how long it was held or how fast it was
+     * repeated. Route raw key events through it instead of queueing them
+     * verbatim; everything else (touch, encoder, already-classified
+     * gesture events) queues unchanged as before. */
+    if (event->type == INPUT_EVENT_KEY_DOWN) {
+        process_key_event(event->key, true);
+        return 0;
+    }
+    if (event->type == INPUT_EVENT_KEY_UP) {
+        process_key_event(event->key, false);
+        return 0;
+    }
     return input_queue_event(event);
 }
 
@@ -196,8 +215,14 @@ static void process_key_event(input_key_t key, bool pressed) {
         event.type = INPUT_EVENT_KEY_DOWN;
         g_input.last_key_states[key] = now;
         
-        // Check for double tap
-        if (g_input.key_repeat_states[key] > 0 && 
+        // Check for double tap. NOTE: key_repeat_states[key]==0 doubles as
+        // "never pressed" and a legitimate tick-0 timestamp - a key whose
+        // most recent press landed exactly on tick 0 (realistically only
+        // possible once, at boot) will fail this check on its next press
+        // even though it should double-tap. Harmless in practice; flagged
+        // for whoever next touches this rather than adding a second
+        // has-ever-pressed array just to close a boot-instant edge case.
+        if (g_input.key_repeat_states[key] > 0 &&
             now - g_input.key_repeat_states[key] < g_input.config.double_tap_threshold_ms) {
             event.type = INPUT_EVENT_BUTTON_DOUBLE_TAP;
             event.tap_count = 2;
@@ -259,25 +284,63 @@ int input_process_events(void) {
     return processed;
 }
 
-int input_recognizer_add_gesture(void* rec, input_event_type_t gesture, input_callback_t cb, void* arg) {
-    (void)rec; (void)gesture; (void)cb; (void)arg;
-    return 0;
-}
+typedef struct {
+    input_event_type_t gesture;
+    input_callback_t cb;
+    void* arg;
+    bool active;
+} recognizer_entry_t;
+
+struct input_recognizer {
+    recognizer_entry_t entries[INPUT_MAX_GESTURES];
+    int count;
+};
 
 input_recognizer_t* input_recognizer_create(void) {
-    return NULL;
+    return calloc(1, sizeof(input_recognizer_t));
 }
 
 void input_recognizer_destroy(input_recognizer_t* rec) {
-    (void)rec;
+    free(rec);
+}
+
+int input_recognizer_add_gesture(void* rec_, input_event_type_t gesture, input_callback_t cb, void* arg) {
+    input_recognizer_t* rec = (input_recognizer_t*)rec_;
+    if (!rec || !cb || rec->count >= INPUT_MAX_GESTURES) return -1;
+
+    recognizer_entry_t* e = &rec->entries[rec->count++];
+    e->gesture = gesture;
+    e->cb = cb;
+    e->arg = arg;
+    e->active = true;
+    return 0;
+}
+
+int input_recognizer_dispatch(input_recognizer_t* rec, const input_event_t* event) {
+    if (!rec || !event) return -1;
+
+    int count = 0;
+    for (int i = 0; i < rec->count; i++) {
+        recognizer_entry_t* e = &rec->entries[i];
+        if (e->active && e->gesture == event->type) {
+            e->cb(event, e->arg);
+            count++;
+        }
+    }
+    return count;
 }
 
 const char* input_key_to_str(input_key_t key) {
+    /* Must track input_key_t (input.h) exactly, in order - this used to
+     * be a gamepad-style table ("X","Y","L","R",F1..F12) that didn't match
+     * the real enum (UP..POWER, then the letters A-Z, then modifiers) at
+     * all, so e.g. INPUT_KEY_C printed as "X" and INPUT_KEY_D as "Y". */
     static const char* names[] = {
         "UNKNOWN", "UP", "DOWN", "LEFT", "RIGHT", "ENTER", "ESCAPE",
         "BACK", "HOME", "MENU", "VOL_UP", "VOL_DOWN", "POWER",
-        "A", "B", "X", "Y", "L", "R",
-        "F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12"
+        "A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M",
+        "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z",
+        "SHIFT", "CTRL", "ALT", "META", "SPACE", "TAB", "BACKSPACE"
     };
     if (key < sizeof(names)/sizeof(names[0])) return names[key];
     return "UNKNOWN";

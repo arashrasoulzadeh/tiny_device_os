@@ -148,8 +148,14 @@ typedef struct input_recognizer input_recognizer_t;
 input_recognizer_t* input_recognizer_create(void);
 void input_recognizer_destroy(input_recognizer_t* rec);
 
-int input_recognizer_add_gesture(void* rec, input_event_type_t gesture, 
+int input_recognizer_add_gesture(void* rec, input_event_type_t gesture,
                                   input_callback_t cb, void* arg);
+
+// Calls every gesture callback on `rec` whose registered type matches
+// event->type. Returns the number invoked, or -1 for a NULL rec/event.
+// Nothing feeds a recognizer events automatically yet - a caller drives
+// it explicitly (e.g. from its own input_process_events loop).
+int input_recognizer_dispatch(input_recognizer_t* rec, const input_event_t* event);
 
 int input_init(const input_config_t* config);
 void input_deinit(void);
