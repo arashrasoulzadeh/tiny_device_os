@@ -46,6 +46,12 @@ static void init_available_freqs(void) {
     g_power.current_cpu_freq_mhz = 240;
 }
 
+/* Declared in power.h, never defined anywhere - a link error for any
+ * real caller, which is exactly why nothing has ever called it. */
+wake_result_t get_wake_result(void) {
+    return g_power.last_wake;
+}
+
 // Get wake cause string
 const char* wake_source_str(int wake_source) {
     switch (wake_source) {
@@ -95,24 +101,26 @@ void power_deinit(void) {
 // Light sleep - CPU pauses but RAM retained
 int power_light_sleep(uint32_t timeout_ms) {
     if (!g_power.initialized) return -1;
-    
+
+    /* timeout_ms == 0 used to mean "infinite light sleep - yield until
+     * woken": while (current_mode == LIGHT_SLEEP) time_sleep_ms(1). On
+     * real hardware that's a WFI, broken out of by an actual interrupt;
+     * nothing in this module ever sets current_mode away from
+     * LIGHT_SLEEP from outside this loop - there's no power_wake() or
+     * equivalent - so this was an unconditional, permanent hang with no
+     * real caller to have ever noticed. Rejecting it outright rather
+     * than pretending a bounded sleep can stand in for a real wake
+     * interrupt this module doesn't have. */
+    if (timeout_ms == 0) return -1;
+
     uint32_t start = time_now_ms();
     g_power.current_mode = POWER_MODE_LIGHT_SLEEP;
-    
-    if (timeout_ms == 0) {
-        // Infinite light sleep - yield until woken
-        while (g_power.current_mode == POWER_MODE_LIGHT_SLEEP) {
-            // On real hardware: WFI instruction
-            // On simulator: yield
-            time_sleep_ms(1);
-        }
-    } else {
-        uint32_t end = start + timeout_ms;
-        while (time_now_ms() < end && g_power.current_mode == POWER_MODE_LIGHT_SLEEP) {
-            time_sleep_ms(1);
-        }
+
+    uint32_t end = start + timeout_ms;
+    while (time_now_ms() < end && g_power.current_mode == POWER_MODE_LIGHT_SLEEP) {
+        time_sleep_ms(1);
     }
-    
+
     g_power.current_mode = POWER_MODE_ACTIVE;
     return 0;
 }
@@ -144,23 +152,30 @@ int power_deep_sleep_with_gpio_wake(int gpio_num, int trigger, uint32_t timeout_
         return 0;
     }
     
-    // Simulate deep sleep by advancing time
+    /* Simulate deep sleep by advancing time. NOTE: a GPIO wake source is
+     * recorded (wake_config.gpio_num/gpio_trigger) but never actually
+     * polled or waited on - there is no GPIO monitoring here at all. So
+     * a GPIO-only wake request (gpio_num >= 0, timeout_ms == 0) sleeps
+     * for 0ms and returns immediately, "waking" instantly rather than
+     * waiting for that pin. Real GPIO-wake deep sleep needs this to poll
+     * hal_gpio_read() on the configured pin/trigger each tick (or a real
+     * ISR on hardware); nothing here does that yet. */
     if (timeout_ms > 0) {
         time_sleep_ms(timeout_ms);
     }
-    
+
     // Call driver resume callbacks
     for (int i = 0; i < 8; i++) {
         if (g_power.drivers[i].registered && g_power.drivers[i].resume) {
             g_power.drivers[i].resume(g_power.drivers[i].arg);
         }
     }
-    
+
     // Record wake result
     g_power.last_wake.woke_up = true;
-    g_power.last_wake.wake_gpio = -1;
+    g_power.last_wake.wake_gpio = gpio_num;  // was hardcoded -1 regardless of the actual pin
     g_power.last_wake.slept_ms = time_now_ms() - start;
-    
+
     return 0;
 }
 
