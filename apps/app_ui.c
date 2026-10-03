@@ -3,6 +3,8 @@
 #include "app_framework.h"
 #include "ssd1306_model.h"
 #include "menu.h"
+#include <stdlib.h>
+#include <stdio.h>
 
 extern int g_next_pin;
 
@@ -33,6 +35,10 @@ int app_ui_init(app_ui_t* app, void* real_app, const app_ui_config_t* cfg) {
 }
 
 void app_ui_deinit(app_ui_t* app) {
+    if (app->gestures) {
+        input_recognizer_destroy(app->gestures);
+        app->gestures = NULL;
+    }
     app_display_deinit(&app->ctx.display);
 }
 
@@ -79,6 +85,106 @@ int app_ui_bind_key(app_ui_t* app, sim_key_t key, app_key_fn_t fn, void* user) {
     sim_gpio_set_key_mapping(key, pin, true);
     
     app->ctx.key_count++;
+    return 0;
+}
+
+static input_key_t sim_key_to_input_key(sim_key_t key) {
+    switch (key) {
+        case SIM_KEY_UP:     return INPUT_KEY_UP;
+        case SIM_KEY_DOWN:   return INPUT_KEY_DOWN;
+        case SIM_KEY_LEFT:   return INPUT_KEY_LEFT;
+        case SIM_KEY_RIGHT:  return INPUT_KEY_RIGHT;
+        case SIM_KEY_ENTER:  return INPUT_KEY_ENTER;
+        case SIM_KEY_ESCAPE: return INPUT_KEY_ESCAPE;
+        case SIM_KEY_SPACE:  return INPUT_KEY_SPACE;
+        case SIM_KEY_A: return INPUT_KEY_A; case SIM_KEY_B: return INPUT_KEY_B;
+        case SIM_KEY_C: return INPUT_KEY_C; case SIM_KEY_D: return INPUT_KEY_D;
+        default: return INPUT_KEY_UNKNOWN;
+    }
+}
+
+typedef struct {
+    app_ui_t* app;
+    sim_key_t key;
+} gesture_binding_t;
+
+/* Bridges apps/input.c's global device-callback dispatch to this app_ui_t's
+ * own recognizer - input_process_events() delivers to devices, not
+ * directly to a recognizer, so every app_ui_t with a gesture binding
+ * registers one small device whose only job is this forward. */
+static void gesture_device_cb(const input_event_t* event, void* arg) {
+    app_ui_t* app = (app_ui_t*)arg;
+    input_recognizer_dispatch(app->gestures, event);
+}
+
+/* Single trampoline for both edges of a gesture-bound key (HAL_GPIO_IRQ_BOTH -
+ * app_ui_bind_key()'s own trampoline is press-only on purpose, see the
+ * comment on APP_KEY_BUTTON; gestures need both edges to tell a tap from a
+ * hold, so this one reads the pin itself instead of relying on separate
+ * press/release callback slots). */
+static void gesture_key_trampoline(int pin, void* arg) {
+    gesture_binding_t* gb = (gesture_binding_t*)arg;
+    if (!gb || !gb->app) return;
+    if (!app_kit_is_foreground_desc(((app_ctx_t*)gb->app)->desc)) return;
+
+    bool pressed = sim_gpio_read(pin);
+    input_event_t ev = {0};
+    ev.type = pressed ? INPUT_EVENT_KEY_DOWN : INPUT_EVENT_KEY_UP;
+    ev.key = sim_key_to_input_key(gb->key);
+    input_post_event(&ev);
+    input_process_events();
+}
+
+int app_ui_bind_gesture(app_ui_t* app, sim_key_t key, input_event_type_t gesture,
+                         input_callback_t cb, void* user) {
+    if (!app || !cb) return -1;
+
+    if (!app->gestures) {
+        app->gestures = input_recognizer_create();
+        if (!app->gestures) return -1;
+
+        char devname[32];
+        snprintf(devname, sizeof(devname), "gestures_%p", (void*)app);
+        if (input_device_register(INPUT_DEV_BUTTONS, devname, gesture_device_cb, app) != 0) {
+            input_recognizer_destroy(app->gestures);
+            app->gestures = NULL;
+            return -1;
+        }
+    }
+
+    if (input_recognizer_add_gesture(app->gestures, gesture, cb, user) != 0) return -1;
+
+    /* One recognizer already fans out to every gesture type registered
+     * for it (a single posted event only matches entries whose gesture
+     * equals its type), so binding e.g. both TAP and LONG_TAP on the same
+     * key only needs ONE underlying GPIO pin/trampoline - a second one
+     * would make sim_gpio_handle_key() (which fires every pin mapped to a
+     * given key) run the trampoline, and so post+process the same key
+     * event, twice per physical press. */
+    for (int i = 0; i < app->gesture_gpio_key_count; i++) {
+        if (app->gesture_gpio_keys[i] == key) return 0;
+    }
+
+    gesture_binding_t* gb = calloc(1, sizeof(gesture_binding_t));
+    if (!gb) return -1;
+    gb->app = app;
+    gb->key = key;
+
+    int pin = g_next_pin++;
+    app_button_t btn = {
+        .pin = pin, .key = key, .trigger = HAL_GPIO_IRQ_BOTH,
+        .on_press = gesture_key_trampoline, .on_release = NULL, .arg = gb,
+    };
+    if (app_button_init(&btn) != 0) {
+        free(gb);
+        return -1;
+    }
+    sim_gpio_set_key_mapping(key, pin, true);
+
+    if (app->gesture_gpio_key_count < APP_KIT_MAX_KEYS) {
+        app->gesture_gpio_keys[app->gesture_gpio_key_count++] = key;
+    }
+
     return 0;
 }
 

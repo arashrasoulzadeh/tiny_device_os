@@ -6,6 +6,7 @@
 #include "ssd1306_model.h"
 #include <string.h>
 #include "app_kit.h"
+#include "input.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -15,6 +16,9 @@ typedef struct {
     struct app_ctx ctx;  // Embed app_ctx_t as first member for compatibility with key callbacks
     app_ui_config_t ui;  // UI configuration
     void* user_data;
+    input_recognizer_t* gestures;  // lazily created by the first app_ui_bind_gesture() call
+    sim_key_t gesture_gpio_keys[APP_KIT_MAX_KEYS];  // keys that already have GPIO wiring
+    int gesture_gpio_key_count;
 } app_ui_t;
 
 static inline void app_ui_config_ui(app_ui_config_t* cfg, const char* title, const char* help) {
@@ -81,6 +85,17 @@ typedef struct {
     void* user;
 } app_ui_key_def_t;
 int app_ui_bind_keys(app_ui_t* app, const app_ui_key_def_t* defs);
+
+/* Gesture binding: SIM_KEY_* -> a real tap/long-press/double-tap/hold
+ * classification (apps/input.c), instead of the plain press-only firing
+ * app_ui_bind_key() gives you. `gesture` is one of input.h's
+ * INPUT_EVENT_BUTTON_* (or the touch/encoder ones, for devices that have
+ * them). Lazily initializes this app_ui_t's own input_recognizer_t and
+ * GPIO edge wiring on first use; call it instead of app_ui_bind_key() for
+ * a given key, not alongside it - both would register their own GPIO
+ * pin for the same sim_key_t. Returns 0, or -1 on failure. */
+int app_ui_bind_gesture(app_ui_t* app, sim_key_t key, input_event_type_t gesture,
+                         input_callback_t cb, void* user);
 
 void app_ui_mark_dirty(app_ui_t* app);
 void app_ui_clear_dirty(app_ui_t* app);

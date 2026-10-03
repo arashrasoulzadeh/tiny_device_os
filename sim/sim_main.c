@@ -27,6 +27,7 @@
 #include "littlefs_vfs.h"
 #include "config_store.h"
 #include "ardubot_enabled_apps.h"
+#include "input.h"
 
 #if defined(__APPLE__) || defined(__linux__)
 #define ARDUBOT_SIM_HAVE_BACKTRACE 1
@@ -230,7 +231,17 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Failed to initialize sim gpio\n");
         return 1;
     }
-    
+
+    /* Needed before any app_ui_bind_gesture() call: without this, apps/
+     * input.c's tap/long-press/hold thresholds all default to 0 (it's a
+     * zero-initialized static struct), so every single key release would
+     * classify as an immediate BUTTON_RELEASE/hold regardless of how
+     * briefly it was pressed. */
+    if (input_init(NULL) != 0) {
+        fprintf(stderr, "Failed to initialize input gesture system\n");
+        return 1;
+    }
+
     // Set GPIO callback to handle pin level changes from key events
     sim_gpio_set_callback(sim_gpio_callback, NULL);
     
