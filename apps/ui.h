@@ -70,6 +70,7 @@ typedef enum {
 
 typedef struct ui_widget ui_widget_t;
 typedef struct ui_container ui_container_t;
+typedef struct ui_context ui_context_t;
 
 typedef void (*ui_callback_t)(ui_widget_t* widget, void* arg);
 typedef void (*ui_draw_cb_t)(ui_widget_t* widget, void* canvas);
@@ -128,6 +129,7 @@ typedef struct {
 struct ui_widget {
     ui_widget_type_t type;
     char name[32];
+    ui_context_t* ctx;  // owning context - lets ui_widget_focus() keep ctx->focused in sync
     ui_rect_t rect;
     ui_layout_params_t layout_params;
     ui_style_t style;
@@ -166,7 +168,7 @@ typedef struct {
     uint32_t text_style_count;
 } ui_theme_t;
 
-typedef struct {
+struct ui_context {
     ui_widget_t* root;
     ui_widget_t* focused;
     ui_widget_t* hover;
@@ -177,7 +179,7 @@ typedef struct {
     input_callback_t input_cb;
     void* input_arg;
     void* display;  // app_display_t* to actually draw to - set via ui_context_set_display()
-} ui_context_t;
+};
 
 ui_context_t* ui_context_create(uint16_t logical_w, uint16_t logical_h,
                                 uint16_t canvas_w, uint16_t canvas_h);

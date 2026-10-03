@@ -126,10 +126,10 @@ void ui_theme_set_text_style(ui_theme_t* theme, uint32_t index, const ui_text_st
  * case every plain widget uses. */
 static ui_widget_t* widget_alloc(ui_context_t* ctx, ui_widget_type_t type,
                                   const char* name, size_t alloc_size) {
-    (void)ctx;
     ui_widget_t* w = calloc(1, alloc_size);
     if (!w) return NULL;
 
+    w->ctx = ctx;
     w->type = type;
     if (name) strncpy(w->name, name, 31);
     w->rect = (ui_rect_t){0, 0, 0, 0};
@@ -234,7 +234,14 @@ void ui_widget_set_callback(ui_widget_t* widget, ui_callback_t cb, void* arg) {
 
 int ui_widget_focus(ui_widget_t* widget) {
     if (!widget || !widget->enabled) return -1;
+    /* ctx->focused used to never get set here, so ui_widget_get_focused()
+     * (and ui_input_event()'s Enter handling, which reads it) always saw
+     * NULL - widget->focused was the only thing that actually changed. */
+    if (widget->ctx && widget->ctx->focused && widget->ctx->focused != widget) {
+        ui_widget_unfocus(widget->ctx->focused);
+    }
     widget->focused = true;
+    if (widget->ctx) widget->ctx->focused = widget;
     if (widget->on_focus) widget->on_focus(widget, widget->user_data);
     return 0;
 }
@@ -243,6 +250,7 @@ void ui_widget_unfocus(ui_widget_t* widget) {
     if (!widget) return;
     if (widget->focused) {
         widget->focused = false;
+        if (widget->ctx && widget->ctx->focused == widget) widget->ctx->focused = NULL;
         if (widget->on_blur) widget->on_blur(widget, widget->user_data);
     }
 }
@@ -565,14 +573,49 @@ void ui_layout(ui_context_t* ctx) {
     layout_widget(ctx->root);
 }
 
+static bool widget_is_focusable(const ui_widget_t* w) {
+    return w->enabled && w->visible && (w->on_click || w->on_value_change);
+}
+
+#define UI_MAX_FOCUSABLE 64
+
+static void collect_focusable(ui_widget_t* w, ui_widget_t** out, int* count) {
+    if (!w || *count >= UI_MAX_FOCUSABLE) return;
+    if (widget_is_focusable(w)) {
+        out[(*count)++] = w;
+    }
+    for (uint32_t i = 0; i < w->child_count; i++) {
+        collect_focusable(w->children[i], out, count);
+    }
+}
+
+static void focus_next(ui_context_t* ctx) {
+    ui_widget_t* focusable[UI_MAX_FOCUSABLE];
+    int count = 0;
+    collect_focusable(ctx->root, focusable, &count);
+    if (count == 0) return;
+
+    int current = -1;
+    for (int i = 0; i < count; i++) {
+        if (focusable[i] == ctx->focused) {
+            current = i;
+            break;
+        }
+    }
+
+    ui_widget_t* next = focusable[(current + 1) % count];
+    if (ctx->focused) ui_widget_unfocus(ctx->focused);
+    ui_widget_focus(next);
+}
+
 void ui_input_event(ui_context_t* ctx, const input_event_t* event) {
     if (!ctx || !event) return;
-    
+
     // Handle focus navigation
     if (event->type == INPUT_EVENT_KEY_DOWN) {
         switch (event->key) {
             case INPUT_KEY_TAB:
-                // Move focus to next widget
+                focus_next(ctx);
                 break;
             case INPUT_KEY_ENTER:
                 if (ctx->focused && ctx->focused->on_click) {

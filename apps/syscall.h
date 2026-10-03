@@ -149,33 +149,32 @@ typedef struct {
     capability_t caps[CAPABILITY_MAX / 32];
 } capability_set_t;
 
-/* NOTE for whoever wires capabilities up to real syscalls: these look like
- * pre-shifted bitmask values, but capability_set_add/has/remove (syscall.c)
- * treat `cap` as a bit INDEX (cap/32 selects the word, 1u<<(cap%32) the bit
- * within it) - so capability_set_add(set, CAP_GPIO_WRITE) actually sets bit
- * index 2 (value 4), not bit 1 (value 2). add/has/remove all apply this
- * same transform, so used one flag at a time through this API it's
- * internally consistent; it breaks the moment anyone ORs two CAP_* values
- * together (e.g. CAP_GPIO_READ | CAP_GPIO_WRITE == 3) and passes that
- * combined mask in, expecting both bits to be set - 3 would be treated as
- * index 3, not "indices 0 and 1." Nothing calls this today, so it's never
- * been hit; fix before building a real capability check on it. */
-#define CAP_GPIO_READ      (1u << 0)
-#define CAP_GPIO_WRITE     (1u << 1)
-#define CAP_I2C_ACCESS     (1u << 2)
-#define CAP_SPI_ACCESS     (1u << 3)
-#define CAP_UART_ACCESS    (1u << 4)
-#define CAP_DISPLAY_ACCESS (1u << 5)
-#define CAP_AUDIO_ACCESS   (1u << 6)
-#define CAP_STORAGE_ACCESS (1u << 7)
-#define CAP_NET_ACCESS     (1u << 8)
-#define CAP_WIFI_ACCESS    (1u << 9)
-#define CAP_FS_ACCESS      (1u << 10)
-#define CAP_CONFIG_ACCESS  (1u << 11)
-#define CAP_EVENT_ACCESS   (1u << 12)
-#define CAP_POWER_MGMT     (1u << 13)
-#define CAP_MODULE_LOAD    (1u << 14)
-#define CAP_APP_MGMT       (1u << 15)
+/* Each CAP_* is a bit INDEX (0..CAPABILITY_MAX-1), not a pre-shifted mask -
+ * capability_set_add/has/remove (syscall.c) do the shifting themselves
+ * (cap/32 picks the word, 1u<<(cap%32) the bit within it). Pass exactly one
+ * CAP_* at a time to those functions; to check/grant several, call them
+ * once per capability (there is no single combined "set these bits" call,
+ * same as POSIX capability sets). This used to be defined as (1u << N),
+ * which silently double-shifted inside add/has/remove - harmless one flag
+ * at a time, but wrong the moment two were ORed together first. Fixed here
+ * instead of in the bitset code since a plain index is the more ordinary
+ * capability-bit convention (compare Linux's CAP_* values). */
+#define CAP_GPIO_READ      0
+#define CAP_GPIO_WRITE     1
+#define CAP_I2C_ACCESS     2
+#define CAP_SPI_ACCESS     3
+#define CAP_UART_ACCESS    4
+#define CAP_DISPLAY_ACCESS 5
+#define CAP_AUDIO_ACCESS   6
+#define CAP_STORAGE_ACCESS 7
+#define CAP_NET_ACCESS     8
+#define CAP_WIFI_ACCESS    9
+#define CAP_FS_ACCESS      10
+#define CAP_CONFIG_ACCESS  11
+#define CAP_EVENT_ACCESS   12
+#define CAP_POWER_MGMT     13
+#define CAP_MODULE_LOAD    14
+#define CAP_APP_MGMT       15
 
 typedef int (*syscall_handler_t)(uint32_t* args, uint32_t* ret);
 

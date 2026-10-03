@@ -107,11 +107,78 @@ void test_render_draws_to_real_display_without_crashing(void) {
     app_display_deinit(&display);
 }
 
+/* Regression test: ui_widget_focus() used to only ever set widget->focused
+ * and never touch ctx->focused, so ui_widget_get_focused() always returned
+ * NULL and Tab/Enter in ui_input_event() were both dead - Enter checked
+ * ctx->focused (always NULL), and Tab's "next widget" logic didn't exist. */
+static int g_click_count;
+static void count_click(ui_widget_t* w, void* arg) { (void)w; (void)arg; g_click_count++; }
+
+void test_focus_sets_ctx_focused_and_unfocuses_previous(void) {
+    ui_context_t* ctx = ui_context_create(100, 100, 100, 100);
+    ui_widget_t* a = ui_button_create(ctx, "a", count_click);
+    ui_widget_t* b = ui_button_create(ctx, "b", count_click);
+
+    ui_widget_focus(a);
+    TEST_ASSERT_EQUAL_PTR(a, ui_widget_get_focused(ctx));
+    TEST_ASSERT_TRUE(a->focused);
+
+    ui_widget_focus(b);
+    TEST_ASSERT_EQUAL_PTR(b, ui_widget_get_focused(ctx));
+    TEST_ASSERT_FALSE(a->focused);  // focusing b must unfocus a
+    TEST_ASSERT_TRUE(b->focused);
+
+    ui_widget_destroy(a);
+    ui_widget_destroy(b);
+    ui_context_destroy(ctx);
+}
+
+void test_enter_key_clicks_the_focused_widget(void) {
+    ui_context_t* ctx = ui_context_create(100, 100, 100, 100);
+    ui_widget_t* button = ui_button_create(ctx, "go", count_click);
+    ui_widget_focus(button);
+
+    g_click_count = 0;
+    input_event_t ev = {0};
+    ev.type = INPUT_EVENT_KEY_DOWN;
+    ev.key = INPUT_KEY_ENTER;
+    ui_input_event(ctx, &ev);
+
+    TEST_ASSERT_EQUAL(1, g_click_count);
+
+    ui_widget_destroy(button);
+    ui_context_destroy(ctx);
+}
+
+void test_tab_cycles_focus_through_focusable_widgets(void) {
+    ui_context_t* ctx = ui_context_create(100, 100, 100, 100);
+    ui_widget_t* a = ui_button_create(ctx, "a", count_click);
+    ui_widget_t* b = ui_button_create(ctx, "b", count_click);
+    ui_widget_add_child(ctx->root, a);
+    ui_widget_add_child(ctx->root, b);
+    ui_widget_focus(a);
+
+    input_event_t tab = {0};
+    tab.type = INPUT_EVENT_KEY_DOWN;
+    tab.key = INPUT_KEY_TAB;
+
+    ui_input_event(ctx, &tab);
+    TEST_ASSERT_EQUAL_PTR(b, ui_widget_get_focused(ctx));
+
+    ui_input_event(ctx, &tab);  // wraps back to a
+    TEST_ASSERT_EQUAL_PTR(a, ui_widget_get_focused(ctx));
+
+    ui_context_destroy(ctx);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_context_create_destroy);
     RUN_TEST(test_flex_container_allocation_is_not_corrupted);
     RUN_TEST(test_flex_row_layout_splits_width);
+    RUN_TEST(test_focus_sets_ctx_focused_and_unfocuses_previous);
+    RUN_TEST(test_enter_key_clicks_the_focused_widget);
+    RUN_TEST(test_tab_cycles_focus_through_focusable_widgets);
     RUN_TEST(test_render_draws_to_real_display_without_crashing);
     return UNITY_END();
 }
