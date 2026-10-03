@@ -164,6 +164,7 @@ void i2c_driver_deinit(void) {
 int i2c_create_device(uint8_t addr, const char* name) {
     device_t* dev = calloc(1, sizeof(device_t));
     if (!dev) return -1;
+    dev->owned = true;  // heap-allocated here, not caller-owned - see driver.c's device_unregister()
     
     if (name) {
         strncpy(dev->name, name, DEVICE_NAME_MAX - 1);

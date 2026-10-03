@@ -1,6 +1,7 @@
 #include "unity.h"
 #include "driver.h"
 #include <string.h>
+#include <stdlib.h>
 
 /* drivers/driver.c had zero tests, and is never actually wired into the
  * real boot path (nothing calls driver_core_init() anywhere outside this
@@ -19,7 +20,16 @@ void setUp(void) {
 }
 
 void tearDown(void) {
-    driver_core_deinit();
+    /* Not driver_core_deinit(): it walks the device/driver lists (calling
+     * remove() and, since the ownership fix, free()ing owned ones), but
+     * every device/driver these tests register is a local stack variable
+     * that's already gone by the time tearDown() runs - driver_core_init()
+     * just resets the list pointers to NULL without touching what they
+     * used to point to, which is the correct reset for per-test isolation
+     * here. (Confirmed deinit() crashes here: reading ->owned off a
+     * dangling pointer into an already-returned stack frame is garbage,
+     * and free()ing on that garbage reliably aborts.) */
+    driver_core_init();
 }
 
 /* A trivial driver whose "handle" is just the device_t* itself, and whose
@@ -219,6 +229,41 @@ void test_unknown_handle_is_rejected_not_guessed(void) {
     TEST_ASSERT_EQUAL(-1, device_ioctl(&not_a_real_handle, 0, NULL));
 }
 
+/* Every real *_create_device() helper (gpio_create_device() etc.) heap-
+ * allocates its device_t and relies on device_register()/unregister() to
+ * eventually free it - this is that path, not the static-struct path the
+ * other tests use. Confirmed this leaks under ASan before the owned-flag
+ * fix (device_unregister() used to either always free caller-owned
+ * structs, crashing on static ones, or never free anything at all). */
+void test_owned_device_is_freed_on_unregister(void) {
+    init_mock_driver("mock0");
+    driver_register(&g_mock_driver);
+
+    device_t* dev = calloc(1, sizeof(device_t));
+    strncpy(dev->name, "heapdev", DEVICE_NAME_MAX - 1);
+    strncpy(dev->path, "/dev/heapdev", sizeof(dev->path) - 1);
+    dev->driver = &g_mock_driver;
+    dev->owned = true;
+
+    TEST_ASSERT_EQUAL(0, device_register(dev));
+    TEST_ASSERT_EQUAL(0, device_unregister("heapdev"));
+    // dev is freed now - nothing left to assert on without a use-after-free.
+}
+
+void test_owned_device_is_freed_on_core_deinit(void) {
+    init_mock_driver("mock0");
+    driver_register(&g_mock_driver);
+
+    device_t* dev = calloc(1, sizeof(device_t));
+    strncpy(dev->name, "heapdev", DEVICE_NAME_MAX - 1);
+    strncpy(dev->path, "/dev/heapdev", sizeof(dev->path) - 1);
+    dev->driver = &g_mock_driver;
+    dev->owned = true;
+    device_register(dev);
+
+    driver_core_deinit();  // must free dev, not just unlink it
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_register_find_unregister_driver);
@@ -230,5 +275,7 @@ int main(void) {
     RUN_TEST(test_read_write_dispatch_to_the_correct_device);
     RUN_TEST(test_close_untracks_the_handle);
     RUN_TEST(test_unknown_handle_is_rejected_not_guessed);
+    RUN_TEST(test_owned_device_is_freed_on_unregister);
+    RUN_TEST(test_owned_device_is_freed_on_core_deinit);
     return UNITY_END();
 }

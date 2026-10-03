@@ -56,6 +56,7 @@ struct device {
     void* bus_data;
     uint32_t id;
     bool registered;
+    bool owned;  // true if device_register()/driver_core_deinit() should free() this
     device_t* next;
 };
 

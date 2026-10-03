@@ -1,6 +1,7 @@
 #include "unity.h"
 #include "device_registry.h"
 #include <string.h>
+#include <stdlib.h>
 
 /* drivers/device_registry.c had zero tests. It's a separate array-backed
  * device list from driver.c's own linked list - the two aren't kept in
@@ -14,7 +15,17 @@ void setUp(void) {
 }
 
 void tearDown(void) {
-    device_registry_deinit();
+    /* Not device_registry_deinit(): since it was fixed to free() owned
+     * entries, it reads ->owned off whatever's still in the array - and
+     * every device these tests register is a local stack variable
+     * that's already gone by the time tearDown() runs (same dangling-
+     * pointer hazard as tests/unit/test_driver.c hit for real). Calling
+     * init() again instead just allocates a fresh array and resets count
+     * to 0 without touching what the old entries pointed to - the right
+     * reset for per-test isolation here, at the cost of leaking the old
+     * (empty, 16-pointer) array itself each test, which is fine for a
+     * test run. */
+    device_registry_init();
 }
 
 static device_t make_device(const char* name, const char* path) {
@@ -121,6 +132,32 @@ void test_emit_hotplug_fires_callback_directly(void) {
     TEST_ASSERT_EQUAL(HOTPLUG_EVENT_CHANGE, g_last_type);
 }
 
+/* hotplug_scan_i2c() heap-allocates its device_t's and marks them owned
+ * (its only caller-visible contract: it never exposes the pointer for a
+ * test to free itself). This exercises that same owned path directly,
+ * the way hotplug_scan_i2c() would use it, instead of through scanning
+ * an actual I2C bus. */
+void test_owned_device_is_freed_on_remove(void) {
+    device_t* dev = calloc(1, sizeof(device_t));
+    strncpy(dev->name, "hp2", DEVICE_NAME_MAX - 1);
+    strncpy(dev->path, "/dev/hp2", sizeof(dev->path) - 1);
+    dev->owned = true;
+
+    TEST_ASSERT_EQUAL(0, device_registry_add(dev));
+    TEST_ASSERT_EQUAL(0, device_registry_remove("/dev/hp2"));
+    // dev is freed now - nothing left to assert without a use-after-free.
+}
+
+void test_owned_device_is_freed_on_deinit(void) {
+    device_t* dev = calloc(1, sizeof(device_t));
+    strncpy(dev->name, "hp3", DEVICE_NAME_MAX - 1);
+    strncpy(dev->path, "/dev/hp3", sizeof(dev->path) - 1);
+    dev->owned = true;
+    device_registry_add(dev);
+
+    device_registry_deinit();  // must free dev, not just the devices[] array
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_add_find_by_path_and_name);
@@ -131,5 +168,7 @@ int main(void) {
     RUN_TEST(test_registry_grows_past_initial_capacity);
     RUN_TEST(test_hotplug_callback_fires_on_add_and_remove);
     RUN_TEST(test_emit_hotplug_fires_callback_directly);
+    RUN_TEST(test_owned_device_is_freed_on_remove);
+    RUN_TEST(test_owned_device_is_freed_on_deinit);
     return UNITY_END();
 }

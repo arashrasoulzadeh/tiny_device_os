@@ -20,6 +20,15 @@ int device_registry_init(void) {
 }
 
 void device_registry_deinit(void) {
+    /* device_t is a mix of caller-owned (static) and heap-owned
+     * (hotplug_scan_i2c()'s calloc'd ones) - see driver.c's
+     * driver_core_deinit() for the same split. This used to only free
+     * the devices[] array itself, leaking every heap-owned entry. */
+    for (size_t i = 0; i < g_registry.count; i++) {
+        if (g_registry.devices[i] && g_registry.devices[i]->owned) {
+            free(g_registry.devices[i]);
+        }
+    }
     free(g_registry.devices);
     g_registry.devices = NULL;
     g_registry.capacity = 0;
@@ -97,6 +106,7 @@ int device_registry_remove(const char* path) {
             }
             g_registry.devices[g_registry.count - 1] = NULL;
             g_registry.count--;
+            if (dev->owned) free(dev);  // see device_registry_deinit()
             return 0;
         }
     }
@@ -191,17 +201,10 @@ int hotplug_scan_i2c(hal_i2c_t* i2c) {
         
         // Create device for this I2C address
         // In real implementation, would match to known drivers
-        /* Known leak: this is the only place in drivers/ that heap-
-         * allocates a device_t (every real driver registers a static
-         * one - see driver_unregister()'s fix). Nothing ever frees these:
-         * device_registry_remove() only unlinks (matching the convention
-         * that device_t is caller-owned), and device_registry_deinit()
-         * only frees the devices[] array, not what it points to. Not
-         * fixing by guessing an ownership model with zero real callers to
-         * validate it against - flagging for whoever wires hotplug up. */
         device_t* dev = calloc(1, sizeof(device_t));
         if (!dev) continue;
-        
+        dev->owned = true;  // heap-allocated here - device_registry_remove() frees owned ones
+
         snprintf(dev->name, sizeof(dev->name), "i2c-dev-0x%02X", addrs[i]);
         strncpy(dev->path, path, sizeof(dev->path) - 1);
         dev->bus_data = (void*)(uintptr_t)addrs[i];

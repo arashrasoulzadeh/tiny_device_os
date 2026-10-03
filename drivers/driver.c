@@ -77,10 +77,15 @@ int driver_core_init(void) {
 }
 
 void driver_core_deinit(void) {
-    /* driver_t/device_t are caller-owned (every real driver in drivers/
-     * registers a static struct, e.g. gpio_driver.c's g_gpio_driver) -
-     * this used to free() them anyway, which would corrupt the heap the
-     * moment deinit ran with any real driver registered. Just unlink. */
+    /* driver_t is always caller-owned - every real driver in drivers/
+     * registers a static struct (e.g. gpio_driver.c's g_gpio_driver), and
+     * this used to free() it anyway, which would corrupt the heap the
+     * moment deinit ran with any real driver registered. device_t is a
+     * mix: every *_create_device() helper (gpio_create_device() etc.)
+     * heap-allocates one and hands it to device_register(), while a
+     * caller can also register its own static device_t directly - hence
+     * the owned flag device_register()/the *_create_device() helpers set,
+     * instead of always or never freeing. */
     while (g_driver_core.devices) {
         device_t* dev = g_driver_core.devices;
         g_driver_core.devices = dev->next;
@@ -88,6 +93,7 @@ void driver_core_deinit(void) {
             dev->driver->ops->remove(dev);
         }
         dev->registered = false;
+        if (dev->owned) free(dev);
     }
     while (g_driver_core.drivers) {
         driver_t* drv = g_driver_core.drivers;
@@ -211,7 +217,8 @@ int device_unregister(const char* name) {
                 d->driver->refcount--;
             }
             *prev = d->next;
-            d->registered = false;  // caller-owned - see driver_unregister()
+            d->registered = false;
+            if (d->owned) free(d);  // see the comment in driver_core_deinit()
             driver_core_unlock();
             return 0;
         }
