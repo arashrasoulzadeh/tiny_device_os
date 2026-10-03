@@ -337,6 +337,52 @@ static void container_layout(ui_widget_t* widget) {
     }
 }
 
+/* Row-major grid: visible children fill cells left-to-right, top-to-bottom.
+ * Every cell is the same size - no per-column/row sizing, no spanning.
+ * ui_grid_create() used to just alias a flex row, which only ever gave you
+ * one row of cells regardless of how many columns you asked for. */
+static void grid_layout(ui_widget_t* widget) {
+    ui_container_t* cont = (ui_container_t*)widget;
+    uint8_t cols = cont->grid_cols > 0 ? cont->grid_cols : 1;
+
+    uint32_t visible = 0;
+    for (uint32_t i = 0; i < widget->child_count; i++) {
+        if (widget->children[i]->visible) visible++;
+    }
+    if (visible == 0) return;
+
+    uint8_t rows = cont->grid_rows;
+    if (rows == 0) {
+        rows = (uint8_t)((visible + cols - 1) / cols);  // ceil(visible / cols)
+    }
+
+    int16_t x0 = widget->rect.x + widget->style.padding.left;
+    int16_t y0 = widget->rect.y + widget->style.padding.top;
+    int16_t w = widget->rect.w - widget->style.padding.left - widget->style.padding.right;
+    int16_t h = widget->rect.h - widget->style.padding.top - widget->style.padding.bottom;
+
+    int16_t cell_w = (w - (int16_t)(cols - 1) * (int16_t)cont->gap) / cols;
+    int16_t cell_h = (h - (int16_t)(rows - 1) * (int16_t)cont->gap) / rows;
+    if (cell_w < 0) cell_w = 0;
+    if (cell_h < 0) cell_h = 0;
+
+    uint32_t idx = 0;
+    for (uint32_t i = 0; i < widget->child_count; i++) {
+        ui_widget_t* child = widget->children[i];
+        if (!child->visible) continue;
+
+        uint32_t col = idx % cols;
+        uint32_t row = idx / cols;
+        child->rect.x = (int16_t)(x0 + col * (cell_w + cont->gap));
+        child->rect.y = (int16_t)(y0 + row * (cell_h + cont->gap));
+        child->rect.w = (uint16_t)cell_w;
+        child->rect.h = (uint16_t)cell_h;
+        child->dirty = true;
+        if (child->layout_fn) child->layout_fn(child);
+        idx++;
+    }
+}
+
 ui_container_t* ui_flex_create(ui_context_t* ctx, ui_flex_dir_t dir, ui_justify_t justify,
                                ui_align_t align, uint16_t gap) {
     ui_widget_t* w = widget_alloc(ctx, UI_WIDGET_CONTAINER, "flex", sizeof(ui_container_t));
@@ -353,12 +399,79 @@ ui_container_t* ui_flex_create(ui_context_t* ctx, ui_flex_dir_t dir, ui_justify_
 }
 
 ui_container_t* ui_grid_create(ui_context_t* ctx, uint8_t cols, uint8_t rows, uint16_t gap) {
-    (void)rows;
-    return ui_flex_create(ctx, UI_FLEX_DIR_ROW, UI_JUSTIFY_START, UI_ALIGN_START, gap);
+    ui_widget_t* w = widget_alloc(ctx, UI_WIDGET_CONTAINER, "grid", sizeof(ui_container_t));
+    if (!w) return NULL;
+
+    ui_container_t* cont = (ui_container_t*)w;
+    cont->grid_cols = cols > 0 ? cols : 1;
+    cont->grid_rows = rows;
+    cont->gap = gap;
+    w->layout_fn = grid_layout;
+
+    return cont;
+}
+
+/* Lays children out normally along flex_dir (ignoring overflow - that's
+ * the point, content can be taller/wider than the viewport), then shifts
+ * every child by -scroll_offset and hides whichever ones end up fully
+ * outside the container's own rect, so render_widget() skips them. Only
+ * shifts direct children's own rects - a nested container's grandchildren
+ * were already positioned relative to its pre-shift rect by
+ * container_layout's own recursion, so nesting another scrollable/flex
+ * container directly inside a scroll container will mis-position its
+ * contents. Fine for the common case (a scrollable list of plain leaf
+ * widgets); flag it if that changes. */
+static void scroll_layout(ui_widget_t* widget) {
+    ui_container_t* cont = (ui_container_t*)widget;
+    container_layout(widget);
+
+    bool vertical = (cont->flex_dir == UI_FLEX_DIR_COL || cont->flex_dir == UI_FLEX_DIR_COL_REVERSE);
+    int16_t off = cont->scroll_offset;
+
+    for (uint32_t i = 0; i < widget->child_count; i++) {
+        ui_widget_t* child = widget->children[i];
+        bool in_view;
+        /* rect.x/y are uint16_t - a scrolled-above/left position can go
+         * negative, which would wrap around to a huge value if stored
+         * directly. Do the shift and the in-view test in a signed int,
+         * and only write back a clamped (>= 0) value; an out-of-view
+         * child is marked !visible anyway, so its exact stored position
+         * doesn't need to survive the round trip through an unsigned field. */
+        if (vertical) {
+            int shifted_y = (int)child->rect.y - off;
+            in_view = shifted_y + (int)child->rect.h > (int)widget->rect.y &&
+                      shifted_y < (int)widget->rect.y + (int)widget->rect.h;
+            child->rect.y = (uint16_t)(shifted_y < 0 ? 0 : shifted_y);
+        } else {
+            int shifted_x = (int)child->rect.x - off;
+            in_view = shifted_x + (int)child->rect.w > (int)widget->rect.x &&
+                      shifted_x < (int)widget->rect.x + (int)widget->rect.w;
+            child->rect.x = (uint16_t)(shifted_x < 0 ? 0 : shifted_x);
+        }
+        child->visible = in_view;
+    }
 }
 
 ui_container_t* ui_scroll_create(ui_context_t* ctx, ui_flex_dir_t dir) {
-    return ui_flex_create(ctx, dir, UI_JUSTIFY_START, UI_ALIGN_START, 0);
+    ui_widget_t* w = widget_alloc(ctx, UI_WIDGET_CONTAINER, "scroll", sizeof(ui_container_t));
+    if (!w) return NULL;
+
+    ui_container_t* cont = (ui_container_t*)w;
+    cont->flex_dir = dir;
+    cont->justify = UI_JUSTIFY_START;
+    cont->align = UI_ALIGN_START;
+    cont->gap = 0;
+    cont->is_scroll = true;
+    w->layout_fn = scroll_layout;
+
+    return cont;
+}
+
+void ui_scroll_set_offset(ui_container_t* scroll, int16_t offset) {
+    if (!scroll || !scroll->is_scroll) return;
+    if (offset < 0) offset = 0;
+    scroll->scroll_offset = offset;
+    scroll->widget.dirty = true;
 }
 
 static void label_draw(ui_widget_t* widget, void* canvas) {

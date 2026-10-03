@@ -171,6 +171,107 @@ void test_tab_cycles_focus_through_focusable_widgets(void) {
     ui_context_destroy(ctx);
 }
 
+/* Regression test: ui_grid_create() used to just alias a flex row, which
+ * produces one row no matter how many columns are requested. A 2x2 grid
+ * of 4 children should actually wrap into two rows. */
+void test_grid_wraps_children_into_rows(void) {
+    ui_context_t* ctx = ui_context_create(100, 100, 100, 100);
+    ui_container_t* grid = ui_grid_create(ctx, 2, 2, 0);
+    ui_widget_set_rect((ui_widget_t*)grid, 0, 0, 100, 100);
+    ui_widget_set_padding((ui_widget_t*)grid, 0, 0, 0, 0);
+    ui_widget_add_child(ctx->root, (ui_widget_t*)grid);
+
+    ui_widget_t* cells[4];
+    for (int i = 0; i < 4; i++) {
+        cells[i] = ui_widget_create(ctx, UI_WIDGET_LABEL, "cell");
+        ui_widget_add_child((ui_widget_t*)grid, cells[i]);
+    }
+
+    ui_layout(ctx);
+
+    // 2 cols x 2 rows over a 100x100 area -> each cell 50x50.
+    TEST_ASSERT_EQUAL(50, cells[0]->rect.w);
+    TEST_ASSERT_EQUAL(50, cells[0]->rect.h);
+    TEST_ASSERT_EQUAL(0, cells[0]->rect.x);
+    TEST_ASSERT_EQUAL(0, cells[0]->rect.y);
+
+    TEST_ASSERT_EQUAL(50, cells[1]->rect.x);  // col 1, row 0
+    TEST_ASSERT_EQUAL(0, cells[1]->rect.y);
+
+    TEST_ASSERT_EQUAL(0, cells[2]->rect.x);   // col 0, row 1 - the actual wrap
+    TEST_ASSERT_EQUAL(50, cells[2]->rect.y);
+
+    TEST_ASSERT_EQUAL(50, cells[3]->rect.x);  // col 1, row 1
+    TEST_ASSERT_EQUAL(50, cells[3]->rect.y);
+
+    ui_context_destroy(ctx);
+}
+
+void test_grid_auto_computes_rows_from_child_count(void) {
+    ui_context_t* ctx = ui_context_create(90, 60, 90, 60);
+    ui_container_t* grid = ui_grid_create(ctx, 3, 0, 0);  // 0 rows = auto
+    ui_widget_set_rect((ui_widget_t*)grid, 0, 0, 90, 60);
+    ui_widget_set_padding((ui_widget_t*)grid, 0, 0, 0, 0);
+    ui_widget_add_child(ctx->root, (ui_widget_t*)grid);
+
+    ui_widget_t* cells[3];
+    for (int i = 0; i < 3; i++) {
+        cells[i] = ui_widget_create(ctx, UI_WIDGET_LABEL, "cell");
+        ui_widget_add_child((ui_widget_t*)grid, cells[i]);
+    }
+
+    ui_layout(ctx);
+
+    // 3 children, 3 cols -> auto rows = 1, so full height per cell.
+    TEST_ASSERT_EQUAL(60, cells[0]->rect.h);
+    TEST_ASSERT_EQUAL(30, cells[0]->rect.w);  // 90 / 3 cols
+
+    ui_context_destroy(ctx);
+}
+
+/* Regression test: ui_scroll_create() used to just alias a flex column
+ * with no offset or culling at all - every child always rendered at its
+ * natural position regardless of any "scroll" state, because there was
+ * no scroll state. */
+void test_scroll_offset_shifts_children_and_culls_out_of_view(void) {
+    ui_context_t* ctx = ui_context_create(50, 30, 50, 30);
+    ui_container_t* scroll = ui_scroll_create(ctx, UI_FLEX_DIR_COL);
+    ui_widget_set_rect((ui_widget_t*)scroll, 0, 0, 50, 30);
+    ui_widget_set_padding((ui_widget_t*)scroll, 0, 0, 0, 0);
+    ui_widget_add_child(ctx->root, (ui_widget_t*)scroll);
+
+    // 3 rows of height 20 each inside a 30px-tall viewport - taller than
+    // the viewport on purpose, to actually exercise overflow/culling.
+    ui_widget_t* rows[3];
+    for (int i = 0; i < 3; i++) {
+        rows[i] = ui_widget_create(ctx, UI_WIDGET_LABEL, "row");
+        rows[i]->layout_params.height_mode = UI_SIZE_MODE_FIXED;
+        rows[i]->layout_params.height = 20;
+        ui_widget_add_child((ui_widget_t*)scroll, rows[i]);
+    }
+
+    ui_layout(ctx);
+    TEST_ASSERT_EQUAL(0, rows[0]->rect.y);
+    TEST_ASSERT_EQUAL(20, rows[1]->rect.y);
+    TEST_ASSERT_TRUE(rows[0]->visible);
+    TEST_ASSERT_TRUE(rows[1]->visible);   // partially in view (y=20..40, viewport 0..30)
+    TEST_ASSERT_FALSE(rows[2]->visible);  // y=40..60, fully below the 30px viewport
+
+    ui_scroll_set_offset(scroll, 20);
+    ui_layout(ctx);
+    // rect.y is unsigned - a scrolled-above position clamps to 0 rather
+    // than going negative; row 0 is !visible anyway so its clamped
+    // position never gets drawn.
+    TEST_ASSERT_EQUAL(0, rows[0]->rect.y);
+    TEST_ASSERT_EQUAL(0, rows[1]->rect.y);
+    TEST_ASSERT_EQUAL(20, rows[2]->rect.y);
+    TEST_ASSERT_FALSE(rows[0]->visible);  // scrolled fully above the viewport now
+    TEST_ASSERT_TRUE(rows[1]->visible);
+    TEST_ASSERT_TRUE(rows[2]->visible);
+
+    ui_context_destroy(ctx);
+}
+
 int main(void) {
     UNITY_BEGIN();
     RUN_TEST(test_context_create_destroy);
@@ -179,6 +280,9 @@ int main(void) {
     RUN_TEST(test_focus_sets_ctx_focused_and_unfocuses_previous);
     RUN_TEST(test_enter_key_clicks_the_focused_widget);
     RUN_TEST(test_tab_cycles_focus_through_focusable_widgets);
+    RUN_TEST(test_grid_wraps_children_into_rows);
+    RUN_TEST(test_grid_auto_computes_rows_from_child_count);
+    RUN_TEST(test_scroll_offset_shifts_children_and_culls_out_of_view);
     RUN_TEST(test_render_draws_to_real_display_without_crashing);
     return UNITY_END();
 }

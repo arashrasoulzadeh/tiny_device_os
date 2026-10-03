@@ -157,6 +157,10 @@ typedef struct ui_container {
     ui_justify_t justify;
     ui_align_t align;
     uint16_t gap;
+    uint8_t grid_cols;  // 0 unless this container was made by ui_grid_create()
+    uint8_t grid_rows;  // 0 means "auto" - derived from child_count/grid_cols
+    bool is_scroll;     // true for a container made by ui_scroll_create()
+    int16_t scroll_offset;  // pixels scrolled along flex_dir - see ui_scroll_set_offset()
 } ui_container_t;
 
 typedef struct {
@@ -218,6 +222,12 @@ ui_container_t* ui_flex_create(ui_context_t* ctx, ui_flex_dir_t dir, ui_justify_
                                ui_align_t align, uint16_t gap);
 ui_container_t* ui_grid_create(ui_context_t* ctx, uint8_t cols, uint8_t rows, uint16_t gap);
 ui_container_t* ui_scroll_create(ui_context_t* ctx, ui_flex_dir_t dir);
+
+// Scrolls by `offset` pixels along the scroll container's flex_dir axis.
+// Children fully outside the resulting viewport are marked !visible (so
+// render_widget()/layout_widget() skip them) until the next ui_layout()
+// call recomputes which ones are back in view. Takes effect on next layout.
+void ui_scroll_set_offset(ui_container_t* scroll, int16_t offset);
 
 ui_widget_t* ui_label_create(ui_context_t* ctx, const char* text);
 ui_widget_t* ui_button_create(ui_context_t* ctx, const char* text, ui_callback_t cb);
