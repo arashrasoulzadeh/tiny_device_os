@@ -23,7 +23,7 @@ static int fatfs_mode_to_flags(vfs_mode_t mode) {
     return 0;
 }
 
-static int fatfs_open(const char* path, vfs_mode_t mode, vfs_file_t** file) {
+static int fatfs_open(const char* path, vfs_mode_t mode, void** file_handle) {
     fatfs_ctx_t* ctx = g_fatfs_ctx;
     if (!ctx || !ctx->mounted) return -1;
     
@@ -42,7 +42,7 @@ static int fatfs_open(const char* path, vfs_mode_t mode, vfs_file_t** file) {
     
     vf->ops = g_fatfs_ops;
     vf->fh = fh;
-    *file = vf;
+    *file_handle = vf;
     return 0;
 }
 

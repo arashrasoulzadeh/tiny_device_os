@@ -53,7 +53,18 @@ typedef struct vfs_dir {
 } vfs_dir_t;
 
 typedef struct vfs_ops {
-    int (*open)(const char* path, vfs_mode_t mode, vfs_file_t** file);
+    /* file_handle is really an opaque per-backend handle (littlefs_vfs.c/
+     * fatfs_vfs.c each allocate their own vfs_file_t wrapper and store it
+     * here) - vfs_do_open() only ever stores and forwards it via
+     * vfs_file_t.fh (void*), never dereferences it as a vfs_file_t
+     * itself. void** says that; vfs_file_t** (the signature this used to
+     * have) doesn't implicitly convert from a void** argument, which is
+     * exactly the -Wincompatible-pointer-types warning vfs_do_open() had
+     * at its call site - harmless in practice (both are machine-pointer-
+     * sized, and nothing ever follows the stored value as a real
+     * vfs_file_t*), but worth typing honestly instead of leaving a real
+     * warning unexplained. */
+    int (*open)(const char* path, vfs_mode_t mode, void** file_handle);
     int (*close)(vfs_file_t* file);
     ssize_t (*read)(vfs_file_t* file, void* buf, size_t count);
     ssize_t (*write)(vfs_file_t* file, const void* buf, size_t count);

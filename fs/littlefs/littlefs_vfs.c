@@ -83,8 +83,8 @@ static int lfs_sync(const struct lfs_config *c) {
   return hal_storage_sync(storage);
 }
 
-static int littlefs_open(const char *path, vfs_mode_t mode, vfs_file_t **file) {
-  if (!g_ctx || !path || !file)
+static int littlefs_open(const char *path, vfs_mode_t mode, void **file_handle) {
+  if (!g_ctx || !path || !file_handle)
     return -1;
 
   lfs_file_handle_t *fh = alloc_file();
@@ -121,7 +121,7 @@ static int littlefs_open(const char *path, vfs_mode_t mode, vfs_file_t **file) {
   }
 
   vf->fh = fh;
-  *file = vf;
+  *file_handle = vf;
   return 0;
 }
 

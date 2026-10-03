@@ -88,7 +88,7 @@ static int vfs_do_open(const char* path, vfs_mode_t mode, vfs_file_t** file) {
     if (!f) return -1;
     
     f->ops = mount->ops;
-    int ret = mount->ops->open(rel_path, mode, &f->fh);
+    int ret = mount->ops->open(rel_path, mode, &f->fh);  // f->fh is void* - see vfs_ops_t.open's comment
     if (ret != 0) {
         free(f);
         return ret;
