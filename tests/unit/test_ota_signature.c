@@ -6,11 +6,17 @@
 void setUp(void) {}
 void tearDown(void) {}
 
-// Test vectors for CRC32
+// Test vectors for CRC32 - verified against Python's zlib.crc32 (the
+// standard reference implementation), not just self-consistency. These
+// used to assert 0xF7379384/0x0D892A3C: the output of a hand-transcribed
+// table that had a corrupted entry (index 51) and 4 extra bogus entries -
+// a test calcified around a bug instead of checking it. 0xCBF43926 for
+// "123456789" is also the official CRC-32/ISO-HDLC check value quoted in
+// the CRC catalogue, independent of this codebase entirely.
 void test_crc32_basic(void) {
     uint8_t data[] = "Hello, World!";
     uint32_t crc = ota_crc32_update(0, data, strlen("Hello, World!"));
-    TEST_ASSERT_EQUAL_UINT32(0xF7379384, crc);
+    TEST_ASSERT_EQUAL_UINT32(0xEC4AC3D0, crc);
 }
 
 void test_crc32_empty(void) {
@@ -21,7 +27,7 @@ void test_crc32_empty(void) {
 void test_crc32_known_values(void) {
     uint8_t data[] = "123456789";
     uint32_t crc = ota_crc32_update(0, data, 9);
-    TEST_ASSERT_EQUAL_UINT32(0x0D892A3C, crc);
+    TEST_ASSERT_EQUAL_UINT32(0xCBF43926, crc);
 }
 
 void test_crc32_incremental(void) {
