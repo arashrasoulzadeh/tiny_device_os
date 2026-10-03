@@ -4,6 +4,7 @@
 #include "hal_storage.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 static hal_storage_t* g_test_storage = NULL;
 
@@ -143,6 +144,47 @@ void test_fatfs_format(void) {
     TEST_ASSERT_EQUAL(0, ret);
 }
 
+/* This is NOT a bug report - it's documenting a real, honest limitation
+ * so nobody mistakes this stub for real multi-file storage later. There
+ * is no FAT table/directory here (see the comment at the top of
+ * fatfs_vfs.c): every open path's read/write cursor starts at offset 0
+ * of the SAME underlying raw storage, so two different paths alias each
+ * other rather than holding independent data. */
+void test_fatfs_different_paths_alias_the_same_underlying_storage(void) {
+    vfs_file_t* fa;
+    vfs_open("/sd/a.txt", VFS_MODE_WRITE | VFS_MODE_CREATE | VFS_MODE_TRUNC, &fa);
+    vfs_write(fa, "AAAA", 4);
+    vfs_close(fa);
+
+    vfs_file_t* fb;
+    vfs_open("/sd/b.txt", VFS_MODE_READ, &fb);
+    char buf[8] = {0};
+    ssize_t r = vfs_read(fb, buf, 4);
+    vfs_close(fb);
+
+    TEST_ASSERT_EQUAL(4, r);
+    TEST_ASSERT_EQUAL_STRING("AAAA", buf);  // "b.txt" reads back "a.txt"'s bytes
+}
+
+/* Regression: fatfs_read()/fatfs_write() used to check `!ctx->storage`
+ * without checking `!ctx` first - a handle still open when the
+ * filesystem unmounts (which frees ctx and nulls g_fatfs_ctx) crashed on
+ * the next read/write instead of failing cleanly. */
+void test_read_write_after_unmount_fails_cleanly_instead_of_crashing(void) {
+    vfs_file_t* f;
+    int ret = vfs_open("/sd/still_open.txt", VFS_MODE_WRITE | VFS_MODE_CREATE, &f);
+    TEST_ASSERT_EQUAL(0, ret);
+
+    fatfs_unmount("/sd");  // tearDown() will also call this; unmounting twice is fine
+
+    char buf[4];
+    TEST_ASSERT_EQUAL(-1, vfs_write(f, "x", 1));
+    TEST_ASSERT_EQUAL(-1, vfs_read(f, buf, 1));
+
+    free(f->fh);
+    free(f);  // can't vfs_close() - fatfs_close() doesn't touch g_fatfs_ctx, so it'd "work" anyway, but the handle is logically dead after unmount
+}
+
 int main(void) {
     UNITY_BEGIN();
     
@@ -152,6 +194,8 @@ int main(void) {
     RUN_TEST(test_fatfs_stat);
     RUN_TEST(test_fatfs_rename_unlink);
     RUN_TEST(test_fatfs_get_info);
+    RUN_TEST(test_fatfs_different_paths_alias_the_same_underlying_storage);
+    RUN_TEST(test_read_write_after_unmount_fails_cleanly_instead_of_crashing);
     RUN_TEST(test_fatfs_format);
     
     return UNITY_END();

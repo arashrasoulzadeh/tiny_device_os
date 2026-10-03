@@ -4,6 +4,17 @@
 #include <string.h>
 #include <stdio.h>
 
+/* This is NOT a real FAT filesystem - no FAT table, no directory entries,
+ * no filename-to-location lookup. fatfs_open() stores `path` in the
+ * handle but never uses it; fatfs_read()/fatfs_write() always operate on
+ * the raw storage device starting at the handle's own offset (0 on
+ * open), independent of which path was opened. Opening two different
+ * paths gives two independent offset cursors over the *same* underlying
+ * bytes, not two separate files - e.g. two files both written from
+ * offset 0 will alias each other. fatfs_unlink/rename/mkdir/rmdir/
+ * readdir/format are all unimplemented stubs. A real SD card (FatFS
+ * library integration, from PLAN.md's Phase 2) needs this replaced, not
+ * extended - there's no per-file state here to extend. */
 struct fatfs_file_handle {
     uint32_t offset;
     uint32_t size;
@@ -57,9 +68,14 @@ static int fatfs_close(vfs_file_t* file) {
 static ssize_t fatfs_read(vfs_file_t* file, void* buf, size_t count) {
     if (!file || !file->fh) return -1;
     struct fatfs_file_handle* fh = (struct fatfs_file_handle*)file->fh;
-    
+
+    /* Missing the !ctx check fatfs_stat()/fatfs_sync() both have below -
+     * a file handle opened before fatfs_unmount() (which frees ctx and
+     * nulls g_fatfs_ctx) and then read from/written to afterward crashed
+     * here on ctx->storage instead of failing cleanly. No caller hits
+     * this ordering today, but it's a one-line guard either way. */
     fatfs_ctx_t* ctx = g_fatfs_ctx;
-    if (!ctx->storage) return -1;
+    if (!ctx || !ctx->storage) return -1;
     
     // Simple implementation: read from storage at offset
     int ret = hal_storage_read(ctx->storage, fh->offset, buf, count);
@@ -73,9 +89,9 @@ static ssize_t fatfs_read(vfs_file_t* file, void* buf, size_t count) {
 static ssize_t fatfs_write(vfs_file_t* file, const void* buf, size_t count) {
     if (!file || !file->fh) return -1;
     struct fatfs_file_handle* fh = (struct fatfs_file_handle*)file->fh;
-    
-    fatfs_ctx_t* ctx = g_fatfs_ctx;
-    if (!ctx->storage) return -1;
+
+    fatfs_ctx_t* ctx = g_fatfs_ctx;  // see the comment in fatfs_read() above
+    if (!ctx || !ctx->storage) return -1;
     
     int ret = hal_storage_write(ctx->storage, fh->offset, buf, count);
     if (ret == 0) {
