@@ -15,7 +15,7 @@ foreach(test_src ${TEST_SRCS})
         # LittleFS integration has issues in sim mode, skip for now
         target_link_libraries(${test_name} unity kernel hal sim)
     else()
-        target_link_libraries(${test_name} unity kernel hal sim)
+        target_link_libraries(${test_name} unity kernel hal sim game)
     endif()
     
     if(SDL2_LIBRARIES)
@@ -35,10 +35,11 @@ if(PORTAUDIO_LIBRARY_DIRS)
     target_link_directories(${test_name} PUBLIC ${PORTAUDIO_LIBRARY_DIRS})
 endif()
     
-    target_include_directories(${test_name} PRIVATE 
+    target_include_directories(${test_name} PRIVATE
         ${CMAKE_SOURCE_DIR}/tests/unity/src
         ${CMAKE_SOURCE_DIR}/kernel
         ${CMAKE_SOURCE_DIR}/hal/include
+        ${CMAKE_SOURCE_DIR}/game
     )
     
     add_test(NAME ${test_name} COMMAND ${test_name})
