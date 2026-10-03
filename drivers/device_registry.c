@@ -191,6 +191,14 @@ int hotplug_scan_i2c(hal_i2c_t* i2c) {
         
         // Create device for this I2C address
         // In real implementation, would match to known drivers
+        /* Known leak: this is the only place in drivers/ that heap-
+         * allocates a device_t (every real driver registers a static
+         * one - see driver_unregister()'s fix). Nothing ever frees these:
+         * device_registry_remove() only unlinks (matching the convention
+         * that device_t is caller-owned), and device_registry_deinit()
+         * only frees the devices[] array, not what it points to. Not
+         * fixing by guessing an ownership model with zero real callers to
+         * validate it against - flagging for whoever wires hotplug up. */
         device_t* dev = calloc(1, sizeof(device_t));
         if (!dev) continue;
         
