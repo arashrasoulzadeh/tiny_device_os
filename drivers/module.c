@@ -111,16 +111,27 @@ void ardmod_unload(ardmod_handle_t* handle) {
 
 int ardmod_verify_crc(const uint8_t* data, size_t size) {
     if (!data || size < sizeof(ardmod_header_t)) return 0;
-    
-    ardmod_header_t* header = (ardmod_header_t*)data;
+
+    /* Used to cast away const and write header->crc32 = 0 directly into
+     * `data` (restoring it after) to compute the CRC the same way
+     * ardmod_create() did - a real module is meant to be verified
+     * straight out of flash (XIP), where that write would either corrupt
+     * a buffer the caller still owns or fault outright on genuinely
+     * read-only memory. Copy the header-sized prefix instead and zero
+     * the CRC field only in the copy. */
+    uint8_t header_copy[sizeof(ardmod_header_t)];
+    memcpy(header_copy, data, sizeof(header_copy));
+
+    ardmod_header_t* header = (ardmod_header_t*)header_copy;
     uint32_t stored_crc = header->crc32;
     header->crc32 = 0;
-    
-    uint32_t calc_crc = crc32_update(0, data, size);
-    
-    header->crc32 = stored_crc;
-    
-    return calc_crc == stored_crc;
+
+    uint32_t crc = crc32_update(0, header_copy, sizeof(header_copy));
+    if (size > sizeof(header_copy)) {
+        crc = crc32_update(crc, data + sizeof(header_copy), size - sizeof(header_copy));
+    }
+
+    return crc == stored_crc;
 }
 
 int ardmod_calculate_crc(const uint8_t* data, size_t size, uint32_t* crc) {
