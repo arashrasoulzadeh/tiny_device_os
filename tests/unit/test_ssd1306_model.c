@@ -74,12 +74,53 @@ void test_ssd1306_render(void) {
     TEST_ASSERT_TRUE(found_white);
 }
 
+/* Regression: g_ssd1306.column was uint8_t, which can't represent
+ * SSD1306_WIDTH for sim builds (320) - `column >= SSD1306_WIDTH` was
+ * always false, so column silently wrapped via plain uint8_t overflow
+ * at 256 instead of the intended explicit wrap-and-advance-page logic,
+ * and page never advanced past 0. test_ssd1306_render above didn't
+ * catch this - it only checks "some pixel is lit anywhere," which stays
+ * true even with every column after 255 overwriting columns 0-63
+ * instead of landing at their real position. This writes a single lit
+ * byte at a specific far column (300, past the old 256-wrap point) and
+ * checks that exact pixel, not just "something is lit somewhere." */
+#if SSD1306_WIDTH > 256
+void test_ssd1306_write_data_past_256_columns_lands_at_the_right_column(void) {
+    uint8_t zero[] = {0x40, 0x00};
+    uint8_t one[] = {0x40, 0x01};  // bit 0 set -> lights the top row of this byte's page
+
+    for (int col = 0; col < 300; col++) {
+        sim_i2c_write(SSD1306_I2C_ADDR, zero, 2);
+    }
+    sim_i2c_write(SSD1306_I2C_ADDR, one, 2);  // column 300
+
+    ssd1306_model_render();
+
+    uint32_t* pixels = sim_video_get_pixels();
+    if (!pixels) {
+        TEST_IGNORE_MESSAGE("SDL video unavailable (headless / no display)");
+        return;
+    }
+
+    // Page 0, column 300, bit 0 -> pixel (x=300, y=0).
+    int idx = 0 * SSD1306_WIDTH + 300;
+    TEST_ASSERT_EQUAL_UINT32(0xFFFFFFFF, pixels[idx]);
+
+    // Column 0 must NOT also be lit - the old bug re-wrote it when
+    // column wrapped at 256 instead of advancing past it.
+    TEST_ASSERT_EQUAL_UINT32(0xFF000000, pixels[0]);
+}
+#endif
+
 int main(void) {
     UNITY_BEGIN();
     
     RUN_TEST(test_ssd1306_register);
     RUN_TEST(test_ssd1306_write_command);
     RUN_TEST(test_ssd1306_write_data);
+#if SSD1306_WIDTH > 256
+    RUN_TEST(test_ssd1306_write_data_past_256_columns_lands_at_the_right_column);
+#endif
     RUN_TEST(test_ssd1306_invert_display);
     RUN_TEST(test_ssd1306_contrast);
     RUN_TEST(test_ssd1306_render);

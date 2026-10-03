@@ -12,7 +12,15 @@ typedef struct {
     uint8_t buffer[SSD1306_BUFFER_SIZE];
     uint32_t canary;
     uint8_t page;
-    uint8_t column;
+    /* uint8_t here can't represent SSD1306_WIDTH for sim builds (320) -
+     * `column >= SSD1306_WIDTH` was always false (max uint8_t is 255),
+     * a dead-code bug currently: ssd1306_model_write_data()/write_cmd()
+     * (the only things that touch column) have no caller anywhere in
+     * this codebase - real rendering goes through
+     * ssd1306_model_set_pixel()/draw_text() directly. Real hardware's
+     * actual 128px width would have fit in uint8_t fine; fixed for
+     * whoever wires this emulated low-level write path up for real. */
+    uint16_t column;
     bool display_on;
     bool inverted;
     uint8_t contrast;
