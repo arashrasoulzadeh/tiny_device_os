@@ -72,6 +72,11 @@ jobs:
         run: |
           cd build
           cp sim/Release/ardubot-sim.exe ./ardubot-sim.exe 2>/dev/null || true
+          # vcpkg's x64-windows triplet links SDL2/PortAudio as DLLs, not
+          # static libs - the exe built and linked fine (it's an import
+          # lib at link time), but won't even start without these DLLs
+          # next to it or on PATH at runtime.
+          cp "${VCPKG_ROOT}/installed/x64-windows/bin/"*.dll . 2>/dev/null || true
           ./ardubot-sim.exe --headless --test=all --junit=results.xml
 
       - name: Upload JUnit results

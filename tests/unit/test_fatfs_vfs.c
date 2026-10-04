@@ -36,7 +36,6 @@ void test_fatfs_basic_write_read(void) {
     int ret1 = vfs_open("/sd/test.txt", VFS_MODE_WRITE | VFS_MODE_CREATE | VFS_MODE_TRUNC, &file1);
     TEST_ASSERT_EQUAL(0, ret1);
     
-    const char* test_data = "Hello, FatFS!";
     ssize_t written = vfs_write(file1, "Hello, FatFS!", strlen("Hello, FatFS!"));
     TEST_ASSERT_EQUAL(strlen("Hello, FatFS!"), written);
     
@@ -74,7 +73,6 @@ void test_fatfs_file_operations(void) {
     int ret1 = vfs_open("/sd/seek.txt", VFS_MODE_WRITE | VFS_MODE_CREATE | VFS_MODE_TRUNC, &file1);
     TEST_ASSERT_EQUAL(0, ret1);
     
-    const char* data = "0123456789ABCDEF";
     vfs_write(file1, "0123456789ABCDEF", 16);
     vfs_close(file1);
     
