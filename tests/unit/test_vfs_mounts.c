@@ -158,7 +158,6 @@ void test_config_store_persistence(void) {
     config_flush(store);
     
     // Read back
-    char buf[64];
     const char* ssid = config_get_string(store, "wifi.ssid", "default");
     TEST_ASSERT_EQUAL_STRING("MyNetwork", ssid);
     
