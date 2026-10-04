@@ -43,7 +43,11 @@ static inline uint32_t tlsf_fls(uint32_t x) {
 }
 
 static inline int tlsf_get_fl_index(size_t size) {
-    return tlsf_fls(size);
+    /* block_header_t.size is uint32_t (TLSF_MAX_POOL_SIZE is 256KB, well
+     * under 4GB - see the comment below), so this narrowing is always
+     * safe; cast explicitly so MSVC's /W4 doesn't flag it as an
+     * unintentional 64-bit-size_t-to-32-bit truncation. */
+    return tlsf_fls((uint32_t)size);
 }
 
 /* Single-level segregated free list: bucket fl holds every free block with
@@ -95,16 +99,16 @@ static block_header_t* block_split(tlsf_pool_t* pool, block_header_t* block, siz
     
     block_header_t* new_block = (block_header_t*)((uint8_t*)block + size + BLOCK_OVERHEAD);
     new_block->signature = TLSF_SIGNATURE;
-    new_block->size = remaining;
+    new_block->size = (uint32_t)remaining;  /* always < TLSF_MAX_POOL_SIZE, see tlsf_get_fl_index */
     new_block->flags = 0;
     new_block->prev_phys = block;
     new_block->next_phys = block->next_phys;
-    
+
     if (block->next_phys) {
         block->next_phys->prev_phys = new_block;
     }
     block->next_phys = new_block;
-    block->size = size;
+    block->size = (uint32_t)size;
     
     block_insert_free(pool, new_block);
     
@@ -152,7 +156,7 @@ tlsf_pool_t* tlsf_create(void* mem, size_t bytes) {
     
     block_header_t* block = (block_header_t*)pool->memory;
     block->signature = TLSF_SIGNATURE;
-    block->size = pool->total_size - BLOCK_OVERHEAD;
+    block->size = (uint32_t)(pool->total_size - BLOCK_OVERHEAD);
     block->flags = 0;
     block->prev_phys = NULL;
     block->next_phys = NULL;
@@ -253,7 +257,7 @@ void* tlsf_memalign(tlsf_pool_t* pool, size_t align, size_t size) {
      * front block's declared extent overlap new_block's header by
      * BLOCK_OVERHEAD bytes). */
     new_block->signature = TLSF_SIGNATURE;
-    new_block->size = block->size - offset;
+    new_block->size = (uint32_t)(block->size - offset);
     new_block->flags = 0;
     new_block->prev_phys = block;
     new_block->next_phys = block->next_phys;
@@ -262,7 +266,7 @@ void* tlsf_memalign(tlsf_pool_t* pool, size_t align, size_t size) {
         block->next_phys->prev_phys = new_block;
     }
     block->next_phys = new_block;
-    block->size = offset - BLOCK_OVERHEAD;
+    block->size = (uint32_t)(offset - BLOCK_OVERHEAD);
 
     /* `block` (the discarded, unaligned front remainder) goes back on
      * the free list; `new_block` (the aligned part we're handing to the

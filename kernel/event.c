@@ -7,6 +7,22 @@
 static event_system_t g_event_system = {0};
 static int g_event_lock = 0;
 
+/* __sync_lock_test_and_set/__sync_lock_release are GCC/Clang builtins -
+ * MSVC has no equivalent (not a warning MSVC can be told to ignore, it's
+ * an actually undefined symbol there). _InterlockedExchange is MSVC's
+ * intrinsic analog: atomically stores the new value and returns the old
+ * one, same semantics this spinlock needs. */
+#if defined(_MSC_VER)
+#include <intrin.h>
+
+static void event_lock(void) {
+    while (_InterlockedExchange((volatile long*)&g_event_lock, 1)) {}
+}
+
+static void event_unlock(void) {
+    _InterlockedExchange((volatile long*)&g_event_lock, 0);
+}
+#else
 static void event_lock(void) {
     while (__sync_lock_test_and_set(&g_event_lock, 1)) {}
 }
@@ -14,6 +30,7 @@ static void event_lock(void) {
 static void event_unlock(void) {
     __sync_lock_release(&g_event_lock);
 }
+#endif
 
 int event_system_init(void) {
     memset(&g_event_system, 0, sizeof(g_event_system));

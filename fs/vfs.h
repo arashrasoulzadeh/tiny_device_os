@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <sys/types.h>
+#include "ardubot_compat.h"
 
 #ifdef __cplusplus
 extern "C" {
