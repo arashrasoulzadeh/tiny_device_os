@@ -1,4 +1,5 @@
 site_name: ArdubotOS
+site_url: https://arashrasoulzadeh.github.io/tiny_device_os/
 docs_dir: docs
 site_dir: site
 
