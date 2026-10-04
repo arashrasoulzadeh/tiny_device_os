@@ -5,59 +5,19 @@
 #include <time.h>
 
 /*
- * Minimal Ed25519 implementation
- * Based on ref10 implementation from SUPERCOP
- * Public domain / CC0
+ * NOT a real Ed25519 implementation - ed25519_sign()/ed25519_verify()
+ * below always return -1 ("not implemented"), and ed25519_derive_public_key()
+ * writes a fixed marker byte instead of a real derived key. This file used
+ * to carry forward declarations for a full ref10-style implementation
+ * (field/scalar/point arithmetic, SHA-512) that was never written - plain
+ * dead prototypes with no definitions anywhere, which GCC 13 correctly
+ * rejects under -Werror=unused-function (declared 'static' but never
+ * defined). Removed that scaffold rather than stubbing in fake bodies for
+ * it; nothing in this file or its tests (tests/unit/test_ota_signature.c
+ * only exercises CRC32 and OTA metadata, never ed25519_sign/verify) relies
+ * on it existing. A real implementation needs to replace this file, not
+ * extend it - there's no partial crypto here to build on.
  */
-
-// Curve25519 constants
-#define ED25519_D 0x1d99ec9ea7d9f7db
-
-// Field size
-#define ED25519_FIELD_SIZE 32
-#define ED25519_SCALAR_SIZE 32
-
-// Field operations
-typedef uint64_t fe[4];
-
-static void fe_frombytes(fe h, const uint8_t s[32]);
-static void fe_tobytes(uint8_t s[32], const fe h);
-static void fe_add(fe h, const fe f, const fe g);
-static void fe_sub(fe h, const fe f, const fe g);
-static void fe_mul(fe h, const fe f, const fe g);
-static void fe_sq(fe h, const fe f);
-static void fe_invert(fe out, const fe z);
-static void fe_pow22523(fe out, const fe z);
-
-// Scalar operations
-typedef uint64_t sc[4];
-
-static void sc_reduce(sc s);
-static void sc_muladd(sc h, const sc f, const sc g, const sc c);
-
-// Point operations
-typedef struct {
-    fe X, Y, Z, T;
-} ge_p3;
-
-static void ge_p3_tobytes(uint8_t s[32], const ge_p3 *h);
-static int ge_frombytes_negate_vartime(ge_p3 *h, const uint8_t s[32]);
-static void ge_scalarmult_base(ge_p3 *h, const uint8_t a[32]);
-static int ge_double_scalarmult_vartime(ge_p3 *r, const uint8_t a[32], const ge_p3 *B, const uint8_t c[32]);
-
-// Simple SHA-512 implementation
-#define SHA512_BLOCK_SIZE 128
-#define SHA512_DIGEST_SIZE 64
-
-typedef struct {
-    uint64_t state[8];
-    uint64_t count;
-    uint8_t buffer[128];
-} SHA512_CTX;
-
-static void sha512_init(SHA512_CTX* ctx);
-static void sha512_update(SHA512_CTX* ctx, const uint8_t* data, size_t len);
-static void sha512_final(uint8_t hash[64], SHA512_CTX* ctx);
 
 // Ed25519 API implementation
 
