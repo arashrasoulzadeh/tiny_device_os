@@ -560,17 +560,26 @@ void scheduler_enter_idle(void) {
     uint32_t sleep_ticks = (next_wake == UINT32_MAX) ? 0 : (next_wake - now);
 
     if (sleep_ticks > 0) {
-        if (sleep_ticks >= g_scheduler.deep_sleep_min_ticks) {
-            g_scheduler.power_mode = POWER_MODE_LIGHT_SLEEP;
-            g_scheduler.tick_count += sleep_ticks;
-        } else {
-            g_scheduler.power_mode = POWER_MODE_LIGHT_SLEEP;
-        }
+        /* Below deep_sleep_min_ticks used to fall through without ever
+         * advancing tick_count - the mode was set to LIGHT_SLEEP only to
+         * be immediately overwritten back to ACTIVE below, so a caller
+         * looping on this (e.g. idle_task) spun with zero progress
+         * toward the pending wake. Advance time the same way the
+         * deep-sleep-eligible branch already does. */
+        g_scheduler.power_mode = POWER_MODE_LIGHT_SLEEP;
+        g_scheduler.tick_count += sleep_ticks;
         g_scheduler.power_mode = POWER_MODE_ACTIVE;
     } else {
         g_scheduler.power_mode = POWER_MODE_DEEP_SLEEP;
         task_yield();
     }
+}
+
+void scheduler_exit_idle(void) {
+    /* Declared in scheduler.h, never defined - a link error for any real
+     * caller. The counterpart to scheduler_enter_idle(): an idle period
+     * ends with the scheduler back in ACTIVE mode. */
+    g_scheduler.power_mode = POWER_MODE_ACTIVE;
 }
 
 void scheduler_tickless_idle(void) {
@@ -592,13 +601,17 @@ void scheduler_tickless_idle(void) {
         return;
     }
 
+    g_scheduler.power_mode = POWER_MODE_LIGHT_SLEEP;
     if (sleep_ticks >= g_scheduler.deep_sleep_min_ticks) {
-        g_scheduler.power_mode = POWER_MODE_LIGHT_SLEEP;
         g_scheduler.tick_count = next_wake;
     } else {
-        g_scheduler.power_mode = POWER_MODE_LIGHT_SLEEP;
-        while (g_scheduler.tick_count < next_wake) {
-        }
+        /* This used to busy-wait `while (tick_count < next_wake) {}` with
+         * nothing inside the loop ever touching tick_count - a genuine
+         * infinite hang for any sleep below deep_sleep_min_ticks,
+         * confirmed via a standalone repro of the exact loop shape
+         * (still spinning after a 2s timeout). Advance time directly,
+         * same as the branch above. */
+        g_scheduler.tick_count = next_wake;
     }
     g_scheduler.power_mode = POWER_MODE_ACTIVE;
 }

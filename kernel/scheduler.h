@@ -121,6 +121,9 @@ void scheduler_enable_tickless_idle(bool enable);
 uint32_t scheduler_get_next_wake_tick(void);
 void scheduler_enter_idle(void);
 void scheduler_exit_idle(void);
+void scheduler_tickless_idle(void);
+power_mode_t scheduler_get_power_mode(void);
+void scheduler_set_deep_sleep_min_ticks(uint32_t ticks);
 
 // Deep sleep
 int scheduler_enter_deep_sleep(uint32_t timeout_ticks);
