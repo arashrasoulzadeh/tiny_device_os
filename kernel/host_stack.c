@@ -31,13 +31,19 @@ void host_call_on_stack(void* stack_top, void (*fn)(void*), void* arg) {
 #elif defined(__x86_64__)
 
 void host_call_on_stack(void* stack_top, void (*fn)(void*), void* arg) {
+    /* Intentionally switches rsp and never returns via this path (fn
+     * jumps into scheduler logic that doesn't come back here; abort()
+     * below is just a safety net). GCC 13+ deprecates (and -Werror
+     * rejects) listing the stack pointer itself in a clobber list -
+     * matching the aarch64/xtensa branches below, which never clobbered
+     * their own SP register (sp/a1) either. */
     __asm__ __volatile__(
         "mov %[stk], %%rsp\n\t"
         "mov %[a], %%rdi\n\t"
         "call *%[f]\n\t"
         :
         : [stk] "r"(stack_top), [f] "r"(fn), [a] "r"(arg)
-        : "rsp", "rdi", "rsi", "rax", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
+        : "rdi", "rsi", "rax", "rcx", "rdx", "r8", "r9", "r10", "r11", "memory");
     abort();
 }
 
