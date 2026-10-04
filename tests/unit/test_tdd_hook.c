@@ -3,6 +3,13 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* popen/pclose are POSIX; MSVC's CRT has the same functionality under
+ * underscore-prefixed names (_popen/_pclose) instead. */
+#if defined(_MSC_VER)
+#define popen _popen
+#define pclose _pclose
+#endif
+
 /* All three tests here used relative paths ("scripts/tdd_check.py") and
  * relative-cwd git commands, assuming the test runs with the repo root
  * as its current directory. ctest doesn't guarantee that - it runs from

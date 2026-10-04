@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
 
 static app_t* g_apps = NULL;
 static uint32_t g_next_app_id = 1;
@@ -48,7 +49,10 @@ static void app_task_entry(void* arg) {
     app_entry_t entry = (app_entry_t)app->manifest.entry_point;
     
     if (entry) {
-        printf("Calling app entry point: %p\n", (void*)entry);
+        /* ISO C forbids a direct function-pointer-to-object-pointer cast
+         * (-Wpedantic) - routing through intptr_t is the standard portable
+         * way to print a function pointer's value for debug output. */
+        printf("Calling app entry point: %p\n", (void*)(intptr_t)entry);
         fflush(stdout);
         entry();
     } else {

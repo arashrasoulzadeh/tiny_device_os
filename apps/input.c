@@ -266,12 +266,13 @@ static void process_key_event(input_key_t key, bool pressed) {
     input_queue_event(&event);
 }
 
-static void process_encoder_event(int direction) {
-    input_event_t event = {0};
-    event.type = direction > 0 ? INPUT_EVENT_ENCODER_CW : INPUT_EVENT_ENCODER_CCW;
-    event.timestamp = scheduler_get_tick_count();
-    input_queue_event(&event);
-}
+/* INPUT_DEV_ENCODER / INPUT_EVENT_ENCODER_CW/CCW are already part of the
+ * input API (input.h), but no HAL/sim source yet actually drives a
+ * rotary encoder device to call this - removed rather than left as dead
+ * code under -Werror=unused-function; re-add it (queuing an
+ * INPUT_EVENT_ENCODER_CW/CCW event via input_queue_event(), same shape
+ * as every other process_*_event() helper in this file) once a real
+ * encoder input source exists to call it. */
 
 int input_process_events(void) {
     int processed = 0;
