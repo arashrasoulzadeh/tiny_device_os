@@ -12,6 +12,18 @@ function(ardubot_setup_host_toolchain)
         find_package(SDL2 CONFIG QUIET)
         if(SDL2_FOUND OR TARGET SDL2::SDL2)
             set(SDL2_LIBRARIES SDL2::SDL2 SDL2::SDL2main CACHE INTERNAL "SDL2 libraries" FORCE)
+            # sim/CMakeLists.txt (and sim_args) only add SDL2's include path
+            # when SDL2_INCLUDE_DIRS is set - true for the pkg-config branch
+            # below, but find_package's CONFIG mode normally expects
+            # consumers to just link the SDL2::SDL2 imported target instead
+            # (which carries its own include dirs transitively). Nothing
+            # here does that, so pull it off the target explicitly to keep
+            # every existing `if(SDL2_INCLUDE_DIRS)` consumer working
+            # unchanged, rather than restructuring how every target links.
+            get_target_property(_ardubot_sdl2_includes SDL2::SDL2 INTERFACE_INCLUDE_DIRECTORIES)
+            if(_ardubot_sdl2_includes)
+                set(SDL2_INCLUDE_DIRS ${_ardubot_sdl2_includes} CACHE INTERNAL "SDL2 include dirs" FORCE)
+            endif()
         else()
             # Fallback: manual search (e.g. a self-hosted runner with SDL2 dev files staged)
             find_path(SDL2_INCLUDE_DIR SDL.h
@@ -32,8 +44,16 @@ function(ardubot_setup_host_toolchain)
         find_package(portaudio CONFIG QUIET)
         if(TARGET portaudio)
             set(PORTAUDIO_LIBRARIES portaudio CACHE INTERNAL "PortAudio libraries" FORCE)
+            get_target_property(_ardubot_pa_includes portaudio INTERFACE_INCLUDE_DIRECTORIES)
+            if(_ardubot_pa_includes)
+                set(PORTAUDIO_INCLUDE_DIRS ${_ardubot_pa_includes} CACHE INTERNAL "PortAudio include dirs" FORCE)
+            endif()
         elseif(TARGET portaudio_static)
             set(PORTAUDIO_LIBRARIES portaudio_static CACHE INTERNAL "PortAudio libraries" FORCE)
+            get_target_property(_ardubot_pa_includes portaudio_static INTERFACE_INCLUDE_DIRECTORIES)
+            if(_ardubot_pa_includes)
+                set(PORTAUDIO_INCLUDE_DIRS ${_ardubot_pa_includes} CACHE INTERNAL "PortAudio include dirs" FORCE)
+            endif()
         else()
             find_library(PORTAUDIO_LIBRARY NAMES portaudio
                 PATHS "C:/Program Files/PortAudio/lib" "C:/tools/portaudio/lib" "C:/msys64/mingw64/lib" "C:/mingw64/lib"

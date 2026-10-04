@@ -3,10 +3,31 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
-#include <getopt.h>
 #include <signal.h>
-#include <unistd.h>
 #include <fcntl.h>
+
+/* getopt.h was included but never used anywhere in this file (no call to
+ * getopt()/getopt_long(), no optarg/optind/struct option reference) -
+ * removed rather than ported, since there's nothing to port.
+ *
+ * write()/close()/open()/STDERR_FILENO below (crash_write()) are POSIX,
+ * from <unistd.h> - MSVC has no such header. The crash handler is meant
+ * to work on Windows too (see README: "Windows CI still gets the signal
+ * logged, just without frames"), so this maps to the raw CRT equivalents
+ * MSVC does provide via <io.h>, rather than switching to buffered stdio -
+ * crash_write() deliberately avoids that (see its own comment) since it
+ * runs inside a signal handler after memory may already be corrupt. */
+#if defined(_WIN32)
+#include <io.h>
+#define write(fd, buf, n) _write((fd), (buf), (unsigned)(n))
+#define close(fd) _close(fd)
+#define open(path, flags, mode) _open((path), (flags), (mode))
+#ifndef STDERR_FILENO
+#define STDERR_FILENO 2
+#endif
+#else
+#include <unistd.h>
+#endif
 
 #include "scheduler.h"
 #include "os_time.h"
