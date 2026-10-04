@@ -31,7 +31,7 @@ static time_us_t host_monotonic_us(void) {
 
 static time_us_t g_boot_time = 0;
 static time_us_t g_time_offset = 0;
-static timer_t* g_timer_list = NULL;
+static os_timer_t* g_timer_list = NULL;
 
 time_us_t time_now_us(void) {
 #if defined(ARDUBOT_SIM_SDL2)
@@ -76,7 +76,7 @@ void time_sleep_ms(uint32_t ms) {
     time_sleep_us(ms * 1000);
 }
 
-int timer_create(timer_t* timer, time_us_t delay_us, timer_callback_t cb, void* arg, bool periodic) {
+int os_timer_create(os_timer_t* timer, time_us_t delay_us, timer_callback_t cb, void* arg, bool periodic) {
     if (!timer || !cb) {
         return -1;
     }
@@ -92,8 +92,8 @@ int timer_create(timer_t* timer, time_us_t delay_us, timer_callback_t cb, void* 
     return 0;
 }
 
-static void timer_list_insert(timer_t* timer) {
-    timer_t** current = &g_timer_list;
+static void timer_list_insert(os_timer_t* timer) {
+    os_timer_t** current = &g_timer_list;
     while (*current && (*current)->expire_time <= timer->expire_time) {
         current = &(*current)->next;
     }
@@ -101,7 +101,7 @@ static void timer_list_insert(timer_t* timer) {
     *current = timer;
 }
 
-int timer_start(timer_t* timer) {
+int os_timer_start(os_timer_t* timer) {
     if (!timer || timer->active) {
         return -1;
     }
@@ -113,12 +113,12 @@ int timer_start(timer_t* timer) {
     return 0;
 }
 
-int timer_stop(timer_t* timer) {
+int os_timer_stop(os_timer_t* timer) {
     if (!timer || !timer->active) {
         return -1;
     }
     
-    timer_t** current = &g_timer_list;
+    os_timer_t** current = &g_timer_list;
     while (*current) {
         if (*current == timer) {
             *current = timer->next;
@@ -132,8 +132,8 @@ int timer_stop(timer_t* timer) {
     return -1;
 }
 
-int timer_delete(timer_t* timer) {
-    timer_stop(timer);
+int os_timer_delete(os_timer_t* timer) {
+    os_timer_stop(timer);
     timer->callback = NULL;
     timer->arg = NULL;
     return 0;
@@ -143,7 +143,7 @@ void timers_process(void) {
     time_us_t now = time_now_us();
     
     while (g_timer_list && g_timer_list->expire_time <= now) {
-        timer_t* timer = g_timer_list;
+        os_timer_t* timer = g_timer_list;
         g_timer_list = timer->next;
         timer->next = NULL;
         

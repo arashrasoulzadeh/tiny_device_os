@@ -69,18 +69,18 @@ static void timer_callback_one_shot(void* arg) {
 }
 
 void test_timer_create_start_stop(void) {
-    timer_t timer;
+    os_timer_t timer;
     int called = 0;
     
-    timer_create(&timer, 10000, timer_callback_one_shot, &called, false);
+    os_timer_create(&timer, 10000, timer_callback_one_shot, &called, false);
     
-    timer_start(&timer);
+    os_timer_start(&timer);
     TEST_ASSERT_TRUE(timer.active);
     
-    timer_stop(&timer);
+    os_timer_stop(&timer);
     TEST_ASSERT_FALSE(timer.active);
     
-    timer_delete(&timer);
+    os_timer_delete(&timer);
     TEST_ASSERT_NULL(timer.callback);
 }
 
@@ -89,12 +89,12 @@ static void timer_callback_periodic(void* arg) {
 }
 
 void test_timer_periodic(void) {
-    timer_t timer;
+    os_timer_t timer;
     int count = 0;
     
-    timer_create(&timer, 1000, timer_callback_periodic, &count, true);
+    os_timer_create(&timer, 1000, timer_callback_periodic, &count, true);
     
-    timer_start(&timer);
+    os_timer_start(&timer);
     
     for (int i = 0; i < 5; i++) {
         timers_process();
@@ -103,8 +103,8 @@ void test_timer_periodic(void) {
     
     TEST_ASSERT_GREATER_THAN(0, count);
     
-    timer_stop(&timer);
-    timer_delete(&timer);
+    os_timer_stop(&timer);
+    os_timer_delete(&timer);
 }
 
 int main(void) {

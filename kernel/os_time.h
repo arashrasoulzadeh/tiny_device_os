@@ -35,12 +35,12 @@ typedef struct timer {
     time_us_t period;
     struct timer* next;
     bool active;
-} timer_t;
+} os_timer_t;
 
-int timer_create(timer_t* timer, time_us_t delay_us, timer_callback_t cb, void* arg, bool periodic);
-int timer_start(timer_t* timer);
-int timer_stop(timer_t* timer);
-int timer_delete(timer_t* timer);
+int os_timer_create(os_timer_t* timer, time_us_t delay_us, timer_callback_t cb, void* arg, bool periodic);
+int os_timer_start(os_timer_t* timer);
+int os_timer_stop(os_timer_t* timer);
+int os_timer_delete(os_timer_t* timer);
 
 void timers_process(void);
 
