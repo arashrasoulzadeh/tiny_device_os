@@ -14,6 +14,8 @@ target_include_directories(littlefs_lib PUBLIC
     ${CMAKE_SOURCE_DIR}/third_party/littlefs
 )
 
+target_link_libraries(littlefs_lib PUBLIC hal)
+
 target_compile_definitions(littlefs_lib PRIVATE
     # Not LFS_THREADSAFE=0: littlefs checks this with #ifdef, not by value,
     # so defining it at all (even as 0) enables the locking code path,

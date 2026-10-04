@@ -12,4 +12,4 @@ target_include_directories(fs PUBLIC
 add_subdirectory(littlefs)
 add_subdirectory(fatfs)
 
-target_link_libraries(fs PUBLIC littlefs_lib fatfs_lib)
+target_link_libraries(fs PUBLIC littlefs_lib fatfs_lib hal)

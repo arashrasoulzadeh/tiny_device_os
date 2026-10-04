@@ -12,6 +12,8 @@ target_include_directories(fatfs_lib PUBLIC
     ${CMAKE_SOURCE_DIR}/hal/include
 )
 
+target_link_libraries(fatfs_lib PUBLIC hal)
+
 target_compile_definitions(fatfs_lib PRIVATE
     _POSIX_C_SOURCE=200809L
 )
