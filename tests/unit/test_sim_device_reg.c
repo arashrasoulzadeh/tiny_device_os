@@ -38,8 +38,7 @@ static int spi_dev_transfer(uint8_t cs, const uint8_t* tx, uint8_t* rx, size_t l
 
 void test_i2c_device_registry(void) {
     int read_count = 0;
-    int write_count = 0;
-    
+
     int ret = sim_i2c_register_device(0x48, i2c_dev1_read, i2c_dev1_write, &read_count);
     TEST_ASSERT_EQUAL(0, ret);
     

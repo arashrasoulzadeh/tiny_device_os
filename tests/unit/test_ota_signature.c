@@ -39,7 +39,6 @@ void test_crc32_incremental(void) {
     }
     
     // Compare with single update
-    const char* full = "Hello, World!";
     uint32_t crc2 = ota_crc32_update(0, (const uint8_t*)"Hello, World!", 13);
     TEST_ASSERT_EQUAL(crc2, crc);
 }

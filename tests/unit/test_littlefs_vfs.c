@@ -6,7 +6,6 @@
 #include <string.h>
 #include <stdlib.h>
 
-static lfs_fs_ctx_t* g_test_ctx = NULL;
 static hal_storage_t* g_test_storage = NULL;
 
 void setUp(void) {
@@ -38,7 +37,6 @@ void test_littlefs_basic_write_read(void) {
     int ret_a = vfs_open("/flash/test.txt", VFS_MODE_WRITE | VFS_MODE_CREATE | VFS_MODE_TRUNC, &file_a);
     TEST_ASSERT_EQUAL(0, ret_a);
     
-    const char* test_data = "Hello, LittleFS!";
     ssize_t written_a = vfs_write(file_a, "Hello, LittleFS!", strlen("Hello, LittleFS!"));
     TEST_ASSERT_EQUAL(strlen("Hello, LittleFS!"), written_a);
     
@@ -78,7 +76,6 @@ void test_littlefs_file_operations(void) {
     int ret_r = vfs_open("/flash/test2.txt", VFS_MODE_READ, &file_r);
     TEST_ASSERT_EQUAL(0, ret_r);
     
-    char buffer_r[128] = {0};
     ssize_t total_read = 0;
     char buf_r[64];
     int ret_read;
@@ -127,7 +124,6 @@ void test_littlefs_file_seek_tell(void) {
     int ret_s1 = vfs_open("/flash/seek.txt", VFS_MODE_WRITE | VFS_MODE_CREATE | VFS_MODE_TRUNC, &file_s1);
     TEST_ASSERT_EQUAL(0, ret_s1);
     
-    const char* data_s = "0123456789ABCDEF";
     vfs_write(file_s1, "0123456789ABCDEF", 16);
     vfs_close(file_s1);
     
