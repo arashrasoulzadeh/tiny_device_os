@@ -1,12 +1,24 @@
 site_name: ArdubotOS
 docs_dir: docs
-site_dir: docs/site
+site_dir: site
 
 nav:
   - Architecture: architecture.md
   - Agent Guide: agent-guide.md
   - App Kit: appkit.md
   - Apps: apps.md
+  - Tutorial - Writing an App: tutorials/writing-an-app.md
 
 theme:
   name: readthedocs
+
+markdown_extensions:
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+extra_javascript:
+  - https://unpkg.com/mermaid@10/dist/mermaid.min.js
+  - js/mermaid-init.js

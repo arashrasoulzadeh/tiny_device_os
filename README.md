@@ -36,7 +36,7 @@ Generated reference docs (not checked in - build them locally):
 ```bash
 make docs           # Doxygen API reference + mkdocs site
 make docs-doxygen   # -> docs/doxygen/html/index.html (needs: brew install doxygen)
-make docs-site      # -> docs/site/index.html (needs: pip install mkdocs)
+make docs-site      # -> site/index.html (needs: pip install -r docs/requirements.txt)
 ```
 
 ## Writing an app

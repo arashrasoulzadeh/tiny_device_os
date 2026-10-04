@@ -132,6 +132,27 @@ clean:
 clean-all:
 	rm -rf build/
 
+# make for-<arch>  (or  make for <arch>): export the single-file,
+# stripped ArdubotOS amalgamation for that arch (per the CMakeLists.txt
+# source lists) into build-<arch>/ - ardubot_<arch>.h, ardubot_<arch>.c,
+# and a README.md. No CMakeCache, no separate "raw" copy, no binaries.
+# Also runs a best-effort cc -c test-compile and records the result in
+# the README - see scripts/export_arch.py.
+.PHONY: for-%
+for-%:
+	python3 scripts/export_arch.py --arch $* --out build-$* --device-config $(DEVICE_CONFIG)
+
+# `make for <arch>` form: treat the word after "for" as the arch, not a
+# separate make target, by swallowing it into a no-op rule.
+ifeq (for,$(firstword $(MAKECMDGOALS)))
+  FOR_ARCH := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  $(eval $(FOR_ARCH):;@:)
+endif
+
+.PHONY: for
+for:
+	python3 scripts/export_arch.py --arch $(FOR_ARCH) --out build-$(FOR_ARCH) --device-config $(DEVICE_CONFIG)
+
 # Show current configuration
 config:
 	@echo "=== ArdubotOS Build Configuration ==="
@@ -211,9 +232,9 @@ docs-doxygen:
 	@echo "API docs: docs/doxygen/html/index.html"
 
 docs-site:
-	@command -v mkdocs >/dev/null || (echo "mkdocs not found - pip install mkdocs"; exit 1)
+	@command -v mkdocs >/dev/null || (echo "mkdocs not found - pip install -r docs/requirements.txt"; exit 1)
 	mkdocs build
-	@echo "Docs site: docs/site/index.html"
+	@echo "Docs site: site/index.html"
 
 docs: docs-doxygen docs-site
 
