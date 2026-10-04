@@ -25,9 +25,10 @@ Select/Escape to go back.
 |---|---|
 | [`PLAN.md`](PLAN.md) | Locked architecture decisions and the phased (0–7) roadmap |
 | [`docs/agent-guide.md`](docs/agent-guide.md) | What's actually implemented and tested vs. still roadmap |
-| [`docs/architecture.md`](docs/architecture.md) | System architecture overview |
+| [`docs/architecture.md`](docs/architecture.md) | System architecture overview, with diagrams of the layer stack, the cooperative scheduler's boot/switch flow, and the TLSF allocator |
 | [`docs/appkit.md`](docs/appkit.md) | The app runtime (`app_kit`, `app_ui`, focus/key-bind model) |
 | [`docs/apps.md`](docs/apps.md) | The built-in stdapps |
+| [`docs/tutorials/writing-an-app.md`](docs/tutorials/writing-an-app.md) | Step-by-step: scaffold, write, run, and test one app from nothing |
 | [`AGENTS.md`](AGENTS.md) | Build/test commands, TDD gate, repo layout (for AI agents and humans) |
 
 Generated reference docs (not checked in - build them locally):
@@ -39,6 +40,11 @@ make docs-site      # -> docs/site/index.html (needs: pip install mkdocs)
 ```
 
 ## Writing an app
+
+New to the codebase? [`docs/tutorials/writing-an-app.md`](docs/tutorials/writing-an-app.md)
+walks through building one small app end to end (scaffold, state, a
+background task, installing it, and a test) before you need the full
+reference below.
 
 Apps live under `apps/stdapps/<name>/` and are built on the `app_ui` kit
 (`apps/app_ui.h`) - row-based text (`app_ui_line`/`app_ui_linef`, always
@@ -128,16 +134,15 @@ make test       # headless run of the full suite (ctest)
 make coverage   # real gcov/lcov line+branch coverage -> build/coverage/html/
 ```
 
-As of this writing, `make coverage` reports **48.8% line / 56.3% function**
-coverage across the 43 host-buildable source files. That number is real
-(genuine `--coverage` instrumentation, not the placeholder lcov file
-`sim_args.c`'s `--coverage=FILE` flag writes for the headless test runner),
-but it is **not, and will not realistically become, 100%**: large parts of
+As of this writing, all 45 tests in `ctest --test-dir build` pass and
+`make coverage` reports **55.0% line / 59.9% function** coverage across 59
+host-buildable source files. That number is real (genuine `--coverage`
+instrumentation, not the placeholder lcov file `sim_args.c`'s
+`--coverage=FILE` flag writes for the headless test runner), but it is
+**not, and will not realistically become, 100%**: large parts of
 `hal/arch/{esp32,esp8266,avr}/` only compile for their target and can't run
-under the host test suite at all; several kernel/VFS error branches require
-fault injection no test exercises yet; and a handful of tests
-(`test_tdd_hook`, `test_vfs_mounts`) are known-pre-existing failures tracked
-separately in `docs/agent-guide.md`, not caused by any coverage work. Treat
+under the host test suite at all, and several kernel/VFS/driver error
+branches still require fault injection no test exercises yet. Treat
 80% line / 70% branch (the existing gate in `scripts/check_coverage.cmake`)
 as the realistic target to raise incrementally, not 100%.
 

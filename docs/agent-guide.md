@@ -25,10 +25,19 @@ Implemented and exercised by host tests:
   config KV store (`fs/config_store.c`), and OTA with A/B partitions + ed25519
   signature verification (`fs/ota.c`, `fs/ed25519.c`).
 - Power management (`kernel/power.c`) — sleep modes, wake sources, CPU
-  frequency scaling, per-driver suspend/resume callbacks. **No host unit test
-  exists for it yet** (`tests/unit/` has none named `*power*`); treat it as
-  unverified until one lands, and write that test before extending the module.
-- Driver ops (`probe`/`open`/`read`/`write`/`ioctl`) in `drivers/driver.h`.
+  frequency scaling, per-driver suspend/resume callbacks. Covered by
+  `tests/unit/test_power.c` (18 tests). The tickless-idle path in
+  `kernel/scheduler.c` (`scheduler_enter_idle`/`scheduler_tickless_idle`/
+  `scheduler_exit_idle`) is covered directly in `tests/unit/test_scheduler.c` -
+  note that `idle_task()` itself is currently unreachable in practice, since
+  `scheduler_step()`/`task_yield()` both skip `TASK_PRIO_IDLE` tasks.
+- Driver framework (`drivers/`) — core (`driver.c`, open-handle dispatch,
+  owned-vs-caller-owned device lifetime), the device registry with I2C/SPI
+  hotplug scan (`device_registry.c`), the dynamic `.ardmod` module loader
+  (`module.c`, CRC-verified headers, symbol table and dependency resolution
+  still stubs), and all six built-in bus drivers (GPIO/I2C/SPI/UART/WiFi/
+  display) against their sim HAL backends. Covered by `tests/unit/test_driver.c`,
+  `test_device_registry.c`, `test_module.c`, `test_bus_drivers.c`.
 - Simulator CLI: headless mode, `--test=all`, JUnit, coverage
   (`sim/sim_main.c`, `sim/sim_args.c`). The sim main loop advances
   **one scheduler tick per wall-clock millisecond** (catch-up when a frame
@@ -39,6 +48,17 @@ Implemented and exercised by host tests:
 Still roadmap (do not assume these work, and do not invent them while fixing
 something else): game engine, Lua/WASM, dynamic `.ardmod` loading as a product,
 Arduino IDE packaging, deep-sleep power targets, `tests/hardware/`.
+
+`fs/fatfs/fatfs_vfs.c` is a flat raw-storage passthrough, not a real FAT
+filesystem: no FAT table, no directory entries, two different paths opened
+at the same time alias the same underlying bytes. See the comment at the
+top of that file before extending it - there's no per-file state to extend,
+it needs replacing when a real SD card (PlatformIO FatFs) lands.
+
+All 45 tests in `ctest --test-dir build` currently pass; the build is
+warning-clean (`-Wall -Wextra -Wpedantic -Werror`). If you hit a failure or
+warning that looks unrelated to your change, it is a regression - root-cause
+it rather than assuming it is "pre-existing."
 
 ## Dependency direction
 
