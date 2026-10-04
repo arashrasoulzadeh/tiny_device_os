@@ -63,10 +63,17 @@
 #define CRASH_LOG_PATH "crash.log"
 
 static void crash_write(const char* s) {
-    write(STDERR_FILENO, s, strlen(s));
+    /* write() is glibc's warn_unused_result - there's nothing useful to
+     * do with a failed write from inside a signal handler (can't log,
+     * can't retry safely), but a bare (void)write(...) doesn't actually
+     * silence that specific attribute on some gcc versions; assigning
+     * the result does. */
+    int ret = (int)write(STDERR_FILENO, s, strlen(s));
+    (void)ret;
     int fd = open(CRASH_LOG_PATH, O_WRONLY | O_CREAT | O_APPEND, 0644);
     if (fd >= 0) {
-        write(fd, s, strlen(s));
+        ret = (int)write(fd, s, strlen(s));
+        (void)ret;
         close(fd);
     }
 }
@@ -93,42 +100,13 @@ static void crash_handler(int sig) {
     raise(sig);
 }
 
-// Key callback that forwards app keys to GPIO (ignores system keys)
-static void sim_key_to_gpio_cb(sim_key_t key, bool pressed, void* arg) {
-    (void)arg;
-    // Only forward app-class keys to GPIO, system keys are handled by OS
-    if (!sim_key_is_system(key)) {
-        sim_gpio_handle_key(key, pressed);
-    }
-}
-
-// System key handler for OS-level keys
-static void sim_system_key_cb(sim_key_t key, bool pressed, void* arg) {
-    (void)arg;
-    if (!pressed) return;  // Only handle key press, not release
-    
-    if (sim_key_is_system(key)) {
-        switch (key) {
-            case SIM_KEY_SYS_NEXT_APP:
-                printf("System: Switching to next app\n");
-                fflush(stdout);
-                // TODO: os_app_switch_next();
-                break;
-            case SIM_KEY_SYS_ESCAPE:
-                printf("System: Escape - quit current app\n");
-                fflush(stdout);
-                // TODO: os_app_quit_current();
-                break;
-            case SIM_KEY_SYS_MENU:
-                printf("System: Show system menu\n");
-                fflush(stdout);
-                // TODO: os_sys_show_menu();
-                break;
-            default:
-                break;
-        }
-    }
-}
+/* sim_key_to_gpio_cb() and sim_system_key_cb() used to be two separate
+ * callbacks (app-keys-to-GPIO, and OS-level system keys) - both
+ * superseded by sim_combined_key_cb() below, which does both in one
+ * pass and is the one actually registered (sim_video_set_key_callback()
+ * further down). Neither standalone version is referenced anywhere
+ * anymore - removed as dead duplicates rather than leaving them under
+ * -Werror=unused-function. */
 
 // Combined key callback that handles both system and app keys
 static void sim_combined_key_cb(sim_key_t key, bool pressed, void* arg) {
@@ -161,17 +139,13 @@ static void sim_combined_key_cb(sim_key_t key, bool pressed, void* arg) {
 
 // GPIO callback for HAL GPIO level changes
 static void sim_gpio_callback(int pin, bool level, void* arg) {
-    (void)arg;
-    // Forward to HAL GPIO edge detection via global callback
-    // The global g_callback is set by sim_gpio_register_hal_gpio_with_trigger
-    // But we need to manually invoke the edge detection for pins with registered HAL callbacks
-    for (int i = 0; i < 64; i++) {
-        extern bool sim_gpio_read(int pin);  // This won't work directly
-    }
-    // Actually, we need to call the internal edge check function
-    // Since hal_gpio_check_edge is static, we can't call it directly
-    // Instead, let's just invoke any registered HAL GPIO callback directly
-    // The key is that sim_gpio_handle_key already calls g_callback
+    (void)pin; (void)level; (void)arg;
+    /* Not implemented: HAL GPIO edge detection (hal_gpio_check_edge) is
+     * static, so it can't be invoked from here - this registered callback
+     * is currently a no-op. sim_gpio_handle_key() (used by the actual
+     * active key->GPIO path, sim_combined_key_cb() above) already covers
+     * the key-press-to-GPIO case; a real HAL-level edge-triggered GPIO
+     * callback still needs wiring up. */
 }
 
 void signal_handler(int sig) {
@@ -184,15 +158,9 @@ static void sim_quit_cb(void* arg) {
     g_running = false;
 }
 
-static int g_demo_counter = 0;
-
-static void demo_task_entry(void* arg) {
-    (void)arg;
-    while (1) {
-        g_demo_counter++;
-        task_sleep(100); // Sleep 100 ticks (100ms)
-    }
-}
+/* demo_task_entry() was a scratch task (incremented a counter nobody
+ * read, every 100ms) never actually started via task_create() anywhere
+ * - removed as dead code under -Werror=unused-function. */
 
 // External builtin app manifests (from APP_DEFINE)
 /* Each extern is guarded by the ARDUBOT_APP_*_ENABLED macro CMake generates
