@@ -72,6 +72,19 @@ int app_open(app_ctx_t* from, const char* name);
 
 void app_request_exit(app_ctx_t* app);
 
+/* app_request_exit() takes one argument; app_key_fn_t (a key handler)
+ * takes two (app, user). Every stdapp that binds Escape straight to
+ * app_request_exit() used to do `(app_key_fn_t)app_request_exit` -
+ * casting a 1-arg function pointer to a 2-arg function pointer type is
+ * flagged by gcc 13's -Wcast-function-type under -Werror (arity
+ * mismatch, not just an unrelated-pointee-type cast). This trampoline
+ * already has app_key_fn_t's shape; bind it directly instead:
+ * `(app_key_fn_t)app_request_exit_key` (same cast style app_bind_back()
+ * already uses internally for the identical pattern - only the
+ * app_ctx_t*-vs-void* first parameter differs, which this compiler/flag
+ * combination doesn't flag). */
+void app_request_exit_key(app_ctx_t* app, void* user);
+
 bool app_kit_is_foreground(const app_ctx_t* app);
 bool app_kit_is_foreground_desc(const app_desc_t* desc);
 

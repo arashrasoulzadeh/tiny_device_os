@@ -27,7 +27,7 @@ static void on_init(void* app) {
         {SIM_KEY_2, on_dec, NULL},
         {SIM_KEY_UP, on_inc, NULL},
         {SIM_KEY_ENTER, on_dec, NULL},
-        {SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL},
+        {SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL},
         {0, NULL, NULL},
     });
 

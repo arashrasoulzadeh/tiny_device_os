@@ -137,13 +137,13 @@ int app_bind_key(app_ctx_t* app, sim_key_t key, app_key_fn_t fn, void* user) {
     return 0;
 }
 
-static void kit_back_trampoline(app_ctx_t* app, void* user) {
+void app_request_exit_key(app_ctx_t* app, void* user) {
     (void)user;
-    app_request_exit((app_ctx_t*)app);
+    app_request_exit(app);
 }
 
 int app_bind_back(app_ctx_t* app) {
-    return app_bind_key(app, SIM_KEY_ESCAPE, (app_key_fn_t)kit_back_trampoline, NULL);
+    return app_bind_key(app, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL);
 }
 
 void app_request_exit(app_ctx_t* app) {

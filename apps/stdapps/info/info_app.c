@@ -24,7 +24,7 @@ static void on_init(void* app) {
     
     app_ui_bind_keys(&g_ui, (app_ui_key_def_t[]){
         {SIM_KEY_ENTER, on_refresh, NULL},
-        {SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL},
+        {SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL},
         {0, NULL, NULL},
     });
 

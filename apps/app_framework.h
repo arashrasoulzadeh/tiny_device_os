@@ -268,17 +268,29 @@ static inline void _app_log(log_level_t level, const char* fmt, ...) {
     va_end(args);
 }
 
+/* `(fmt, ...)` + `##__VA_ARGS__` (GNU's comma-swallowing extension) let a
+ * caller pass just a literal string with no extra format args - but this
+ * project builds with CMAKE_C_EXTENSIONS OFF (strict -std=c11), where
+ * ISO C requires at least one argument for `...` and `##__VA_ARGS__`
+ * itself isn't standard either; gcc 13 flags both under -Werror. Folding
+ * the whole call into a single `...` avoids a separately-required `fmt`
+ * parameter entirely - `"[APP] "` and the format string are still
+ * adjacent string-literal tokens after substitution, so the compiler's
+ * ordinary string-literal concatenation still joins them exactly as
+ * before (e.g. APP_INFO("x") -> _app_log(..., "[APP] " "x"); APP_INFO("n=%d", n)
+ * -> _app_log(..., "[APP] " "n=%d", n)). */
+
 // Use standard logging with app name prefix
-#define APP_LOG_DEBUG(fmt, ...)   _app_log(LOG_LEVEL_DEBUG, "[APP] " fmt, ##__VA_ARGS__)
-#define APP_LOG_INFO(fmt, ...)    _app_log(LOG_LEVEL_INFO, "[APP] " fmt, ##__VA_ARGS__)
-#define APP_LOG_WARN(fmt, ...)    _app_log(LOG_LEVEL_WARN, "[APP] " fmt, ##__VA_ARGS__)
-#define APP_LOG_ERROR(fmt, ...)   _app_log(LOG_LEVEL_ERROR, "[APP] " fmt, ##__VA_ARGS__)
+#define APP_LOG_DEBUG(...)   _app_log(LOG_LEVEL_DEBUG, "[APP] " __VA_ARGS__)
+#define APP_LOG_INFO(...)    _app_log(LOG_LEVEL_INFO, "[APP] " __VA_ARGS__)
+#define APP_LOG_WARN(...)    _app_log(LOG_LEVEL_WARN, "[APP] " __VA_ARGS__)
+#define APP_LOG_ERROR(...)   _app_log(LOG_LEVEL_ERROR, "[APP] " __VA_ARGS__)
 
 // Short aliases
-#define APP_DEBUG(fmt, ...)       _app_log(LOG_LEVEL_DEBUG, "[APP] " fmt, ##__VA_ARGS__)
-#define APP_INFO(fmt, ...)        _app_log(LOG_LEVEL_INFO, "[APP] " fmt, ##__VA_ARGS__)
-#define APP_WARN(fmt, ...)        _app_log(LOG_LEVEL_WARN, "[APP] " fmt, ##__VA_ARGS__)
-#define APP_ERROR(fmt, ...)       _app_log(LOG_LEVEL_ERROR, "[APP] " fmt, ##__VA_ARGS__)
+#define APP_DEBUG(...)       _app_log(LOG_LEVEL_DEBUG, "[APP] " __VA_ARGS__)
+#define APP_INFO(...)        _app_log(LOG_LEVEL_INFO, "[APP] " __VA_ARGS__)
+#define APP_WARN(...)        _app_log(LOG_LEVEL_WARN, "[APP] " __VA_ARGS__)
+#define APP_ERROR(...)       _app_log(LOG_LEVEL_ERROR, "[APP] " __VA_ARGS__)
 
 // ============================================================================
 // CONFIG/SETTINGS HELPERS - global store (for built-in settings)

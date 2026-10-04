@@ -32,7 +32,7 @@ static void on_init(void* app) {
     sim_gpio_set_key_mapping(SIM_KEY_DOWN, 1, true);
     sim_gpio_set_key_mapping(SIM_KEY_ENTER, 2, true);
 
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL);
 
     APP_INFO("Pong ready - Up/Down/Enter to move paddle");
 }

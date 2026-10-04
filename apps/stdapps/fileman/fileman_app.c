@@ -146,7 +146,7 @@ static void fileman_init(void* app) {
     app_ui_bind_key(&g_ui, SIM_KEY_DOWN, on_down, NULL);
     app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_select, NULL);
     app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, on_back, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL);
 
     refresh_list();
     APP_INFO("File Manager ready - /flash");

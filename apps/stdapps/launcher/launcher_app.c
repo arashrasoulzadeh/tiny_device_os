@@ -42,7 +42,7 @@ static void on_init(void* app) {
     app_ui_bind_key(&g_ui, SIM_KEY_RIGHT, app_ui_menu_nav_next, &g_menu);
     app_ui_bind_key(&g_ui, SIM_KEY_LEFT, app_ui_menu_nav_prev, &g_menu);
     app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_launch, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit, NULL);
+    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL);
 
     APP_INFO("Launcher ready");
 }
