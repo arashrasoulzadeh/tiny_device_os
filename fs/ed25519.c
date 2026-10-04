@@ -30,7 +30,6 @@ int ed25519_generate_keypair(uint8_t public_key[32], uint8_t private_key[64]) {
         seeded = 1;
     }
     
-    uint8_t seed[32];
     for (int i = 0; i < 32; i++) {
         private_key[i] = rand() & 0xFF;
     }
@@ -68,6 +67,7 @@ int ed25519_seed_keypair(uint8_t public_key[32], uint8_t private_key[64], const 
 }
 
 int ed25519_derive_public_key(uint8_t public_key[32], const uint8_t private_key[64]) {
+    (void)private_key;
     // Derive public key from private key
     // In a real implementation, this would:
     // 1. Hash the private key with SHA-512
