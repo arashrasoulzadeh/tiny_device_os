@@ -68,11 +68,12 @@ jobs:
         run: cmake --build build --config Release -j
       
       - name: Run tests
+        shell: bash
         run: |
           cd build
           cp sim/Release/ardubot-sim.exe ./ardubot-sim.exe 2>/dev/null || true
           ./ardubot-sim.exe --headless --test=all --junit=results.xml
-      
+
       - name: Upload JUnit results
         uses: actions/upload-artifact@v4
         with:

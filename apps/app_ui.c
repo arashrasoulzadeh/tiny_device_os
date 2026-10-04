@@ -299,6 +299,7 @@ bool app_ui_is_dirty(const app_ui_t* app) {
 }
 
 static void app_ui_menu_move(app_ui_t* app, app_menu_t* menu, int delta, void* user) {
+    (void)user;
     if (!app || !menu || delta == 0) {
         return;
     }
