@@ -158,7 +158,7 @@ void* ardmod_get_symbol(ardmod_handle_t* handle, const char* name) {
     for (uint32_t i = 0; i < handle->header.symbol_count; i++) {
         if (strcmp(handle->symbols[i].name, name) == 0) {
             // Return address relative to load address
-            return (void*)(handle->header.load_addr + handle->symbols[i].address);
+            return (void*)(uintptr_t)(handle->header.load_addr + handle->symbols[i].address);
         }
     }
     return NULL;

@@ -29,12 +29,8 @@ struct fatfs_dir_handle {
 static fatfs_ctx_t* g_fatfs_ctx = NULL;
 static const vfs_ops_t* g_fatfs_ops = NULL;
 
-static int fatfs_mode_to_flags(vfs_mode_t mode) {
-    (void)mode;
-    return 0;
-}
-
 static int fatfs_open(const char* path, vfs_mode_t mode, void** file_handle) {
+    (void)mode;  /* flat raw-storage passthrough has no open-mode flags to honor */
     fatfs_ctx_t* ctx = g_fatfs_ctx;
     if (!ctx || !ctx->mounted) return -1;
     
@@ -187,10 +183,9 @@ static vfs_dir_t* fatfs_opendir(const char* path) {
 }
 
 static int fatfs_readdir(vfs_dir_t* dir, vfs_dirent_t* entry) {
+    /* Flat raw-storage passthrough (see the file-level comment above) has
+     * no directory entries to list - always empty, not yet implemented. */
     if (!dir || !dir->dh || !entry) return -1;
-    struct fatfs_dir_handle* dh = (struct fatfs_dir_handle*)dir->dh;
-    
-    // Simplified - just return empty
     return -1;
 }
 
@@ -273,6 +268,7 @@ int fatfs_format(hal_storage_t* storage, uint8_t pdrv, uint32_t au_size) {
 }
 
 int fatfs_get_info(const char* mount_point, uint32_t* total, uint32_t* free) {
+    (void)mount_point;  /* single global mount (g_fatfs_ctx), nothing to look up by */
     fatfs_ctx_t* ctx = g_fatfs_ctx;
     if (!ctx || !ctx->storage || !total || !free) return -1;
     
