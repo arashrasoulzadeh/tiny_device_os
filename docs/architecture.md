@@ -41,7 +41,7 @@ flowchart TB
     end
 
     subgraph hw["Hardware abstraction"]
-        hal["hal/include/hal_*.h<br/>GPIO, I2C, SPI, UART, Display, Net, Storage"]
+        hal["hal/include/ (hal_gpio.h etc)<br/>GPIO, I2C, SPI, UART, Display, Net, Storage"]
     end
 
     subgraph impls["Implementations (one compiled in per build)"]
@@ -61,10 +61,10 @@ flowchart TB
     sched --> alloc
     sched --> power
     power --> hal
-    hal -.compiled against.-> sim
-    hal -.compiled against.-> esp32
-    hal -.compiled against.-> esp8266
-    hal -.compiled against.-> avr
+    hal -. compiled against .-> sim
+    hal -. compiled against .-> esp32
+    hal -. compiled against .-> esp8266
+    hal -. compiled against .-> avr
 ```
 
 Everything above `hal/` is portable C that never includes a backend header
@@ -117,7 +117,7 @@ etc. are the lower-level API usable against any caller-provided buffer
 
 ```mermaid
 flowchart LR
-    req["tlsf_malloc(pool, size)"] --> fl["bucket = fls(size)<br/>(free_list[32], size-class per power of two)"]
+    req["tlsf_malloc(pool, size)"] --> fl["bucket = fls(size)<br/>(32 size-class buckets, one per power of two)"]
     fl --> scan["scan that bucket for a block >= size<br/>(exact bucket may hold smaller blocks)"]
     scan -->|found| split{"block much bigger<br/>than needed?"}
     split -->|yes| carve["block_split(): carve off the<br/>remainder, re-insert as free"]
