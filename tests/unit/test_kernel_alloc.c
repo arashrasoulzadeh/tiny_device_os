@@ -1,5 +1,7 @@
 #include "unity.h"
 #include "alloc.h"
+#include <string.h>
+#include <stdint.h>
 
 void setUp(void) {
 }
@@ -88,6 +90,46 @@ void test_tlsf_memalign(void) {
     tlsf_destroy(pool);
 }
 
+void test_tlsf_memalign_across_many_offsets(void) {
+    /* tlsf_memalign used to (a) return the wrong, unaligned block when
+     * the discarded-prefix offset was >= MIN_BLOCK_SIZE (it returned
+     * the discarded front remainder's pointer instead of the aligned
+     * block's), and (b) get the front/aligned block sizes wrong by
+     * BLOCK_OVERHEAD, overlapping the aligned block's own header - both
+     * confirmed via a standalone sweep. Sweeping pool fragmentation
+     * amounts here forces every possible offset case through a single
+     * pool, including both a too-small-to-split offset and a
+     * large-enough one. */
+    static uint8_t mem[4096];
+
+    for (size_t pad = 1; pad <= 200; pad += 7) {
+        tlsf_pool_t* pool = tlsf_create(mem, sizeof(mem));
+        TEST_ASSERT_NOT_NULL(pool);
+
+        void* junk = tlsf_malloc(pool, pad);
+        void* sentinel = tlsf_malloc(pool, 32);
+        TEST_ASSERT_NOT_NULL(sentinel);
+        memset(sentinel, 0xCD, 32);
+
+        void* ptr = tlsf_memalign(pool, 64, 100);
+        TEST_ASSERT_NOT_NULL(ptr);
+        TEST_ASSERT_EQUAL_UINT(0, (uintptr_t)ptr % 64);
+
+        memset(ptr, 0xAB, 100);
+
+        unsigned char* s = (unsigned char*)sentinel;
+        for (int i = 0; i < 32; i++) {
+            TEST_ASSERT_EQUAL_UINT8(0xCD, s[i]);
+        }
+
+        TEST_ASSERT_TRUE(tlsf_pool_check(pool));
+
+        tlsf_free(pool, ptr);
+        if (junk) tlsf_free(pool, junk);
+        tlsf_free(pool, sentinel);
+    }
+}
+
 void test_heap_tracking(void) {
     size_t free_before = os_get_free_heap();
     
@@ -113,6 +155,7 @@ int main(void) {
     RUN_TEST(test_os_free_null_should_be_safe);
     RUN_TEST(test_tlsf_pool_operations);
     RUN_TEST(test_tlsf_memalign);
+    RUN_TEST(test_tlsf_memalign_across_many_offsets);
     RUN_TEST(test_heap_tracking);
     
     return UNITY_END();

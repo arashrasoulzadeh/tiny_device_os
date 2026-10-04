@@ -208,44 +208,79 @@ void* tlsf_malloc(tlsf_pool_t* pool, size_t size) {
 void* tlsf_memalign(tlsf_pool_t* pool, size_t align, size_t size) {
     if (!pool || size == 0) return NULL;
     if ((align & (align - 1)) != 0) return NULL;
-    
+
     size = ALIGN_UP(size, TLSF_BLOCK_ALIGN);
     align = ALIGN_UP(align, TLSF_BLOCK_ALIGN);
-    
-    void* ptr = tlsf_malloc(pool, size + align);
+
+    /* When the raw allocation's offset to the next alignment boundary is
+     * nonzero but smaller than MIN_BLOCK_SIZE, there's no valid place to
+     * put a free-block header for the discarded prefix - this used to
+     * just return the unaligned address directly (`(void*)aligned` from
+     * the ORIGINAL unsplit block), silently breaking the alignment
+     * contract the caller asked for, and the returned pointer could
+     * never be freed since block_from_ptr(aligned) lands on whatever
+     * bytes happen to precede it rather than a real header, so tlsf_free
+     * on it silently no-ops - a permanent leak. Confirmed via a
+     * standalone sweep of pool states where this offset landed below
+     * MIN_BLOCK_SIZE. Requesting extra slack (2*align + MIN_BLOCK_SIZE)
+     * guarantees room to always bump to a offset that's either 0 or
+     * large enough for a real header. */
+    void* ptr = tlsf_malloc(pool, size + 2 * align + MIN_BLOCK_SIZE);
     if (!ptr) return NULL;
-    
-    uintptr_t aligned = ALIGN_UP((uintptr_t)ptr, align);
-    if (aligned != (uintptr_t)ptr) {
-        size_t offset = aligned - (uintptr_t)ptr;
-        if (offset >= MIN_BLOCK_SIZE) {
-            block_header_t* block = block_from_ptr(ptr);
-            block_header_t* new_block = (block_header_t*)((uint8_t*)block + offset);
-            
-            block_remove_free(pool, block);
-            
-            new_block->signature = TLSF_SIGNATURE;
-            new_block->size = block->size - offset - BLOCK_OVERHEAD;
-            new_block->flags = 0;
-            new_block->prev_phys = block;
-            new_block->next_phys = block->next_phys;
-            
-            if (block->next_phys) {
-                block->next_phys->prev_phys = new_block;
-            }
-            block->next_phys = new_block;
-            block->size = offset;
-            
-            block_insert_free(pool, new_block);
-            
-            block->flags |= TLSF_BLOCK_USED;
-            pool->used_size += block->size + BLOCK_OVERHEAD;
-            
-            return ptr_from_block(block);
-        }
+
+    uintptr_t raw = (uintptr_t)ptr;
+    uintptr_t aligned = ALIGN_UP(raw, align);
+    uintptr_t offset = aligned - raw;
+
+    if (offset != 0 && offset < MIN_BLOCK_SIZE) {
+        aligned += align;
+        offset = aligned - raw;
     }
-    
-    return (void*)aligned;
+
+    if (offset == 0) {
+        return ptr;
+    }
+
+    block_header_t* block = block_from_ptr(ptr);
+    block_header_t* new_block = (block_header_t*)((uint8_t*)block + offset);
+
+    block_remove_free(pool, block);
+
+    /* new_block's header occupies BLOCK_OVERHEAD bytes of what used to be
+     * `block`'s data region, starting at `offset` bytes in - so the
+     * front remainder's own data size is offset - BLOCK_OVERHEAD (not
+     * `offset`; the original code's off-by-BLOCK_OVERHEAD here made the
+     * front block's declared extent overlap new_block's header by
+     * BLOCK_OVERHEAD bytes). */
+    new_block->signature = TLSF_SIGNATURE;
+    new_block->size = block->size - offset;
+    new_block->flags = 0;
+    new_block->prev_phys = block;
+    new_block->next_phys = block->next_phys;
+
+    if (block->next_phys) {
+        block->next_phys->prev_phys = new_block;
+    }
+    block->next_phys = new_block;
+    block->size = offset - BLOCK_OVERHEAD;
+
+    /* `block` (the discarded, unaligned front remainder) goes back on
+     * the free list; `new_block` (the aligned part we're handing to the
+     * caller) is what gets marked used - the original code had this
+     * backwards, inserting the block it was about to return into the
+     * free list and marking the discarded remainder as used, then
+     * returning the discarded (unaligned) remainder's pointer to the
+     * caller instead of the aligned one. */
+    block_insert_free(pool, block);
+
+    new_block->flags |= TLSF_BLOCK_USED;
+    pool->used_size += new_block->size + BLOCK_OVERHEAD;
+
+    if (new_block->size >= size + MIN_BLOCK_SIZE) {
+        block_split(pool, new_block, size);
+    }
+
+    return ptr_from_block(new_block);
 }
 
 void* tlsf_realloc(tlsf_pool_t* pool, void* ptr, size_t size) {
