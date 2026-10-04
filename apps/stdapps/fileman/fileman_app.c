@@ -96,7 +96,12 @@ static void on_select(void* app, void* user) {
     if (g_fm.count == 0) return;
 
     vfs_dirent_t* entry = &g_fm.entries[g_fm.selected];
-    char new_path[128];
+    /* g_fm.path can be up to sizeof(g_fm.path)-1 chars and entry->name up
+     * to VFS_NAME_MAX-1 - a 128-byte buffer can't always hold
+     * "path" + "/" + "name" in the worst case (gcc's -Wformat-truncation
+     * correctly flags this), so size for the real worst case instead of
+     * just silencing the warning. */
+    char new_path[sizeof(g_fm.path) + 1 + VFS_NAME_MAX];
     snprintf(new_path, sizeof(new_path), "%s/%s", g_fm.path, entry->name);
 
     if (entry->is_dir) {
@@ -176,7 +181,7 @@ static void fileman_frame(void* app) {
         }
 
         app_ui_textf(&g_ui, 0, y, "%s%s  %s %s",
-                      i == g_fm.selected ? ">" : " ",
+                      is_selected ? ">" : " ",
                       entry->is_dir ? "[DIR] " : "     ",
                       entry->name,
                       size_str);

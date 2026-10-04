@@ -281,18 +281,11 @@ static void on_select(void* app, void* user) {
     }
 }
 
-static void on_back(void* app, void* user) {
-    (void)user; (void)app;
-    if (g_line_len > 0) {
-        if (g_cursor > 0) {
-            memmove(&g_line[g_cursor - 1], &g_line[g_cursor], g_line_len - g_cursor + 1);
-            g_cursor--;
-            g_line_len--;
-        }
-    } else {
-        app_request_exit(app);
-    }
-}
+/* on_back() used to combine backspace-in-line + exit-when-empty, but
+ * Escape is actually bound to on_backspace() (identical backspace logic,
+ * no exit branch) plus a separate direct app_request_exit_key binding
+ * below - on_back() itself was never wired to anything, a leftover
+ * gcc correctly flags as unused-function. */
 
 static void on_left(void* app, void* user) {
     (void)user; (void)app;
@@ -380,6 +373,7 @@ static void shell_frame(void* app) {
 }
 
 static void shell_cleanup(void* app) {
+    (void)app;
     for (int i = 0; i < g_history_count; i++) {
         free(g_history[i]);
     }

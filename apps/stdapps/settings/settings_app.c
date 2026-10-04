@@ -179,8 +179,11 @@ static void settings_frame(void* app) {
         // Selection indicator
         app_ui_textf(&g_ui, 0, y, "%s %s", is_selected ? ">" : " ", setting_names[i]);
         
-        // Value or edit buffer
-        char value[64];
+        // Value or edit buffer - +1 for the trailing "_" appended below,
+        // since g_edit_buffer can be a full sizeof(g_edit_buffer)-1 chars
+        // (gcc's -Wformat-truncation correctly flags a same-sized buffer
+        // as unable to always hold g_edit_buffer + "_" + the NUL).
+        char value[sizeof(g_edit_buffer) + 1];
         if (is_editing) {
             snprintf(value, sizeof(value), "%s_", g_edit_buffer);
         } else {
