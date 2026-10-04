@@ -78,8 +78,7 @@ static int gpio_ioctl(void* handle, uint32_t cmd, void* arg) {
     switch (cmd) {
         case 0x01:  // GPIO_SET_MODE
             if (arg) {
-                hal_gpio_mode_t mode = *(hal_gpio_mode_t*)arg;
-                // Would need to reopen with new mode
+                // Would need to reopen with new mode - not implemented
                 return 0;
             }
             break;

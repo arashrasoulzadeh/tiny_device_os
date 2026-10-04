@@ -10,6 +10,21 @@ static app_t* g_apps = NULL;
 static uint32_t g_next_app_id = 1;
 static int g_app_lock = 0;
 
+/* __sync_lock_test_and_set/__sync_lock_release are GCC/Clang builtins -
+ * MSVC has no equivalent (an unresolved external at link time, not just
+ * a warning). Same fix as kernel/event.c's identical spinlock pattern:
+ * _InterlockedExchange is MSVC's matching intrinsic. */
+#if defined(_MSC_VER)
+#include <intrin.h>
+
+static void app_lock(void) {
+    while (_InterlockedExchange((volatile long*)&g_app_lock, 1)) {}
+}
+
+static void app_unlock(void) {
+    _InterlockedExchange((volatile long*)&g_app_lock, 0);
+}
+#else
 static void app_lock(void) {
     while (__sync_lock_test_and_set(&g_app_lock, 1)) {}
 }
@@ -17,6 +32,7 @@ static void app_lock(void) {
 static void app_unlock(void) {
     __sync_lock_release(&g_app_lock);
 }
+#endif
 
 static void app_task_entry(void* arg) {
     printf("app_task_entry called\n");

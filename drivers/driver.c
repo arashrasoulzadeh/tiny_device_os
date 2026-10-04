@@ -49,6 +49,23 @@ static void device_handle_untrack(void* handle) {
     }
 }
 
+/* __sync_lock_test_and_set/__sync_lock_release are GCC/Clang builtins -
+ * MSVC has no equivalent (an unresolved external at link time, not just
+ * a warning). Same fix as kernel/event.c's identical spinlock pattern:
+ * _InterlockedExchange is MSVC's matching intrinsic. */
+#if defined(_MSC_VER)
+#include <intrin.h>
+
+static void driver_core_lock_impl(void) {
+    while (_InterlockedExchange((volatile long*)&g_core_lock, 1)) {
+        // Spin
+    }
+}
+
+static void driver_core_unlock_impl(void) {
+    _InterlockedExchange((volatile long*)&g_core_lock, 0);
+}
+#else
 static void driver_core_lock_impl(void) {
     while (__sync_lock_test_and_set(&g_core_lock, 1)) {
         // Spin
@@ -58,6 +75,7 @@ static void driver_core_lock_impl(void) {
 static void driver_core_unlock_impl(void) {
     __sync_lock_release(&g_core_lock);
 }
+#endif
 
 void driver_core_lock(void) {
     driver_core_lock_impl();

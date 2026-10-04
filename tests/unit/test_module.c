@@ -8,8 +8,15 @@
 #include "module.h"
 #include <string.h>
 #include <stdlib.h>
+/* mmap/mprotect/sysconf are POSIX, not available on MSVC - the
+ * read-only-buffer regression test below uses VirtualAlloc/VirtualProtect
+ * instead there (see that test for the mapping between the two APIs). */
+#if defined(_WIN32)
+#include <windows.h>
+#else
 #include <sys/mman.h>
 #include <unistd.h>
+#endif
 
 /* drivers/module.c (the .ardmod dynamic module format) had zero tests.
  * ardmod_create()/ardmod_load()/CRC verification/symbol lookup are real,
@@ -133,6 +140,21 @@ void test_verify_crc_does_not_write_to_a_read_only_buffer(void) {
     ardmod_create("mod", ARDMOD_TYPE_DRIVER, g_code, sizeof(g_code), NULL, 0, NULL, 0,
                    &packed, &packed_size);
 
+#if defined(_WIN32)
+    SYSTEM_INFO sys_info;
+    GetSystemInfo(&sys_info);
+    size_t page_size = sys_info.dwPageSize;
+    void* page = VirtualAlloc(NULL, page_size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    TEST_ASSERT_NOT_NULL(page);
+    memcpy(page, packed, packed_size);
+    DWORD old_protect;
+    TEST_ASSERT_TRUE(VirtualProtect(page, page_size, PAGE_READONLY, &old_protect));
+
+    TEST_ASSERT_TRUE(ardmod_verify_crc((const uint8_t*)page, packed_size));
+
+    VirtualProtect(page, page_size, PAGE_READWRITE, &old_protect);
+    VirtualFree(page, 0, MEM_RELEASE);
+#else
     long page_size = sysconf(_SC_PAGESIZE);
     void* page = mmap(NULL, (size_t)page_size, PROT_READ | PROT_WRITE,
                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -144,6 +166,7 @@ void test_verify_crc_does_not_write_to_a_read_only_buffer(void) {
 
     mprotect(page, (size_t)page_size, PROT_READ | PROT_WRITE);
     munmap(page, (size_t)page_size);
+#endif
     free(packed);
 }
 

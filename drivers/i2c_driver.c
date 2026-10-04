@@ -114,8 +114,7 @@ static int i2c_ioctl(void* handle, uint32_t cmd, void* arg) {
             break;
         case 0x16:  // I2C_SET_SPEED
             if (arg) {
-                hal_i2c_speed_t speed = *(hal_i2c_speed_t*)arg;
-                // Would need to reopen
+                // Would need to reopen - not implemented
                 return 0;
             }
             break;

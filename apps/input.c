@@ -21,6 +21,21 @@ static struct {
     int g_lock;
 } g_input = {0};
 
+/* __sync_lock_test_and_set/__sync_lock_release are GCC/Clang builtins -
+ * MSVC has no equivalent (an unresolved external at link time, not just
+ * a warning). Same fix as kernel/event.c's identical spinlock pattern:
+ * _InterlockedExchange is MSVC's matching intrinsic. */
+#if defined(_MSC_VER)
+#include <intrin.h>
+
+static void input_lock(void) {
+    while (_InterlockedExchange((volatile long*)&g_input.g_lock, 1)) {}
+}
+
+static void input_unlock(void) {
+    _InterlockedExchange((volatile long*)&g_input.g_lock, 0);
+}
+#else
 static void input_lock(void) {
     while (__sync_lock_test_and_set(&g_input.g_lock, 1)) {}
 }
@@ -28,6 +43,7 @@ static void input_lock(void) {
 static void input_unlock(void) {
     __sync_lock_release(&g_input.g_lock);
 }
+#endif
 
 static int input_queue_event(const input_event_t* event) {
     if (g_input.queue_count >= INPUT_EVENT_QUEUE_SIZE) return -1;
