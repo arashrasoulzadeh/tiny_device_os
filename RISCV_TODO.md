@@ -85,9 +85,26 @@ phases 1-4 don't get re-litigated mid-stream.
    below before starting Phase 1.
 3. Push: `docs(riscv): phase 0 - toolchain decision recorded`.
 
-**Decision log:** (fill in during Phase 0, before Phase 1 starts)
-- Toolchain chosen: _TBD_
-- Why: _TBD_
+**Decision log:**
+- Toolchain chosen: **PlatformIO's existing `framework = arduino`** for
+  ESP32-C6 (the same one `[env:esp32-c6]`/`main.cpp` already use) — plain
+  C kernel sources compiled as extra sources into that framework's own
+  build, with a new minimal `setup()`/`loop()` entry point replacing
+  `main.cpp`. **Not** PlatformIO's `espidf` framework, and **not** a
+  from-scratch linker/startup script.
+- Why: discovered while starting Phase 2 that `~/.platformio/packages/`
+  already has `framework-arduinoespressif32` fully installed and proven
+  (it's what flashes `main.cpp` today) — Arduino's own startup/linking
+  already works on this exact board, so there's no new linker script or
+  ESP-IDF component restructuring needed at all. This also surfaced a
+  real RISC-V cross-GCC at
+  `~/.platformio/packages/toolchain-riscv32-esp/bin/riscv32-esp-elf-gcc`
+  (installed by pioarduino for this board, no `brew trust` needed),
+  closing part of Phase 1's QEMU gap: the `__riscv` branch cross-compiles
+  cleanly and its generated assembly was inspected by hand (`objdump -d`)
+  to confirm it matches intent — `sp`/`a0` set correctly, `jalr` to the
+  right register — though it's still not been *run* under emulation or
+  on real silicon.
 
 ---
 
@@ -101,12 +118,19 @@ third-party `riscv-software-src/riscv` tap, which requires `brew trust`
 to skip this rather than grant that trust. The sim host build (aarch64/
 x86_64, unaffected by this branch) still builds clean and all 45 existing
 tests pass, including the architecture-generic
-`tests/unit/test_host_stack.c`. **Before relying on this branch on real
-hardware**, either: get a RISC-V cross-GCC + QEMU from another source
-(xpack, a vetted tap, or a manual toolchain build) and run
-`test_host_stack.c` under it, or validate directly on the ESP32-C6 in
-Phase 2+ and treat any boot failure there as grounds to revisit this
-assembly.
+`tests/unit/test_host_stack.c`. While starting Phase 2, a real RISC-V
+cross-GCC was found already installed at
+`~/.platformio/packages/toolchain-riscv32-esp/bin/riscv32-esp-elf-gcc`
+(pioarduino's own toolchain, no `brew trust` needed) and used to
+cross-compile this branch and hand-inspect the generated assembly
+(`objdump -d`) — it matches intent (`sp`/`a0` set correctly, `jalr` to
+the right register). Still not run under QEMU or real silicon, though:
+**Phase 2 ended up NOT exercising this branch** — ESP32-C6 real hardware
+needed a different scheduler backend entirely (`scheduler_esp32.c`, real
+FreeRTOS tasks) because of a hardware stack-guard conflict unrelated to
+this assembly's correctness (see Phase 2 below). This branch remains
+useful only for the sim/host build's own cross-platform story, and is
+still unverified by actual execution on RISC-V.
 
 **Goal:** `host_call_on_stack()` works on RISC-V — the primitive every
 cooperative task's stack switch depends on. Nothing else in this PRD
@@ -174,6 +198,83 @@ branch; existing non-RISC-V branches/tests are untouched and still pass.
 ---
 
 ## Phase 2 — toolchain + build skeleton for ESP32-C6
+
+**Status: done — booting and running real tasks on physical hardware.**
+
+New PlatformIO env `[env:esp32-c6-kernel]` in `platformio.ini`, building
+`boards/esp32-c6-lcd/src_kernel/kernel_boot.cpp` (new file — `main.cpp` is
+untouched) against the real kernel. `kernel_boot.cpp`'s `setup()` calls
+`scheduler_init()` + `task_create()` + `scheduler_start()`; `loop()` calls
+`scheduler_tick()` + `timers_process()` each iteration. A demo task prints
+a tick count over serial once a second.
+
+Flashing the FIRST version of this (using `kernel/scheduler.c`/
+`host_stack.c` — the cooperative setjmp/longjmp fiber scheduler, same as
+sim) **crashed immediately** on real hardware:
+
+```
+Guru Meditation Error: Core 0 panic'ed (Stack protection fault).
+Detected in task "loopTask" at 0x42000032   <- inside host_call_on_stack's own asm
+```
+
+Root cause: ESP32-C6 has a hardware "assist_debug" stack-pointer monitor
+that panics the instant `sp` leaves the bounds FreeRTOS registered for
+whichever real task is "currently running" (`loopTask`, in this case).
+ArdubotOS's fiber scheduler intentionally jumps `sp` to independent
+`malloc()`'d stacks per task — a model this hardware monitor was never
+designed to tolerate. Three escalating attempts to patch around it are
+preserved in git history for anyone revisiting this:
+1. A one-time `esp_hw_stack_guard_monitor_stop()` in `scheduler_init()` —
+   didn't hold; a background FreeRTOS context switch (Wi-Fi/BT/idle task)
+   silently re-arms the guard with `loopTask`'s original bounds at an
+   unpredictable later point.
+2. Re-arming the guard with the correct bounds at every fiber switch
+   point (`host_call_on_stack`'s call site, every `longjmp`-based resume
+   in `context_switch()`/`switch_to_main()`), wrapped in a brief
+   interrupt-disable — closed the first race but opened a second,
+   narrower one: the gap between re-enabling interrupts and the actual
+   `mv sp` instruction executing, which real UART/system interrupt load
+   hit *deterministically*, every boot.
+3. Closing that second race properly would mean bracketing
+   interrupt-disable around every `setjmp`/`longjmp` resume point
+   scattered through `scheduler.c` (task sleep, yield, `scheduler_step`,
+   `scheduler_start`, `task_create`) — assessed as too error-prone (a
+   missed site means a silent watchdog hang, worse than the loud panic
+   it replaces) and abandoned.
+
+**Actual fix (implemented):** `kernel/scheduler_esp32.c` — a parallel,
+from-scratch implementation of the exact same `scheduler.h` API, backing
+each ArdubotOS task with a **real FreeRTOS task** (`xTaskCreate`) instead
+of the raw stack-switch trick. `kernel/scheduler.c`/`host_stack.c` are
+untouched and still used by the sim/host build (all 45 existing tests
+still pass); `platformio.ini`'s `esp32-c6-kernel` env now builds
+`scheduler_esp32.c` instead. `task_create`/`task_sleep`/`task_yield`/
+`task_suspend`/`task_resume`/`scheduler_lock`/`scheduler_unlock`/task
+introspection are all implemented for real (the only app-facing calls
+found via a repo-wide grep); tickless idle, deep sleep, and ISR-nesting
+tracking are explicit no-op stubs (documented in the file header) since
+no app uses them yet — implement for real only when one actually needs
+to.
+
+**Confirmed on physical hardware** (serial log):
+```
+[kernel_boot] ArdubotOS real kernel starting (Phase 2 skeleton)
+[kernel_boot] demo_task tick=1
+[kernel_boot] scheduler started - boot banner printed, entering loop()
+[kernel_boot] demo_task tick=2
+...
+[kernel_boot] demo_task tick=9
+```
+Ticks arrive reliably once per second, no crashes, no watchdog resets.
+
+**Implication for later phases:** Phase 1's RISC-V `host_call_on_stack`
+branch is no longer on the path to booting apps on this board (the ESP32
+target uses `scheduler_esp32.c`, which never calls it) — it remains
+useful only for the sim/host build's own portability story (if a RISC-V
+host ever runs the sim) and is left in place, unverified under QEMU, as
+originally scoped in Phase 1. Phase 4/5 ("wire `apps/app_framework.h` to
+real hardware" / "bring up `apps/stdapps/*`") should keep using the real
+FreeRTOS tasks from this phase, not revisit the fiber model.
 
 **Goal:** a buildable (not yet functional) PlatformIO/CMake target that
 compiles `kernel/` + `apps/app_framework.*` (stubbed display) for the
