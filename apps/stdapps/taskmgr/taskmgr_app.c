@@ -49,17 +49,39 @@ static uint16_t task_state_color(task_state_t s) {
 /* ---------------------------------------------------------------------
  * Layout - a headline "big stat" count (apps/app_ui.c's app_ui_big_text,
  * same component counter_app.c's number and pomodoro_app.c's countdown
- * are built from) over a small uptime caption, a static column header,
- * then the scrollable task rows - same "big number + supporting detail"
- * design language as the rest of the app suite, not taskmgr's own
- * one-off plain-text layout.
- * ------------------------------------------------------------------- */
+ * are built from, same scale pomodoro's countdown uses) over an uptime
+ * caption, a static column header, then the scrollable task rows - same
+ * "big number + supporting detail" design language as the rest of the
+ * app suite, not taskmgr's own one-off plain-text layout.
+ *
+ * Gaps use apps/ui/components/theme.h's shared ARDUBOT_SPACE_* tokens,
+ * not magic numbers - the first version of this layout used raw
+ * literals (4, 6, 2) AND wrongly assumed the caption rendered at a 7px
+ * scale-1 height when app_ui_text() always uses this app's real body
+ * text_scale (2, i.e. 14px here) - together these made the column
+ * header start before the caption had finished, visibly overlapping it
+ * (confirmed on hardware). Row height is computed at runtime
+ * (app_ui_row_h()) in both on_init() and on_frame() via one shared
+ * layout function, instead of a second hardcoded assumption of it. */
 #define TASKMGR_MAX_VISIBLE_ROWS 8
-#define TASKMGR_NUM_SCALE 3
+#define TASKMGR_NUM_SCALE 4 /* matches pomodoro_app.c's countdown scale */
 #define TASKMGR_NUM_H (7 * TASKMGR_NUM_SCALE)
-#define TASKMGR_CAPTION_Y (TASKMGR_NUM_H + 4)
-#define TASKMGR_CAPTION_H 7
-#define TASKMGR_COL_HEADER_Y (TASKMGR_CAPTION_Y + TASKMGR_CAPTION_H + 6)
+
+typedef struct {
+    int row_h;
+    int caption_y;
+    int col_header_y;
+    int rows_y;
+} taskmgr_layout_t;
+
+static taskmgr_layout_t taskmgr_layout(void) {
+    taskmgr_layout_t l;
+    l.row_h = app_ui_row_h(&g_ui);
+    l.caption_y = TASKMGR_NUM_H + ARDUBOT_SPACE_SM;
+    l.col_header_y = l.caption_y + l.row_h + ARDUBOT_SPACE_MD;
+    l.rows_y = l.col_header_y + l.row_h + ARDUBOT_SPACE_SM;
+    return l;
+}
 
 static void on_scroll(void* app, void* user) {
     (void)app;
@@ -84,7 +106,7 @@ static void on_init(void* app) {
      * the stat/caption block or the task rows, each in their own small
      * rect, not the whole screen. */
     app_ui_begin_frame(&g_ui);
-    app_ui_text(&g_ui, 0, TASKMGR_COL_HEADER_Y, "NAME      ST P");
+    app_ui_text(&g_ui, 0, taskmgr_layout().col_header_y, "NAME      ST P");
     app_ui_end_frame(&g_ui);
 
     APP_INFO("Task Manager ready");
@@ -111,8 +133,9 @@ static void on_frame(void* app) {
     /* Auto-sizes to this display's actual remaining space below the
      * stat/caption/column-header block, same spirit as the dynamic-UI
      * counter, instead of a fixed row count. */
-    const int rows_y = TASKMGR_COL_HEADER_Y + app_ui_row_h(&g_ui) + 2;
-    const int row_h = app_ui_row_h(&g_ui);
+    const taskmgr_layout_t L = taskmgr_layout();
+    const int rows_y = L.rows_y;
+    const int row_h = L.row_h;
     /* app_ui_rect_color()'s own bounds check compares (y + content_y + h)
      * against content_h, not (content_y + content_h) - the real usable
      * height for a y>0 rect is (content_h - content_y - y), not
@@ -178,10 +201,10 @@ static void on_frame(void* app) {
         strncpy(last_caption, caption, sizeof(last_caption) - 1);
         last_caption[sizeof(last_caption) - 1] = '\0';
 
-        app_ui_rect_color(&g_ui, g_ui.ui.content_x, 0, g_ui.ui.content_w,
-                          TASKMGR_CAPTION_Y + TASKMGR_CAPTION_H, 0, ARDUBOT_COLOR_BG);
+        app_ui_rect_color(&g_ui, g_ui.ui.content_x, 0, g_ui.ui.content_w, L.caption_y + L.row_h,
+                          0, ARDUBOT_COLOR_BG);
         app_ui_big_text(&g_ui, 0, count_str, TASKMGR_NUM_SCALE, ARDUBOT_COLOR_TITLE_TEXT);
-        app_ui_text(&g_ui, 0, TASKMGR_CAPTION_Y, caption);
+        app_ui_text(&g_ui, 0, L.caption_y, caption);
         app_display_flush(&g_ui.ctx.display);
     }
 
