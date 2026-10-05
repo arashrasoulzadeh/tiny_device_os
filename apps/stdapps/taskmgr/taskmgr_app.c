@@ -1,6 +1,7 @@
 #include "app_framework.h"
 #include "app_kit.h"
 #include "scheduler.h"
+#include "theme.h"
 
 #include <string.h>
 
@@ -49,6 +50,14 @@ static void on_init(void* app) {
         {0, NULL, NULL},
     });
 
+    /* Draw the title/help bar chrome and the column-header row (which
+     * never changes) exactly once here - on_frame() only ever repaints
+     * the header stats line or the task rows, each in their own small
+     * rect, not the whole screen. */
+    app_ui_begin_frame(&g_ui);
+    app_ui_line(&g_ui, 1, "NAME      ST P");
+    app_ui_end_frame(&g_ui);
+
     APP_INFO("Task Manager ready");
 }
 
@@ -90,15 +99,17 @@ static void on_frame(void* app) {
         g_scroll = 0;
     }
 
-    /* Build the screen's text content first and only actually redraw
-     * (full clear + redraw) if it differs from what's already on
-     * screen - this ran unthrottled at this app's fps regardless of
-     * whether anything had changed, which was visible as a flash on a
-     * real panel with no double buffer (confirmed on hardware,
-     * RISCV_TODO.md Phase 4/5 - same root cause info_app.c/
-     * pomodoro_app.c already hit). Showing uptime in whole seconds
-     * instead of the raw millisecond tick count also stops the header
-     * line itself from appearing to change on every single poll. */
+    /* Build the screen's text content first, and redraw ONLY the part
+     * that actually changed (the header stats line changes every
+     * second; the task rows rarely do) - each in its own small rect,
+     * never a full app_ui_begin_frame() screen clear. The first attempt
+     * at this only throttled HOW OFTEN a redraw happened, but a redraw
+     * still cleared the whole content area every time the header's
+     * uptime ticked over (every second), which is the same full-screen
+     * flash info_app.c/pomodoro_app.c already had to be fixed the same
+     * way (confirmed on hardware, RISCV_TODO.md Phase 4/5). Showing
+     * uptime in whole seconds instead of the raw millisecond tick count
+     * also stops the header from appearing to change on every poll. */
     char header[32];
     char rows[TASKMGR_MAX_VISIBLE_ROWS][24];
     int shown = 0;
@@ -123,33 +134,57 @@ static void on_frame(void* app) {
     static char last_header[32];
     static char last_rows[TASKMGR_MAX_VISIBLE_ROWS][24];
     static int last_shown = -1;
-    bool changed = (shown != last_shown) || strcmp(header, last_header) != 0;
-    if (!changed) {
+    static bool have_rendered = false;
+
+    if (!have_rendered || strcmp(header, last_header) != 0) {
+        strncpy(last_header, header, sizeof(last_header) - 1);
+        last_header[sizeof(last_header) - 1] = '\0';
+        app_ui_rect_color(&g_ui, g_ui.ui.content_x, 0, g_ui.ui.content_w, row_h, 0,
+                          ARDUBOT_COLOR_BG);
+        app_ui_line(&g_ui, 0, header);
+        app_display_flush(&g_ui.ctx.display);
+    }
+
+    bool rows_changed = !have_rendered || shown != last_shown;
+    if (!rows_changed) {
         for (i = 0; i < shown; i++) {
             if (strcmp(rows[i], last_rows[i]) != 0) {
-                changed = true;
+                rows_changed = true;
                 break;
             }
         }
     }
-    if (!changed) {
-        return;
+    if (rows_changed) {
+        for (i = 0; i < shown; i++) {
+            strncpy(last_rows[i], rows[i], sizeof(last_rows[i]) - 1);
+            last_rows[i][sizeof(last_rows[i]) - 1] = '\0';
+        }
+        last_shown = shown;
+        /* Clear the whole rows area (not just `shown` rows) so a
+         * shorter new list doesn't leave stale rows from a longer old
+         * one behind. app_ui_rect_color()'s own bounds check compares
+         * (y + content_y + h) against content_h, not (content_y +
+         * content_h) - i.e. the real usable height for a y>0 rect is
+         * less than content_h - y by content_y, so cap the clear height
+         * at what's actually available or it silently fails to draw at
+         * all (hit this exact bug in pomodoro_app.c's panel). */
+        {
+            int rows_y = header_rows * row_h;
+            int rows_area_h = visible_rows * row_h;
+            int max_h = (g_ui.ui.content_h - g_ui.ui.content_y) - rows_y;
+            if (rows_area_h > max_h) {
+                rows_area_h = max_h;
+            }
+            app_ui_rect_color(&g_ui, g_ui.ui.content_x, rows_y, g_ui.ui.content_w, rows_area_h, 0,
+                              ARDUBOT_COLOR_BG);
+        }
+        for (i = 0; i < shown; i++) {
+            app_ui_line(&g_ui, header_rows + i, rows[i]);
+        }
+        app_display_flush(&g_ui.ctx.display);
     }
-    strncpy(last_header, header, sizeof(last_header) - 1);
-    last_header[sizeof(last_header) - 1] = '\0';
-    for (i = 0; i < shown; i++) {
-        strncpy(last_rows[i], rows[i], sizeof(last_rows[i]) - 1);
-        last_rows[i][sizeof(last_rows[i]) - 1] = '\0';
-    }
-    last_shown = shown;
 
-    app_ui_begin_frame(&g_ui);
-    app_ui_line(&g_ui, 0, header);
-    app_ui_line(&g_ui, 1, "NAME      ST P");
-    for (i = 0; i < shown; i++) {
-        app_ui_line(&g_ui, header_rows + i, rows[i]);
-    }
-    app_ui_end_frame(&g_ui);
+    have_rendered = true;
 }
 
 static void on_cleanup(void* app) {
