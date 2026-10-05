@@ -32,6 +32,35 @@ static char task_prio_char(task_priority_t p) {
     }
 }
 
+/* State -> theme color, same semantic mapping used everywhere else
+ * (success=running well, warning=blocked/waiting, danger=terminated) -
+ * not a one-off taskmgr palette. */
+static uint16_t task_state_color(task_state_t s) {
+    switch (s) {
+        case TASK_STATE_RUNNING: return ARDUBOT_COLOR_SUCCESS;
+        case TASK_STATE_BLOCKED: return ARDUBOT_COLOR_WARNING;
+        case TASK_STATE_SUSPENDED: return ARDUBOT_COLOR_TEXT_MUTED;
+        case TASK_STATE_TERMINATED: return ARDUBOT_COLOR_DANGER;
+        case TASK_STATE_READY:
+        default: return ARDUBOT_COLOR_TEXT;
+    }
+}
+
+/* ---------------------------------------------------------------------
+ * Layout - a headline "big stat" count (apps/app_ui.c's app_ui_big_text,
+ * same component counter_app.c's number and pomodoro_app.c's countdown
+ * are built from) over a small uptime caption, a static column header,
+ * then the scrollable task rows - same "big number + supporting detail"
+ * design language as the rest of the app suite, not taskmgr's own
+ * one-off plain-text layout.
+ * ------------------------------------------------------------------- */
+#define TASKMGR_MAX_VISIBLE_ROWS 8
+#define TASKMGR_NUM_SCALE 3
+#define TASKMGR_NUM_H (7 * TASKMGR_NUM_SCALE)
+#define TASKMGR_CAPTION_Y (TASKMGR_NUM_H + 4)
+#define TASKMGR_CAPTION_H 7
+#define TASKMGR_COL_HEADER_Y (TASKMGR_CAPTION_Y + TASKMGR_CAPTION_H + 6)
+
 static void on_scroll(void* app, void* user) {
     (void)app;
     (void)user;
@@ -52,10 +81,10 @@ static void on_init(void* app) {
 
     /* Draw the title/help bar chrome and the column-header row (which
      * never changes) exactly once here - on_frame() only ever repaints
-     * the header stats line or the task rows, each in their own small
+     * the stat/caption block or the task rows, each in their own small
      * rect, not the whole screen. */
     app_ui_begin_frame(&g_ui);
-    app_ui_line(&g_ui, 1, "NAME      ST P");
+    app_ui_text(&g_ui, 0, TASKMGR_COL_HEADER_Y, "NAME      ST P");
     app_ui_end_frame(&g_ui);
 
     APP_INFO("Task Manager ready");
@@ -66,8 +95,6 @@ static void on_init(void* app) {
  * mockup. No per-task CPU% here: unlike FreeRTOS this cooperative
  * scheduler doesn't track a per-task runtime counter, so a CPU% column
  * would have to be fabricated — shown instead: name, state, priority. */
-#define TASKMGR_MAX_VISIBLE_ROWS 8
-
 static void on_frame(void* app) {
     (void)app;
     int max_slots = 0;
@@ -81,11 +108,17 @@ static void on_frame(void* app) {
         }
     }
 
-    /* Auto-sizes to this display's actual row height/content area instead
-     * of a fixed row count, same spirit as the dynamic-UI counter. */
-    const int header_rows = 2;
+    /* Auto-sizes to this display's actual remaining space below the
+     * stat/caption/column-header block, same spirit as the dynamic-UI
+     * counter, instead of a fixed row count. */
+    const int rows_y = TASKMGR_COL_HEADER_Y + app_ui_row_h(&g_ui) + 2;
     const int row_h = app_ui_row_h(&g_ui);
-    int visible_rows = (g_ui.ui.content_h / row_h) - header_rows;
+    /* app_ui_rect_color()'s own bounds check compares (y + content_y + h)
+     * against content_h, not (content_y + content_h) - the real usable
+     * height for a y>0 rect is (content_h - content_y - y), not
+     * (content_h - y) (hit this exact bug in pomodoro_app.c's panel). */
+    int rows_area_h = (g_ui.ui.content_h - g_ui.ui.content_y) - rows_y;
+    int visible_rows = rows_area_h / row_h;
     if (visible_rows < 1) {
         visible_rows = 1;
     }
@@ -99,21 +132,20 @@ static void on_frame(void* app) {
         g_scroll = 0;
     }
 
-    /* Build the screen's text content first, and redraw ONLY the part
-     * that actually changed (the header stats line changes every
-     * second; the task rows rarely do) - each in its own small rect,
-     * never a full app_ui_begin_frame() screen clear. The first attempt
-     * at this only throttled HOW OFTEN a redraw happened, but a redraw
-     * still cleared the whole content area every time the header's
-     * uptime ticked over (every second), which is the same full-screen
-     * flash info_app.c/pomodoro_app.c already had to be fixed the same
-     * way (confirmed on hardware, RISCV_TODO.md Phase 4/5). Showing
-     * uptime in whole seconds instead of the raw millisecond tick count
-     * also stops the header from appearing to change on every poll. */
-    char header[32];
+    /* Build the screen's text/color content first, and redraw ONLY the
+     * part that actually changed (the stat block changes every second;
+     * the task rows rarely do) - each in its own small rect, never a
+     * full app_ui_begin_frame() screen clear, which was visible as a
+     * flash on a real panel with no double buffer (confirmed on
+     * hardware, RISCV_TODO.md Phase 4/5 - same root cause info_app.c/
+     * pomodoro_app.c already hit). */
+    char count_str[8];
+    char caption[24];
     char rows[TASKMGR_MAX_VISIBLE_ROWS][24];
+    uint16_t row_colors[TASKMGR_MAX_VISIBLE_ROWS];
     int shown = 0;
-    snprintf(header, sizeof(header), "Tasks:%d Up:%lus", active_count,
+    snprintf(count_str, sizeof(count_str), "%d", active_count);
+    snprintf(caption, sizeof(caption), "TASKS   Up:%lus",
             (unsigned long)(scheduler_get_tick_count() / 1000));
     {
         int skipped = 0;
@@ -127,21 +159,29 @@ static void on_frame(void* app) {
             }
             snprintf(rows[shown], sizeof(rows[shown]), "%-9.9s %c %c", slots[i].name,
                      task_state_char(slots[i].state), task_prio_char(slots[i].priority));
+            row_colors[shown] = task_state_color(slots[i].state);
             shown++;
         }
     }
 
-    static char last_header[32];
+    static char last_count_str[8];
+    static char last_caption[24];
     static char last_rows[TASKMGR_MAX_VISIBLE_ROWS][24];
     static int last_shown = -1;
     static bool have_rendered = false;
 
-    if (!have_rendered || strcmp(header, last_header) != 0) {
-        strncpy(last_header, header, sizeof(last_header) - 1);
-        last_header[sizeof(last_header) - 1] = '\0';
-        app_ui_rect_color(&g_ui, g_ui.ui.content_x, 0, g_ui.ui.content_w, row_h, 0,
-                          ARDUBOT_COLOR_BG);
-        app_ui_line(&g_ui, 0, header);
+    bool stat_changed = !have_rendered || strcmp(count_str, last_count_str) != 0 ||
+                        strcmp(caption, last_caption) != 0;
+    if (stat_changed) {
+        strncpy(last_count_str, count_str, sizeof(last_count_str) - 1);
+        last_count_str[sizeof(last_count_str) - 1] = '\0';
+        strncpy(last_caption, caption, sizeof(last_caption) - 1);
+        last_caption[sizeof(last_caption) - 1] = '\0';
+
+        app_ui_rect_color(&g_ui, g_ui.ui.content_x, 0, g_ui.ui.content_w,
+                          TASKMGR_CAPTION_Y + TASKMGR_CAPTION_H, 0, ARDUBOT_COLOR_BG);
+        app_ui_big_text(&g_ui, 0, count_str, TASKMGR_NUM_SCALE, ARDUBOT_COLOR_TITLE_TEXT);
+        app_ui_text(&g_ui, 0, TASKMGR_CAPTION_Y, caption);
         app_display_flush(&g_ui.ctx.display);
     }
 
@@ -162,24 +202,11 @@ static void on_frame(void* app) {
         last_shown = shown;
         /* Clear the whole rows area (not just `shown` rows) so a
          * shorter new list doesn't leave stale rows from a longer old
-         * one behind. app_ui_rect_color()'s own bounds check compares
-         * (y + content_y + h) against content_h, not (content_y +
-         * content_h) - i.e. the real usable height for a y>0 rect is
-         * less than content_h - y by content_y, so cap the clear height
-         * at what's actually available or it silently fails to draw at
-         * all (hit this exact bug in pomodoro_app.c's panel). */
-        {
-            int rows_y = header_rows * row_h;
-            int rows_area_h = visible_rows * row_h;
-            int max_h = (g_ui.ui.content_h - g_ui.ui.content_y) - rows_y;
-            if (rows_area_h > max_h) {
-                rows_area_h = max_h;
-            }
-            app_ui_rect_color(&g_ui, g_ui.ui.content_x, rows_y, g_ui.ui.content_w, rows_area_h, 0,
-                              ARDUBOT_COLOR_BG);
-        }
+         * one behind. */
+        app_ui_rect_color(&g_ui, g_ui.ui.content_x, rows_y, g_ui.ui.content_w,
+                          visible_rows * row_h, 0, ARDUBOT_COLOR_BG);
         for (i = 0; i < shown; i++) {
-            app_ui_line(&g_ui, header_rows + i, rows[i]);
+            app_ui_text_color(&g_ui, 0, rows_y + i * row_h, rows[i], row_colors[i]);
         }
         app_display_flush(&g_ui.ctx.display);
     }
