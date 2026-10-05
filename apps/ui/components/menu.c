@@ -3,6 +3,7 @@
 #include "icons.h"
 #include "status.h"
 #include "os_time.h"
+#include "theme.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -12,13 +13,18 @@
  * sibling this was ported from (same 320x172 canvas, same layout math).
  * Only meaningful where the display backend actually renders color (the
  * sim's ssd1306_model color overlay) — a plain mono panel just never gets
- * a non-zero rgb565 value looked at. */
-#define MENU_RGB565(r, g, b) \
-    ((uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | (((b) & 0xF8) >> 3)))
-#define MENU_COLOR_WHITE MENU_RGB565(255, 255, 255)
-#define MENU_COLOR_BLACK MENU_RGB565(0, 0, 0)
-#define MENU_COLOR_CYAN MENU_RGB565(0, 252, 248)
-#define MENU_COLOR_ORANGE MENU_RGB565(248, 164, 0)
+ * a non-zero rgb565 value looked at.
+ *
+ * Values come from apps/ui/components/theme.h's shared design tokens
+ * (MENU_COLOR_CYAN was already the exact same value as
+ * ARDUBOT_COLOR_TITLE_TEXT - not a coincidence, just never pointed at
+ * the same constant before) rather than this file's own local literals,
+ * so the launcher matches every other app_ui_t-based screen's accent/
+ * text/background colors instead of being styled independently. */
+#define MENU_COLOR_WHITE ARDUBOT_COLOR_TEXT
+#define MENU_COLOR_BLACK ARDUBOT_COLOR_BG
+#define MENU_COLOR_CYAN ARDUBOT_COLOR_TITLE_TEXT
+#define MENU_COLOR_ORANGE ARDUBOT_COLOR_WARNING
 
 static uint16_t menu_dim_color(uint16_t c, int shift) {
     uint16_t r = (uint16_t)((c >> 11) & 0x1F) >> shift;
