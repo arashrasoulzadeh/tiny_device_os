@@ -28,12 +28,13 @@ extern "C" {
 #include "ardubot_keys.h"
 }
 
-// RISCV_TODO.md Phase 4: boots one real app (info) through the real app
-// framework (apps/app_kit.c's app_kit_run -> on_init/on_frame loop), not
-// a hand-drawn test pattern. info_app_manifest is populated by
-// APP_DEFINE's constructor-attribute registration before setup() runs -
-// same extern-declare-and-use pattern sim/sim_main.c already relies on.
-extern app_manifest_t* info_app_manifest;
+// RISCV_TODO.md Phase 4/5: boots one real app (pomodoro) through the
+// real app framework (apps/app_kit.c's app_kit_run -> on_init/on_frame
+// loop), not a hand-drawn test pattern. pomodoro_app_manifest is
+// populated by APP_DEFINE's constructor-attribute registration before
+// setup() runs - same extern-declare-and-use pattern sim/sim_main.c
+// already relies on.
+extern app_manifest_t* pomodoro_app_manifest;
 
 // Bridges the board's two real buttons (GPIO18/19, same wiring as
 // device_config_esp32c6.yaml and boards/esp32-c6-lcd/src/main.cpp's
@@ -41,7 +42,7 @@ extern app_manifest_t* info_app_manifest;
 // bindings read key state via sim_gpio_read()/react to
 // sim_gpio_handle_key() edges, not via a real GPIO ISR callback (see
 // RISCV_TODO.md Phase 4 for why). UP -> SIM_KEY_UP, SELECT -> SIM_KEY_ENTER
-// (info_app.c binds SIM_KEY_ENTER to a refresh action).
+// (pomodoro_app.c binds UP to start/pause, SELECT to reset).
 #define KERNEL_BOOT_BTN_UP_GPIO 18
 #define KERNEL_BOOT_BTN_SELECT_GPIO 19
 
@@ -106,20 +107,20 @@ void setup() {
     // app framework - this is the actual proof (not Phase 3's standalone
     // hal_display_* test pattern, which would otherwise double-init the
     // display driver alongside app_kit_run's own app_display_init()).
-    if (!info_app_manifest) {
-        Serial.println("[kernel_boot] info_app_manifest not registered (APP_DEFINE "
+    if (!pomodoro_app_manifest) {
+        Serial.println("[kernel_boot] pomodoro_app_manifest not registered (APP_DEFINE "
                         "constructor didn't run?)");
         return;
     }
-    if (app_install_manifest(info_app_manifest, "info") != 0) {
-        Serial.println("[kernel_boot] app_install_manifest(info) failed");
+    if (app_install_manifest(pomodoro_app_manifest, "pomodoro") != 0) {
+        Serial.println("[kernel_boot] app_install_manifest(pomodoro) failed");
         return;
     }
-    if (app_start("info") != 0) {
-        Serial.println("[kernel_boot] app_start(info) failed");
+    if (app_start("pomodoro") != 0) {
+        Serial.println("[kernel_boot] app_start(pomodoro) failed");
         return;
     }
-    Serial.println("[kernel_boot] info app started - entering loop()");
+    Serial.println("[kernel_boot] pomodoro app started - entering loop()");
 }
 
 void loop() {
