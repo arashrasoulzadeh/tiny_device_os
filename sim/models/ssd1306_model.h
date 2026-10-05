@@ -65,6 +65,16 @@ void ssd1306_model_draw_text(int x, int y, const char* text);
 void ssd1306_model_draw_text_scaled(int x, int y, const char* text, int scale);
 void ssd1306_model_set_pixel(int x, int y, bool on);
 
+/* Color API (RGB565) — see the definitions' header comment in
+ * ssd1306_model.c for why these live in this (mono-named) file. */
+void ssd1306_model_set_pixel_color(int x, int y, uint16_t rgb565);
+void ssd1306_model_fill_rect_color(int x, int y, int w, int h, int radius, uint16_t rgb565);
+void ssd1306_model_draw_rect_color(int x, int y, int w, int h, int radius, uint16_t rgb565);
+void ssd1306_model_fill_circle_color(int cx, int cy, int r, uint16_t rgb565);
+void ssd1306_model_draw_hline_color(int x, int y, int w, uint16_t rgb565);
+void ssd1306_model_draw_text_color(int x, int y, const char* text, int scale, uint16_t rgb565);
+int ssd1306_model_text_width(const char* text, int scale);
+
 #ifdef __cplusplus
 }
 #endif

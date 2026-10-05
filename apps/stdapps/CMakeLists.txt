@@ -11,6 +11,8 @@ set(ARDUBOT_ALL_STDAPPS
     shell
     demo
     widgets
+    pomodoro
+    taskmgr
 )
 
 # A device profile can restrict what actually gets compiled in, via

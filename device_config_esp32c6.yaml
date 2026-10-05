@@ -1,0 +1,63 @@
+# ArdubotOS connected-device profile for the Waveshare ESP32-C6-LCD-1.47.
+# Native USB-Serial/JTAG — port stays /dev/cu.usbmodem* and needs no CH340 reset dance.
+# Use: make usb DEVICE_CONFIG=device_config_esp32c6.yaml DEVICE=esp32-c6
+#
+# The onboard ST7789 SPI panel (172x320 native/portrait; mosi/sclk/cs/dc/rst/bl
+# below — shared SPI bus pins mosi/sclk are also used by the TF card) runs the
+# same launcher as boards/nodemcu/src/main.cpp via the GfxMono adapter
+# (boards/esp32-c6-lcd/src/gfx_mono.h), rotated to landscape (320x172 physical).
+# The 5x7 font / 16x16 icons were sized for a 128x64-ish OLED, so lcd.scale
+# draws each logical pixel as an NxN block, and lcd.padding keeps a margin
+# clear of the panel's edges/corners: width*scale + 2*padding and
+# height*scale + 2*padding must equal the physical landscape size (320x172)
+# for the canvas to be centered with an even border and no overflow.
+# lcd.width/height below must ALSO match the APP_DISPLAY_WIDTH/
+# APP_DISPLAY_HEIGHT build_flags in platformio.ini's esp32-c6 env (pong's
+# playfield size comes from those flags, not this file) — change all four
+# (width, height, scale, padding) together if you resize.
+#
+# UP/SELECT buttons are NOT onboard — wire them yourself to GND with
+# INPUT_PULLUP (active_low: true). GPIO18/19 below are free on this board's
+# header (GPIO4/5 are taken by the TF card, GPIO9 is the onboard BOOT
+# button, GPIO6/7/14/15/21/22 are taken by the LCD) — change the `pin:`
+# values here if you wire to different pins.
+
+device:
+  name: esp32-c6
+  arch: esp32
+  board: esp32-c6-lcd-147
+  pio_env: esp32-c6
+  port: auto
+  baud: 115200
+  flash_baud: 460800
+  flash_size: 4MB
+  flash_mode: dio
+
+lcd:
+  type: st7789
+  bus: spi
+  width: 320
+  height: 172
+  scale: 1
+  padding: 0
+  mosi: GPIO6
+  sclk: GPIO7
+  cs: GPIO14
+  dc: GPIO15
+  rst: GPIO21
+  bl: GPIO22
+
+inputs:
+  buttons:
+    - name: up
+      pin: GPIO18      # navigate / + / toggle — wire to GND, free on header
+      active_low: true
+      pull: up
+    - name: select
+      pin: GPIO19      # launch / − / reset; hold ~0.7s = back — wire to GND
+      active_low: true
+      pull: up
+
+outputs:
+  leds: []
+  sound: null

@@ -12,6 +12,12 @@
 extern "C" {
 #endif
 
+/* RGB565 packing helper — public so apps (e.g. pong_app.c) can build their
+ * own colors for app_ui_pixel_color()/app_ui_rect_color() without
+ * duplicating the bit math. */
+#define APP_UI_RGB565(r, g, b) \
+    ((uint16_t)((((r) & 0xF8) << 8) | (((g) & 0xFC) << 3) | (((b) & 0xF8) >> 3)))
+
 typedef struct {
     struct app_ctx ctx;  // Embed app_ctx_t as first member for compatibility with key callbacks
     app_ui_config_t ui;  // UI configuration
@@ -27,19 +33,25 @@ static inline void app_ui_config_ui(app_ui_config_t* cfg, const char* title, con
     cfg->title[sizeof(cfg->title) - 1] = '\0';
     strncpy(cfg->help_text, help ? help : "", sizeof(cfg->help_text) - 1);
     cfg->help_text[sizeof(cfg->help_text) - 1] = '\0';
-    /* The top bar fills its row with "on" pixels then draws the title with
-     * the same "on" pixels - on this monochrome display that's invisible
-     * text on its own background, so it only ever showed as a blank white
-     * strip. Left off until it can actually invert (on bg, off text). */
-    cfg->show_top_bar = false;
+    /* Used to be forced off: the top bar filled its row with "on" pixels
+     * then drew the title with the same "on" pixels - invisible text on
+     * its own background on a monochrome display. app_ui_begin_frame() now
+     * draws a real colored bar + contrasting title text (see
+     * APP_UI_COLOR_TITLE_BG/_TEXT in app_ui.c), so this is safe to enable. */
+    cfg->show_top_bar = true;
     cfg->show_help_bar = true;
     cfg->text_scale = (APP_DISPLAY_HEIGHT > 64) ? 2 : 1;
     cfg->content_x = 0;
-    cfg->content_y = 0;
+    /* content_y must clear the top bar's own height (8*text_scale, same
+     * formula app_ui_begin_frame() uses for bar_h) - content_y was left at
+     * 0 when the top bar was re-enabled, which put every app's row 0
+     * directly under/behind the title bar instead of below it. */
+    cfg->content_y = 8 * cfg->text_scale;
     cfg->content_w = APP_DISPLAY_WIDTH;
     /* Must match app_ui_end_frame()'s help_y = HEIGHT - 8*text_scale, or
-     * the last content row overlaps the help bar it draws over. */
-    cfg->content_h = APP_DISPLAY_HEIGHT - 8 * cfg->text_scale;
+     * the last content row overlaps the help bar it draws over - and now
+     * also subtract the top bar's height reserved via content_y above. */
+    cfg->content_h = APP_DISPLAY_HEIGHT - 8 * cfg->text_scale - cfg->content_y;
 }
 
 static inline void app_ui_config_game(app_ui_config_t* cfg) {
@@ -62,9 +74,12 @@ void app_ui_clear(app_ui_t* app);
 void app_ui_begin_frame(app_ui_t* app);
 void app_ui_end_frame(app_ui_t* app);
 void app_ui_text(app_ui_t* app, int x, int y, const char* text);
+void app_ui_text_color(app_ui_t* app, int x, int y, const char* text, uint16_t rgb565);
 void app_ui_textf(app_ui_t* app, int x, int y, const char* fmt, ...);
 void app_ui_pixel(app_ui_t* app, int x, int y, bool on);
 void app_ui_rect(app_ui_t* app, int x, int y, int w, int h, bool fill);
+void app_ui_pixel_color(app_ui_t* app, int x, int y, uint16_t rgb565);
+void app_ui_rect_color(app_ui_t* app, int x, int y, int w, int h, int radius, uint16_t rgb565);
 
 /* Row-based text: row 0 is the top content line, row 1 the next, etc. -
  * the row height always matches app->ui.text_scale, so apps never hardcode

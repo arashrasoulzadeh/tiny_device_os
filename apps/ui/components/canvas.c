@@ -60,3 +60,49 @@ void app_flush(app_ctx_t* app) {
     app_display_flush(&app->display);
     app_clear_dirty(app);
 }
+
+void app_pixel_color(app_ctx_t* app, int x, int y, uint16_t rgb565) {
+    if (!app || !app_kit_is_foreground(app)) {
+        return;
+    }
+    app_display_pixel_color(&app->display, x, y, rgb565);
+}
+
+void app_fill_rect_color(app_ctx_t* app, int x, int y, int w, int h, int radius, uint16_t rgb565) {
+    if (!app || !app_kit_is_foreground(app)) {
+        return;
+    }
+    app_display_fill_rect_color(&app->display, x, y, w, h, radius, rgb565);
+}
+
+void app_draw_rect_color(app_ctx_t* app, int x, int y, int w, int h, int radius, uint16_t rgb565) {
+    if (!app || !app_kit_is_foreground(app)) {
+        return;
+    }
+    app_display_draw_rect_color(&app->display, x, y, w, h, radius, rgb565);
+}
+
+void app_fill_circle_color(app_ctx_t* app, int cx, int cy, int r, uint16_t rgb565) {
+    if (!app || !app_kit_is_foreground(app)) {
+        return;
+    }
+    app_display_fill_circle_color(&app->display, cx, cy, r, rgb565);
+}
+
+void app_hline_color(app_ctx_t* app, int x, int y, int w, uint16_t rgb565) {
+    if (!app || !app_kit_is_foreground(app)) {
+        return;
+    }
+    app_display_hline_color(&app->display, x, y, w, rgb565);
+}
+
+void app_text_color(app_ctx_t* app, int x, int y, const char* text, int scale, uint16_t rgb565) {
+    if (!app || !text || !app_kit_is_foreground(app)) {
+        return;
+    }
+    app_display_text_color(&app->display, x, y, text, scale, rgb565);
+}
+
+int app_text_width(const char* text, int scale) {
+    return app_display_text_width(text, scale);
+}

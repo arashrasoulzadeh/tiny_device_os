@@ -131,6 +131,12 @@ int scheduler_enter_deep_sleep(uint32_t timeout_ticks);
 // Testing: run one scheduling cycle, returns when task yields/blocks
 int scheduler_step(void);
 
+/* Read-only introspection for monitoring tools (e.g. a task manager app) —
+ * not for scheduling decisions. Returns the fixed-size internal task slot
+ * array (MAX_TASKS entries, *out_count set to MAX_TASKS); an unused slot
+ * has name[0] == '\0'. */
+const task_tcb_t* scheduler_get_task_slots(int* out_count);
+
 #ifdef __cplusplus
 }
 #endif

@@ -51,6 +51,13 @@ KNOWN_TARGETS: list[dict[str, str]] = [
         "pio_env": "esp32dev",
     },
     {
+        "id": "esp32-c6",
+        "arch": "esp32",
+        "board": "esp32-c6-lcd-147",
+        "label": "ESP32-C6 DevKit",
+        "pio_env": "esp32-c6",
+    },
+    {
         "id": "mega2560",
         "arch": "avr",
         "board": "mega2560",
@@ -325,6 +332,10 @@ def generate_header(cfg: dict[str, Any]) -> str:
         f'#define ARDUBOT_LCD_TYPE "{lcd.get("type", "ssd1306")}"',
         f'#define ARDUBOT_LCD_BUS "{lcd.get("bus", "i2c")}"',
         f"#define ARDUBOT_LCD_I2C_ADDR {int(lcd.get('address', 0x3C))}",
+        f"#define ARDUBOT_LCD_IS_SH1106 {1 if str(lcd.get('type', 'ssd1306')).lower() == 'sh1106' else 0}",
+        f"#define ARDUBOT_LCD_COL_OFFSET {int(lcd.get('col_offset', 2))}",
+        f"#define ARDUBOT_LCD_SCALE {int(lcd.get('scale', 1))}",
+        f"#define ARDUBOT_LCD_PADDING {int(lcd.get('padding', 10))}",
     ]
 
     if "scl" in lcd or "sck" in lcd:
@@ -332,6 +343,13 @@ def generate_header(cfg: dict[str, Any]) -> str:
         lines.append(f"#define ARDUBOT_LCD_SCL_GPIO {resolve_pin(scl, board)}")
     if "sda" in lcd:
         lines.append(f"#define ARDUBOT_LCD_SDA_GPIO {resolve_pin(lcd['sda'], board)}")
+
+    # SPI panels (e.g. ST7789): mosi/sclk/cs/dc/rst/bl — only emitted when present,
+    # so an I2C-only profile (nodemcu's SSD1306) doesn't need these keys at all.
+    for key in ("mosi", "sclk", "cs", "dc", "rst", "bl"):
+        if key in lcd and lcd[key] is not None:
+            macro = key.upper()
+            lines.append(f"#define ARDUBOT_LCD_{macro}_GPIO {resolve_pin(lcd[key], board)}")
 
     buttons = (cfg.get("inputs") or {}).get("buttons") or []
     lines.append("")
@@ -347,6 +365,23 @@ def generate_header(cfg: dict[str, Any]) -> str:
         lines.append(f"#define ARDUBOT_BTN_{name}_ACTIVE_LOW {active_low}")
         lines.append(f"#define ARDUBOT_BTN_{idx}_GPIO {gpio}")
         lines.append(f"#define ARDUBOT_BTN_{idx}_ACTIVE_LOW {active_low}")
+
+    btn_by_name = {
+        str(b.get("name")): b for b in buttons if isinstance(b, dict) and "name" in b
+    }
+    if {"encoder_a", "encoder_b", "encoder_push"} <= set(btn_by_name):
+        enc_a = btn_by_name["encoder_a"]
+        enc_b = btn_by_name["encoder_b"]
+        enc_push = btn_by_name["encoder_push"]
+        lines.append("")
+        lines.append("#define ARDUBOT_HAS_ENCODER 1")
+        lines.append(f"#define ARDUBOT_ENCODER_A_GPIO {resolve_pin(enc_a['pin'], board)}")
+        lines.append(f"#define ARDUBOT_ENCODER_B_GPIO {resolve_pin(enc_b['pin'], board)}")
+        lines.append(f"#define ARDUBOT_ENCODER_PUSH_GPIO {resolve_pin(enc_push['pin'], board)}")
+        lines.append(
+            f"#define ARDUBOT_ENCODER_PUSH_ACTIVE_LOW "
+            f"{1 if enc_push.get('active_low', True) else 0}"
+        )
 
     lines.append("")
     return "\n".join(lines)

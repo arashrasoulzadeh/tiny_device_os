@@ -33,6 +33,24 @@ typedef struct {
 static ssd1306_t g_ssd1306 = {0};
 static bool g_initialized = false;
 
+/* Color overlay — RGB565 pixels drawn via the _color API below, composited
+ * over the mono buffer in ssd1306_model_render(). Added for the color
+ * card-style launcher (menu.c); the mono path above is untouched and still
+ * backs the plain on/off app_display_pixel() callers and the low-level
+ * I2C register-emulation tests. The "ssd1306" name predates this and is
+ * now a misnomer for the color path, but renaming ripples through
+ * app_framework.h and several tests for no functional gain. */
+#define SSD1306_PIXEL_COUNT ((size_t)(SSD1306_WIDTH) * (size_t)(SSD1306_HEIGHT))
+static uint16_t g_color_buf[SSD1306_PIXEL_COUNT];
+static uint8_t g_has_color[SSD1306_PIXEL_COUNT];
+
+static inline uint32_t rgb565_to_argb8888(uint16_t c) {
+    uint32_t r = (uint32_t)((c >> 11) & 0x1F) * 255 / 31;
+    uint32_t g = (uint32_t)((c >> 5) & 0x3F) * 255 / 63;
+    uint32_t b = (uint32_t)(c & 0x1F) * 255 / 31;
+    return 0xFF000000u | (r << 16) | (g << 8) | b;
+}
+
 static void ssd1306_unregister(void) {
     if (g_initialized) {
         sim_i2c_unregister_device(SSD1306_I2C_ADDR);
@@ -172,6 +190,14 @@ void ssd1306_model_render(void) {
             }
         }
         if (all_zero) {
+            for (size_t i = 0; i < SSD1306_PIXEL_COUNT; i++) {
+                if (g_has_color[i]) {
+                    all_zero = false;
+                    break;
+                }
+            }
+        }
+        if (all_zero) {
             // Fill with a test pattern
             for (int y = 0; y < sim_h; y++) {
                 for (int x = 0; x < sim_w; x++) {
@@ -187,14 +213,18 @@ void ssd1306_model_render(void) {
     for (int y = 0; y < SSD1306_HEIGHT && y < sim_h; y++) {
         int page = y / 8;
         int bit = y % 8;
-        
+
         for (int x = 0; x < SSD1306_WIDTH && x < sim_w; x++) {
-            uint8_t val = g_ssd1306.buffer[page * SSD1306_WIDTH + x];
-            bool pixel_on = (val >> bit) & 0x01;
-            
-            if (g_ssd1306.inverted) pixel_on = !pixel_on;
-            
-            uint32_t color = pixel_on ? 0xFFFFFFFF : 0xFF000000;
+            size_t cidx = (size_t)y * SSD1306_WIDTH + (size_t)x;
+            uint32_t color;
+            if (g_has_color[cidx]) {
+                color = rgb565_to_argb8888(g_color_buf[cidx]);
+            } else {
+                uint8_t val = g_ssd1306.buffer[page * SSD1306_WIDTH + x];
+                bool pixel_on = (val >> bit) & 0x01;
+                if (g_ssd1306.inverted) pixel_on = !pixel_on;
+                color = pixel_on ? 0xFFFFFFFF : 0xFF000000;
+            }
             pixels[y * sim_w + x] = color;
         }
     }
@@ -202,6 +232,8 @@ void ssd1306_model_render(void) {
 
 void ssd1306_model_clear(void) {
     memset(g_ssd1306.buffer, 0, SSD1306_BUFFER_SIZE);
+    memset(g_color_buf, 0, sizeof(g_color_buf));
+    memset(g_has_color, 0, sizeof(g_has_color));
     g_ssd1306.page = 0;
     g_ssd1306.column = 0;
 }
@@ -498,4 +530,149 @@ void ssd1306_model_draw_text_scaled(int x, int y, const char* text, int scale) {
         
         char_x += (5 + 1) * scale; // 5 pixels + 1 pixel spacing
     }
+}
+/* ===== Color API (RGB565) — for the card-style color launcher (menu.c).
+ * Writes into g_color_buf/g_has_color; composited over the mono buffer in
+ * ssd1306_model_render(). ===== */
+
+void ssd1306_model_set_pixel_color(int x, int y, uint16_t rgb565) {
+    if (x < 0 || y < 0 || x >= SSD1306_WIDTH || y >= SSD1306_HEIGHT) {
+        return;
+    }
+    size_t idx = (size_t)y * SSD1306_WIDTH + (size_t)x;
+    g_color_buf[idx] = rgb565;
+    g_has_color[idx] = 1;
+}
+
+/* radius>0 skips corner pixels outside a quarter-circle, approximating a
+ * rounded rect without needing a real arc rasterizer. */
+void ssd1306_model_fill_rect_color(int x, int y, int w, int h, int radius, uint16_t rgb565) {
+    if (w <= 0 || h <= 0) return;
+    if (radius < 0) radius = 0;
+    if (radius * 2 > w) radius = w / 2;
+    if (radius * 2 > h) radius = h / 2;
+    for (int dy = 0; dy < h; dy++) {
+        for (int dx = 0; dx < w; dx++) {
+            if (radius > 0) {
+                int cx = (dx < radius) ? radius : (dx >= w - radius ? w - 1 - radius : -1);
+                int cy = (dy < radius) ? radius : (dy >= h - radius ? h - 1 - radius : -1);
+                if (cx >= 0 && cy >= 0) {
+                    int ddx = dx - cx, ddy = dy - cy;
+                    if (ddx * ddx + ddy * ddy > radius * radius) {
+                        continue;
+                    }
+                }
+            }
+            ssd1306_model_set_pixel_color(x + dx, y + dy, rgb565);
+        }
+    }
+}
+
+void ssd1306_model_draw_rect_color(int x, int y, int w, int h, int radius, uint16_t rgb565) {
+    if (w <= 0 || h <= 0) return;
+    (void)radius; /* plain 1px outline — rounded-corner outline isn't worth the complexity here */
+    for (int dx = 0; dx < w; dx++) {
+        ssd1306_model_set_pixel_color(x + dx, y, rgb565);
+        ssd1306_model_set_pixel_color(x + dx, y + h - 1, rgb565);
+    }
+    for (int dy = 0; dy < h; dy++) {
+        ssd1306_model_set_pixel_color(x, y + dy, rgb565);
+        ssd1306_model_set_pixel_color(x + w - 1, y + dy, rgb565);
+    }
+}
+
+void ssd1306_model_fill_circle_color(int cx, int cy, int r, uint16_t rgb565) {
+    if (r <= 0) return;
+    for (int dy = -r; dy <= r; dy++) {
+        for (int dx = -r; dx <= r; dx++) {
+            if (dx * dx + dy * dy <= r * r) {
+                ssd1306_model_set_pixel_color(cx + dx, cy + dy, rgb565);
+            }
+        }
+    }
+}
+
+void ssd1306_model_draw_hline_color(int x, int y, int w, uint16_t rgb565) {
+    for (int dx = 0; dx < w; dx++) {
+        ssd1306_model_set_pixel_color(x + dx, y, rgb565);
+    }
+}
+
+void ssd1306_model_draw_text_color(int x, int y, const char* text, int scale, uint16_t rgb565) {
+    static const uint8_t font_5x7[96][5] = {
+        {0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x5F, 0x00, 0x00},
+        {0x00, 0x07, 0x00, 0x07, 0x00}, {0x14, 0x7F, 0x14, 0x7F, 0x14},
+        {0x24, 0x2A, 0x7F, 0x2A, 0x12}, {0x23, 0x13, 0x08, 0x64, 0x62},
+        {0x36, 0x49, 0x55, 0x22, 0x50}, {0x00, 0x05, 0x03, 0x00, 0x00},
+        {0x00, 0x1C, 0x22, 0x41, 0x00}, {0x00, 0x41, 0x22, 0x1C, 0x00},
+        {0x14, 0x08, 0x3E, 0x08, 0x14}, {0x08, 0x08, 0x3E, 0x08, 0x08},
+        {0x00, 0x50, 0x30, 0x00, 0x00}, {0x08, 0x08, 0x08, 0x08, 0x08},
+        {0x00, 0x60, 0x60, 0x00, 0x00}, {0x20, 0x10, 0x08, 0x04, 0x02},
+        {0x3E, 0x51, 0x49, 0x45, 0x3E}, {0x00, 0x42, 0x7F, 0x40, 0x00},
+        {0x42, 0x61, 0x51, 0x49, 0x46}, {0x21, 0x41, 0x45, 0x4B, 0x31},
+        {0x18, 0x14, 0x12, 0x7F, 0x10}, {0x27, 0x45, 0x45, 0x45, 0x39},
+        {0x3C, 0x4A, 0x49, 0x49, 0x30}, {0x01, 0x71, 0x09, 0x05, 0x03},
+        {0x36, 0x49, 0x49, 0x49, 0x36}, {0x06, 0x49, 0x49, 0x29, 0x1E},
+        {0x00, 0x36, 0x36, 0x00, 0x00}, {0x00, 0x56, 0x36, 0x00, 0x00},
+        {0x08, 0x14, 0x22, 0x41, 0x00}, {0x14, 0x14, 0x14, 0x14, 0x14},
+        {0x00, 0x41, 0x22, 0x14, 0x08}, {0x02, 0x01, 0x51, 0x09, 0x06},
+        {0x32, 0x49, 0x79, 0x41, 0x3E}, {0x7E, 0x11, 0x11, 0x11, 0x7E},
+        {0x7F, 0x49, 0x49, 0x49, 0x36}, {0x3E, 0x41, 0x41, 0x41, 0x22},
+        {0x7F, 0x41, 0x41, 0x22, 0x1C}, {0x7F, 0x49, 0x49, 0x49, 0x41},
+        {0x7F, 0x09, 0x09, 0x09, 0x01}, {0x3E, 0x41, 0x49, 0x49, 0x7A},
+        {0x7F, 0x08, 0x08, 0x08, 0x7F}, {0x00, 0x41, 0x7F, 0x41, 0x00},
+        {0x20, 0x40, 0x41, 0x3F, 0x01}, {0x7F, 0x08, 0x14, 0x22, 0x41},
+        {0x7F, 0x40, 0x40, 0x40, 0x40}, {0x7F, 0x02, 0x0C, 0x02, 0x7F},
+        {0x7F, 0x04, 0x08, 0x10, 0x7F}, {0x3E, 0x41, 0x41, 0x41, 0x3E},
+        {0x7F, 0x09, 0x09, 0x09, 0x06}, {0x3E, 0x41, 0x51, 0x21, 0x5E},
+        {0x7F, 0x09, 0x19, 0x29, 0x46}, {0x46, 0x49, 0x49, 0x49, 0x31},
+        {0x01, 0x01, 0x7F, 0x01, 0x01}, {0x3F, 0x40, 0x40, 0x40, 0x3F},
+        {0x1F, 0x20, 0x40, 0x20, 0x1F}, {0x3F, 0x40, 0x38, 0x40, 0x3F},
+        {0x63, 0x14, 0x08, 0x14, 0x63}, {0x07, 0x08, 0x70, 0x08, 0x07},
+        {0x61, 0x51, 0x49, 0x45, 0x43}, {0x00, 0x7F, 0x41, 0x41, 0x00},
+        {0x02, 0x04, 0x08, 0x10, 0x20}, {0x00, 0x41, 0x41, 0x7F, 0x00},
+        {0x04, 0x02, 0x01, 0x02, 0x04}, {0x40, 0x40, 0x40, 0x40, 0x40},
+        {0x00, 0x01, 0x02, 0x04, 0x00}, {0x20, 0x54, 0x54, 0x54, 0x78},
+        {0x7F, 0x48, 0x44, 0x44, 0x38}, {0x38, 0x44, 0x44, 0x44, 0x20},
+        {0x38, 0x44, 0x44, 0x48, 0x7F}, {0x38, 0x54, 0x54, 0x54, 0x18},
+        {0x08, 0x7E, 0x09, 0x01, 0x02}, {0x0C, 0x52, 0x52, 0x52, 0x3E},
+        {0x7F, 0x08, 0x04, 0x04, 0x78}, {0x00, 0x44, 0x7D, 0x40, 0x00},
+        {0x20, 0x40, 0x44, 0x3D, 0x00}, {0x7F, 0x10, 0x28, 0x44, 0x00},
+        {0x00, 0x41, 0x7F, 0x40, 0x00}, {0x7C, 0x04, 0x18, 0x04, 0x78},
+        {0x7C, 0x08, 0x04, 0x04, 0x78}, {0x38, 0x44, 0x44, 0x44, 0x38},
+        {0x7C, 0x14, 0x14, 0x14, 0x08}, {0x08, 0x14, 0x14, 0x18, 0x7C},
+        {0x7C, 0x08, 0x04, 0x04, 0x08}, {0x48, 0x54, 0x54, 0x54, 0x20},
+        {0x04, 0x3F, 0x44, 0x40, 0x20}, {0x3C, 0x40, 0x40, 0x20, 0x7C},
+        {0x1C, 0x20, 0x40, 0x20, 0x1C}, {0x3C, 0x40, 0x30, 0x40, 0x3C},
+        {0x44, 0x28, 0x10, 0x28, 0x44}, {0x0C, 0x50, 0x50, 0x50, 0x3C},
+        {0x44, 0x64, 0x54, 0x4C, 0x44}, {0x00, 0x08, 0x36, 0x41, 0x00},
+        {0x00, 0x00, 0x7F, 0x00, 0x00}, {0x00, 0x41, 0x36, 0x08, 0x00},
+        {0x10, 0x08, 0x08, 0x10, 0x08}, {0x78, 0x46, 0x41, 0x46, 0x78},
+    };
+    if (!text || scale <= 0) return;
+    int char_x = x;
+    for (const char* p = text; *p; p++) {
+        if (*p < 32 || *p > 126) continue;
+        const uint8_t* glyph = font_5x7[*p - 32];
+        for (int col = 0; col < 5; col++) {
+            uint8_t column_data = glyph[col];
+            for (int row = 0; row < 7; row++) {
+                if (!(column_data & (1 << row))) continue;
+                for (int sx = 0; sx < scale; sx++) {
+                    for (int sy = 0; sy < scale; sy++) {
+                        ssd1306_model_set_pixel_color(char_x + col * scale + sx, y + row * scale + sy,
+                                                      rgb565);
+                    }
+                }
+            }
+        }
+        char_x += (5 + 1) * scale;
+    }
+}
+
+int ssd1306_model_text_width(const char* text, int scale) {
+    if (!text || scale <= 0) return 0;
+    int n = 0;
+    for (const char* p = text; *p; p++) n++;
+    return n * 6 * scale;
 }

@@ -1,6 +1,14 @@
 /**
- * Minimal SSD1306 I2C driver (no Adafruit / registry deps).
+ * Minimal SSD1306/SH1106 I2C driver (no Adafruit / registry deps).
  * Supports 128x32 and 128x64 panels via constructor height.
+ *
+ * SH1106 (common on 1.3" 128x64 modules) lacks SSD1306's horizontal/vertical
+ * addressing mode (cmds 0x20/0x21/0x22) — only page addressing mode (0xB0 +
+ * page, then 0x00|low-nibble / 0x10|high-nibble column start) is supported,
+ * and its charge-pump command is 0xAD 0x8B instead of 0x8D 0x14. Without
+ * this, every page write lands back on page 0 — symptom: only the top rows
+ * ever render. SH1106 also has 132 driver columns vs 128 visible, hence the
+ * col_offset (2 is the usual default; nudge if the image is shifted).
  */
 
 #pragma once
@@ -12,8 +20,14 @@
 
 class Ssd1306 {
  public:
-  Ssd1306(uint8_t width, uint8_t height, uint8_t addr = 0x3C)
-      : width_(width), height_(height), addr_(addr), pages_(height / 8) {}
+  Ssd1306(uint8_t width, uint8_t height, uint8_t addr = 0x3C,
+          bool sh1106 = false, uint8_t col_offset = 2)
+      : width_(width),
+        height_(height),
+        addr_(addr),
+        pages_(height / 8),
+        sh1106_(sh1106),
+        col_offset_(sh1106 ? col_offset : 0) {}
 
   bool begin() {
     if (width_ != 128 || (height_ != 32 && height_ != 64)) {
@@ -34,13 +48,23 @@ class Ssd1306 {
     static const uint8_t kInitMid[] = {
         0xD3, 0x00,  // offset
         0x40,        // start line
-        0x8D, 0x14,  // charge pump
-        0x20, 0x00,  // horizontal addressing
-        0xA1,        // segment remap
-        0xC8,        // COM scan desc
-        0xDA,        // COM pins (value follows)
     };
     cmd_list(kInitMid, sizeof(kInitMid));
+    if (sh1106_) {
+      cmd(0xAD);
+      cmd(0x8B);  // SH1106 charge pump (DC-DC on)
+    } else {
+      cmd(0x8D);
+      cmd(0x14);  // SSD1306 charge pump
+      cmd(0x20);
+      cmd(0x00);  // horizontal addressing (SH1106 has no such register)
+    }
+    static const uint8_t kInitRemap[] = {
+        0xA1,  // segment remap
+        0xC8,  // COM scan desc
+        0xDA,  // COM pins (value follows)
+    };
+    cmd_list(kInitRemap, sizeof(kInitRemap));
     cmd(com_pins);
     static const uint8_t kInitTail[] = {
         0x81, 0xCF,  // contrast
@@ -100,12 +124,18 @@ class Ssd1306 {
       if (memcmp(row, prev, width_) == 0) {
         continue;
       }
-      cmd(0x21);  // column addr
-      cmd(0);
-      cmd((uint8_t)(width_ - 1));
-      cmd(0x22);  // single page
-      cmd(page);
-      cmd(page);
+      if (sh1106_) {
+        cmd((uint8_t)(0xB0 + page));                    // page address
+        cmd((uint8_t)(0x00 | (col_offset_ & 0x0F)));     // column low nibble
+        cmd((uint8_t)(0x10 | ((col_offset_ >> 4) & 0x0F)));  // column high nibble
+      } else {
+        cmd(0x21);  // column addr
+        cmd(0);
+        cmd((uint8_t)(width_ - 1));
+        cmd(0x22);  // single page
+        cmd(page);
+        cmd(page);
+      }
 
       size_t off = 0;
       while (off < width_) {
@@ -246,6 +276,8 @@ class Ssd1306 {
   uint8_t height_;
   uint8_t addr_;
   uint8_t pages_;
+  bool sh1106_;
+  uint8_t col_offset_;
   uint8_t fb_[128 * 8];    // enough for 128x64
   uint8_t sent_[128 * 8];  // last bytes pushed to the panel
 };

@@ -51,6 +51,12 @@
 #ifndef ARDUBOT_LCD_I2C_ADDR
 #define ARDUBOT_LCD_I2C_ADDR 0x3C
 #endif
+#ifndef ARDUBOT_LCD_IS_SH1106
+#define ARDUBOT_LCD_IS_SH1106 0
+#endif
+#ifndef ARDUBOT_LCD_COL_OFFSET
+#define ARDUBOT_LCD_COL_OFFSET 2
+#endif
 #ifndef ARDUBOT_BTN_UP_GPIO
 #define ARDUBOT_BTN_UP_GPIO 14
 #endif
@@ -62,6 +68,12 @@
 #endif
 #ifndef ARDUBOT_BTN_SELECT_ACTIVE_LOW
 #define ARDUBOT_BTN_SELECT_ACTIVE_LOW 1
+#endif
+
+#if defined(ARDUBOT_HAS_ENCODER)
+#ifndef ARDUBOT_ENCODER_PUSH_ACTIVE_LOW
+#define ARDUBOT_ENCODER_PUSH_ACTIVE_LOW 1
+#endif
 #endif
 
 #define LONG_PRESS_MS 700
@@ -88,7 +100,8 @@ static const MenuItem k_apps[] = {
 };
 static const int k_app_count = (int)(sizeof(k_apps) / sizeof(k_apps[0]));
 
-static Ssd1306 display(ARDUBOT_LCD_WIDTH, ARDUBOT_LCD_HEIGHT, (uint8_t)ARDUBOT_LCD_I2C_ADDR);
+static Ssd1306 display(ARDUBOT_LCD_WIDTH, ARDUBOT_LCD_HEIGHT, (uint8_t)ARDUBOT_LCD_I2C_ADDR,
+                        (bool)ARDUBOT_LCD_IS_SH1106, (uint8_t)ARDUBOT_LCD_COL_OFFSET);
 
 static AppId g_app = APP_LAUNCHER;
 static int g_sel = 0;
@@ -111,6 +124,21 @@ static bool pin_pressed(int gpio, int active_low) {
   const int level = digitalRead(gpio);
   return active_low ? (level == LOW) : (level == HIGH);
 }
+
+#if defined(ARDUBOT_HAS_ENCODER)
+/* Full quadrature decode (4 edges/detent) — standard Gray-code transition
+ * table. Returns +1/-1 once per full detent click, 0 otherwise; this is
+ * what turns "every A/B edge fires a button" (the raw-GPIO bug) into one
+ * clean step per physical click. */
+static uint8_t g_enc_state = 0;
+static int8_t encoder_step(void) {
+  static const int8_t kTable[16] = {0, -1, 1, 0, 1, 0, 0, -1, -1, 0, 0, 1, 0, 1, -1, 0};
+  const int a = digitalRead(ARDUBOT_ENCODER_A_GPIO);
+  const int b = digitalRead(ARDUBOT_ENCODER_B_GPIO);
+  g_enc_state = (uint8_t)(((g_enc_state << 2) | ((a << 1) | b)) & 0x0F);
+  return kTable[g_enc_state];
+}
+#endif
 
 static void mark_dirty(void) { g_dirty = true; }
 
@@ -209,7 +237,7 @@ static void draw_launcher(void) {
     if (x + APP_ICON_SIZE > ARDUBOT_LCD_WIDTH - APP_STATUS_WIDTH && off != 0) {
       continue;
     }
-    app_icon_blit(x, icon_y, k_apps[idx].icon, off == 0, board_set_pixel, &display);
+    app_icon_blit(x, icon_y, k_apps[idx].icon, off == 0, board_set_pixel, &display, 1);
   }
   name = k_apps[g_sel].name;
   len = (int)strlen(name);
@@ -356,6 +384,38 @@ static void on_up(void) {
   }
 }
 
+#if defined(ARDUBOT_HAS_ENCODER)
+static void on_down(void) {
+  switch (g_app) {
+    case APP_LAUNCHER:
+      menu_move(-1);
+      break;
+    case APP_COUNTER:
+      g_count--;
+      mark_dirty();
+      break;
+    case APP_INFO:
+      mark_dirty();
+      break;
+    case APP_STOPWATCH:
+      g_sw_running = !g_sw_running;
+      if (g_sw_running) {
+        g_sw_last_ms = millis();
+      }
+      mark_dirty();
+      break;
+    case APP_PONG:
+      if (!g_pong.game_over) {
+        pong_paddle_down(&g_pong);
+        mark_dirty();
+      }
+      break;
+    default:
+      break;
+  }
+}
+#endif
+
 static void on_select(void) {
   switch (g_app) {
     case APP_LAUNCHER:
@@ -393,14 +453,26 @@ static void on_back(void) {
 }
 
 static void poll_buttons(void) {
+#if defined(ARDUBOT_HAS_ENCODER)
+  /* CW detent -> on_up(), CCW detent -> on_down(); one call per physical
+   * click (not per raw A/B edge). */
+  const int8_t enc_dir = encoder_step();
+  if (enc_dir > 0) {
+    on_up();
+  } else if (enc_dir < 0) {
+    on_down();
+  }
+  const bool sel = pin_pressed(ARDUBOT_ENCODER_PUSH_GPIO, ARDUBOT_ENCODER_PUSH_ACTIVE_LOW);
+#else
   const bool up = pin_pressed(ARDUBOT_BTN_UP_GPIO, ARDUBOT_BTN_UP_ACTIVE_LOW);
   const bool sel = pin_pressed(ARDUBOT_BTN_SELECT_GPIO, ARDUBOT_BTN_SELECT_ACTIVE_LOW);
-  const uint32_t now = millis();
 
   if (up && !g_up_down) {
     on_up();
   }
   g_up_down = up;
+#endif
+  const uint32_t now = millis();
 
   if (sel && !g_sel_down) {
     g_sel_down = true;
@@ -452,12 +524,21 @@ static void pong_tick(void) {
     return;
   }
   last_ms = now;
+#if defined(ARDUBOT_HAS_ENCODER)
+  /* Rotation already drives the paddle via poll_buttons()'s on_up()/
+   * on_down() per detent. Holding the push switch adds continuous
+   * paddle-down (rotation only yields discrete steps, not a hold signal). */
+  if (pin_pressed(ARDUBOT_ENCODER_PUSH_GPIO, ARDUBOT_ENCODER_PUSH_ACTIVE_LOW)) {
+    pong_paddle_down(&g_pong);
+  }
+#else
   if (pin_pressed(ARDUBOT_BTN_UP_GPIO, ARDUBOT_BTN_UP_ACTIVE_LOW)) {
     pong_paddle_up(&g_pong);
   }
   if (pin_pressed(ARDUBOT_BTN_SELECT_GPIO, ARDUBOT_BTN_SELECT_ACTIVE_LOW)) {
     pong_paddle_down(&g_pong);
   }
+#endif
   pong_step(&g_pong);
   mark_dirty();
 }
@@ -469,11 +550,18 @@ void setup() {
   Serial.println(F("ArdubotOS NodeMCU — launcher + builtins"));
   Serial.printf("LCD %dx%d SDA=GPIO%d SCL=GPIO%d\n", ARDUBOT_LCD_WIDTH, ARDUBOT_LCD_HEIGHT,
                 ARDUBOT_LCD_SDA_GPIO, ARDUBOT_LCD_SCL_GPIO);
+#if defined(ARDUBOT_HAS_ENCODER)
+  Serial.printf("ENCODER A=GPIO%d B=GPIO%d PUSH=GPIO%d (long-press = back)\n",
+                ARDUBOT_ENCODER_A_GPIO, ARDUBOT_ENCODER_B_GPIO, ARDUBOT_ENCODER_PUSH_GPIO);
+  pinMode(ARDUBOT_ENCODER_A_GPIO, INPUT_PULLUP);
+  pinMode(ARDUBOT_ENCODER_B_GPIO, INPUT_PULLUP);
+  pinMode(ARDUBOT_ENCODER_PUSH_GPIO, INPUT_PULLUP);
+#else
   Serial.printf("BTN up=GPIO%d select=GPIO%d (long-select = back)\n", ARDUBOT_BTN_UP_GPIO,
                 ARDUBOT_BTN_SELECT_GPIO);
-
   pinMode(ARDUBOT_BTN_UP_GPIO, INPUT_PULLUP);
   pinMode(ARDUBOT_BTN_SELECT_GPIO, INPUT_PULLUP);
+#endif
 
 #if defined(ARDUBOT_TARGET_ESP8266) && ARDUBOT_WIFI_HAS_CREDS
   WiFi.persistent(false);

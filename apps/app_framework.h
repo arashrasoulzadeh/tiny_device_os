@@ -151,6 +151,42 @@ static inline void app_display_set_rotation(app_display_t* disp, uint8_t rot) {
     (void)disp; (void)rot;
 }
 
+/* Color variants (RGB565) — for the card-style color launcher (menu.c).
+ * See ssd1306_model.c for why the color API lives in a file named after a
+ * mono chip. */
+static inline void app_display_pixel_color(app_display_t* disp, int x, int y, uint16_t rgb565) {
+    if (disp && disp->initialized) ssd1306_model_set_pixel_color(x, y, rgb565);
+}
+
+static inline void app_display_fill_rect_color(app_display_t* disp, int x, int y, int w, int h,
+                                               int radius, uint16_t rgb565) {
+    if (disp && disp->initialized) ssd1306_model_fill_rect_color(x, y, w, h, radius, rgb565);
+}
+
+static inline void app_display_draw_rect_color(app_display_t* disp, int x, int y, int w, int h,
+                                               int radius, uint16_t rgb565) {
+    if (disp && disp->initialized) ssd1306_model_draw_rect_color(x, y, w, h, radius, rgb565);
+}
+
+static inline void app_display_fill_circle_color(app_display_t* disp, int cx, int cy, int r,
+                                                 uint16_t rgb565) {
+    if (disp && disp->initialized) ssd1306_model_fill_circle_color(cx, cy, r, rgb565);
+}
+
+static inline void app_display_hline_color(app_display_t* disp, int x, int y, int w,
+                                           uint16_t rgb565) {
+    if (disp && disp->initialized) ssd1306_model_draw_hline_color(x, y, w, rgb565);
+}
+
+static inline void app_display_text_color(app_display_t* disp, int x, int y, const char* text,
+                                          int scale, uint16_t rgb565) {
+    if (disp && disp->initialized) ssd1306_model_draw_text_color(x, y, text, scale, rgb565);
+}
+
+static inline int app_display_text_width(const char* text, int scale) {
+    return ssd1306_model_text_width(text, scale);
+}
+
 // ============================================================================
 // BUTTON/INPUT HELPERS
 // ============================================================================

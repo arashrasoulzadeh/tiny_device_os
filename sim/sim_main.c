@@ -183,6 +183,12 @@ extern app_manifest_t* pong_app_manifest;
 #ifdef ARDUBOT_APP_WIDGETS_ENABLED
 extern app_manifest_t* widgets_app_manifest;
 #endif
+#ifdef ARDUBOT_APP_POMODORO_ENABLED
+extern app_manifest_t* pomodoro_app_manifest;
+#endif
+#ifdef ARDUBOT_APP_TASKMGR_ENABLED
+extern app_manifest_t* taskmgr_app_manifest;
+#endif
 
 int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -346,6 +352,18 @@ int main(int argc, char** argv) {
         return 1;
     }
 #endif
+#ifdef ARDUBOT_APP_POMODORO_ENABLED
+    if (app_install_manifest(pomodoro_app_manifest, "pomodoro") != 0) {
+        fprintf(stderr, "Failed to install pomodoro app\n");
+        return 1;
+    }
+#endif
+#ifdef ARDUBOT_APP_TASKMGR_ENABLED
+    if (app_install_manifest(taskmgr_app_manifest, "taskmgr") != 0) {
+        fprintf(stderr, "Failed to install taskmgr app\n");
+        return 1;
+    }
+#endif
     if (app_install_manifest(launcher_app_manifest, "launcher") != 0) {
         fprintf(stderr, "Failed to install launcher app\n");
         return 1;
@@ -357,12 +375,27 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    /* Pomodoro boots directly instead of the launcher menu (per the "set it
+     * as launcher" ask) — ESC from it still returns to the launcher
+     * (app_request_exit() always re-focuses APP_KIT_HOME_NAME="launcher",
+     * which stays installed and in the catalog either way). */
+#ifdef ARDUBOT_APP_POMODORO_ENABLED
+    if (app_start("pomodoro") != 0) {
+        fprintf(stderr, "Failed to start pomodoro app\n");
+        return 1;
+    }
+#else
     if (app_start("launcher") != 0) {
         fprintf(stderr, "Failed to start launcher app\n");
         return 1;
     }
+#endif
 
+#ifdef ARDUBOT_APP_POMODORO_ENABLED
+    printf("Pomodoro started (main app)\n");
+#else
     printf("Launcher started (main app)\n");
+#endif
     fflush(stdout);
 
     /* One scheduler tick == 1 ms of wall time. SDL frames often take longer

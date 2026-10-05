@@ -1,0 +1,7 @@
+{
+  "name": "pomodoro",
+  "version": "1.0.0",
+  "author": "ArdubotOS",
+  "description": "Pomodoro countdown timer",
+  "depends": []
+}

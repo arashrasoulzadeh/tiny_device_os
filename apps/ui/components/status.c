@@ -1,6 +1,5 @@
 #include "status.h"
 #include "display.h"
-#include "app_framework.h"
 
 #include <stddef.h>
 
@@ -13,6 +12,7 @@
 
 #if !defined(ARDUBOT_PIO)
 #include "app.h"
+#include "app_framework.h"
 #include "app_kit.h"
 #endif
 

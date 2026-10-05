@@ -638,3 +638,10 @@ power_mode_t scheduler_get_power_mode(void) {
 void scheduler_set_deep_sleep_min_ticks(uint32_t ticks) {
     g_scheduler.deep_sleep_min_ticks = ticks;
 }
+
+const task_tcb_t* scheduler_get_task_slots(int* out_count) {
+    if (out_count) {
+        *out_count = MAX_TASKS;
+    }
+    return g_scheduler.tasks;
+}

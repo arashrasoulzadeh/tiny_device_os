@@ -7,12 +7,8 @@ extern const app_icon_t pong_app_icon;
 static pong_t g_pong;
 static app_ui_t g_ui;
 
-static void fill_rect(app_ui_t* app, int x, int y, int w, int h) {
-    for (int dy = 0; dy < h; dy++) {
-        for (int dx = 0; dx < w; dx++) {
-            app_ui_pixel(app, x + dx, y + dy, true);
-        }
-    }
+static void fill_rect_color(app_ui_t* app, int x, int y, int w, int h, uint16_t rgb565) {
+    app_ui_rect_color(app, x, y, w, h, 0, rgb565);
 }
 
 static void on_init(void* app) {
@@ -53,14 +49,12 @@ static void on_frame(void* app) {
     }
     app_ui_begin_frame(&g_ui);
     
-    int wall_x = g_ui.ui.content_w - 2;
-    for (int y = 0; y < g_ui.ui.content_h; y++) {
-        app_ui_pixel(&g_ui, wall_x, y, true);
-        app_ui_pixel(&g_ui, wall_x + 1, y, true);
-    }
-    
-    fill_rect(&g_ui, PONG_PADDLE_X, g_pong.paddle_y, PONG_PADDLE_W, PONG_PADDLE_H);
-    fill_rect(&g_ui, g_pong.ball_x, g_pong.ball_y, PONG_BALL, PONG_BALL);
+    fill_rect_color(&g_ui, g_ui.ui.content_w - 2, 0, 2, g_ui.ui.content_h,
+                    APP_UI_RGB565(140, 140, 140));
+    fill_rect_color(&g_ui, PONG_PADDLE_X, g_pong.paddle_y, PONG_PADDLE_W, PONG_PADDLE_H,
+                    APP_UI_RGB565(0, 252, 248));
+    fill_rect_color(&g_ui, g_pong.ball_x, g_pong.ball_y, PONG_BALL, PONG_BALL,
+                    APP_UI_RGB565(248, 252, 0));
     
     if (g_pong.game_over) {
         app_ui_textf(&g_ui, 46, 4, "END");
