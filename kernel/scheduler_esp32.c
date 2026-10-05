@@ -90,6 +90,16 @@ int task_create(const char* name, task_entry_t entry, void* arg, task_priority_t
         return -1;
     }
 
+    /* Several stdapps (e.g. pomodoro_app.c's worker task) pass 0 here,
+     * relying on the caller enforcing a floor the way kernel/scheduler.c's
+     * task_create() already does - this file never did, so a 0-byte
+     * request produced a 0-word FreeRTOS stack depth and xTaskCreate()
+     * silently failed (confirmed on hardware, RISCV_TODO.md Phase 4/5:
+     * pomodoro's countdown worker never started). */
+    if (stack_size < HOST_STACK_MIN_BYTES) {
+        stack_size = HOST_STACK_MIN_BYTES;
+    }
+
     task_tcb_t* task = &g_scheduler.tasks[slot];
     memset(task, 0, sizeof(task_tcb_t));
     task->id = (uint8_t)slot;

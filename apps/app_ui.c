@@ -3,6 +3,7 @@
 #include "app_framework.h"
 #include "ssd1306_model.h"
 #include "menu.h"
+#include "theme.h"
 #include <stdlib.h>
 #include <stdio.h>
 
@@ -12,11 +13,14 @@ extern int g_next_pin;
  * pong/settings/shell/widgets/demo/fileman all go through this one file) —
  * see ssd1306_model.c for why the color API lives in a file named after a
  * mono chip. APP_UI_RGB565 itself is declared in app_ui.h so other apps
- * (e.g. pong_app.c) can build their own colors with it. */
-#define APP_UI_COLOR_TITLE_BG APP_UI_RGB565(0, 60, 80)
-#define APP_UI_COLOR_TITLE_TEXT APP_UI_RGB565(0, 252, 248)
-#define APP_UI_COLOR_TEXT APP_UI_RGB565(255, 255, 255)
-#define APP_UI_COLOR_HELP APP_UI_RGB565(140, 140, 140)
+ * (e.g. pong_app.c) can build their own colors with it. Values come from
+ * apps/ui/components/theme.h's shared design tokens, not local literals -
+ * every app_ui_t-based app's title/help bar now matches every other one
+ * by construction. */
+#define APP_UI_COLOR_TITLE_BG ARDUBOT_COLOR_TITLE_BG
+#define APP_UI_COLOR_TITLE_TEXT ARDUBOT_COLOR_TITLE_TEXT
+#define APP_UI_COLOR_TEXT ARDUBOT_COLOR_TEXT
+#define APP_UI_COLOR_HELP ARDUBOT_COLOR_HELP_TEXT
 
 int app_ui_init(app_ui_t* app, void* real_app, const app_ui_config_t* cfg) {
     if (!app || !cfg) return -1;
@@ -307,6 +311,94 @@ void app_ui_rect_color(app_ui_t* app, int x, int y, int w, int h, int radius, ui
     int draw_y = y + app->ui.content_y;
     if (draw_y >= 0 && draw_y + h <= app->ui.content_h) {
         app_display_fill_rect_color(&app->ctx.display, x, draw_y, w, h, radius, rgb565);
+    }
+}
+
+/* ===========================================================================
+ * Reusable components - built from the patterns repeated across
+ * counter_app.c/pomodoro_app.c/info_app.c (a big centered stat number, a
+ * depleting/filling bar, a colored label panel). Every app_ui_t-based
+ * stdapp (not games - app_ui_config_game() apps draw their own playfield
+ * directly) should compose screens from these plus app_ui_line()/
+ * app_ui_text() rather than re-deriving the same layout math and
+ * content_x/content_y offsetting per app, the way pomodoro_app.c and
+ * counter_app.c both independently did before this existed. Takes
+ * content-relative x (like app_ui_rect_color() already does for y) and
+ * handles the content_x offset itself, unlike app_ui_rect_color(), whose
+ * x param is NOT content_x-offset - a pre-existing inconsistency not
+ * touched here to avoid changing that function's existing call sites.
+ * ========================================================================= */
+
+/* Centered stat number/word at an arbitrary scale - app_ui_text_color()
+ * is always this app's fixed body text_scale, too small to read as a
+ * headline element (e.g. a countdown or counter's current value). */
+void app_ui_big_text(app_ui_t* app, int y, const char* text, int scale, uint16_t rgb565) {
+    if (!app || !text || scale <= 0) return;
+    int w = app_display_text_width(text, scale);
+    int x = app->ui.content_x + (app->ui.content_w - w) / 2;
+    int draw_y = y + app->ui.content_y;
+    if (draw_y >= 0 && draw_y + 7 * scale <= app->ui.content_h) {
+        app_display_text_color(&app->ctx.display, x, draw_y, text, scale, rgb565);
+    }
+}
+
+/* Left-to-right depleting/filling bar spanning the full content width
+ * (e.g. a countdown's remaining-time bar). fill_w is clamped to
+ * [0, content_w] - callers don't need to clamp it themselves. */
+void app_ui_bar(app_ui_t* app, int y, int h, int fill_w, uint16_t track_color,
+                uint16_t fill_color) {
+    if (!app) return;
+    int w = app->ui.content_w;
+    int draw_y = y + app->ui.content_y;
+    if (draw_y < 0 || draw_y + h > app->ui.content_h) return;
+    if (fill_w < 0) fill_w = 0;
+    if (fill_w > w) fill_w = w;
+    app_display_fill_rect_color(&app->ctx.display, app->ui.content_x, draw_y, w, h, 0,
+                                track_color);
+    if (fill_w > 0) {
+        app_display_fill_rect_color(&app->ctx.display, app->ui.content_x, draw_y, fill_w, h, 0,
+                                    fill_color);
+    }
+}
+
+/* Bidirectional bar growing from a center tick (e.g. a signed value's
+ * gauge) - fill_px_signed extends right of center when positive, left
+ * when negative; the caller computes and clamps it (the right clamp
+ * range is value-semantics the component shouldn't need to know). */
+void app_ui_bar_centered(app_ui_t* app, int y, int h, int fill_px_signed, uint16_t track_color,
+                         uint16_t fill_color, uint16_t tick_color) {
+    if (!app) return;
+    int w = app->ui.content_w;
+    int draw_y = y + app->ui.content_y;
+    if (draw_y < 0 || draw_y + h > app->ui.content_h) return;
+    int center = app->ui.content_x + w / 2;
+    app_display_fill_rect_color(&app->ctx.display, app->ui.content_x, draw_y, w, h, 0,
+                                track_color);
+    if (fill_px_signed > 0) {
+        app_display_fill_rect_color(&app->ctx.display, center, draw_y, fill_px_signed, h, 0,
+                                    fill_color);
+    } else if (fill_px_signed < 0) {
+        app_display_fill_rect_color(&app->ctx.display, center + fill_px_signed, draw_y,
+                                    -fill_px_signed, h, 0, fill_color);
+    }
+    app_display_fill_rect_color(&app->ctx.display, center - 1, draw_y, 2, h, 0, tick_color);
+}
+
+/* Solid-color panel with a centered label (e.g. a status block like
+ * pomodoro's "WORK"/"REST" indicator). x/w are content-relative, same as
+ * every other coordinate in this component set. */
+void app_ui_panel(app_ui_t* app, int x, int y, int w, int h, const char* label, int label_scale,
+                  uint16_t bg_color, uint16_t text_color) {
+    if (!app) return;
+    int draw_y = y + app->ui.content_y;
+    if (draw_y < 0 || draw_y + h > app->ui.content_h) return;
+    int abs_x = app->ui.content_x + x;
+    app_display_fill_rect_color(&app->ctx.display, abs_x, draw_y, w, h, 0, bg_color);
+    if (label && label_scale > 0) {
+        int label_w = app_display_text_width(label, label_scale);
+        int label_h = 7 * label_scale;
+        app_display_text_color(&app->ctx.display, abs_x + (w - label_w) / 2,
+                               draw_y + (h - label_h) / 2, label, label_scale, text_color);
     }
 }
 

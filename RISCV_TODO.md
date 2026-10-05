@@ -472,6 +472,72 @@ the new branch and boots.
 
 ## Phase 5 — bring up `apps/stdapps/*` on real hardware
 
+**Status: in progress — pomodoro running as the boot app, with real bugs
+found and fixed along the way, plus a first shared design system.**
+
+Switched the boot app from `info` to `pomodoro` and hit two more
+previously-latent bugs, same pattern as Phase 4 (never exercised on real
+hardware before):
+- `kernel/scheduler_esp32.c`'s `task_create()` never enforced a minimum
+  stack size the way `kernel/scheduler.c`'s fiber version does -
+  `pomodoro_app.c`'s worker task passes `stack_size=0` (relying on that
+  floor), which silently failed `xTaskCreate()` on ESP32 (0-word stack
+  depth) - the countdown never moved. Fixed by enforcing the same
+  `HOST_STACK_MIN_BYTES` floor.
+- `apps/app_framework.h`'s ESP32 display singleton (`g_esp32_display`,
+  Phase 4's earlier fix) is still a per-translation-unit `static` - a
+  stdapp calling `app_display_text_color()`/etc *directly* (bypassing
+  the `app_ui_*` wrappers, which go through `app_ui.c`'s own
+  already-initialized copy) gets its *own* never-initialized `NULL`
+  copy and silently no-ops forever. `pomodoro_app.c`'s big countdown
+  number did exactly this. Fixed properly this time: every ESP32
+  `app_display_*` function now calls a lazy `esp32_get_display()`
+  helper instead of touching the file-scope static directly, so any
+  translation unit self-initializes on first use rather than depending
+  on another file having called `app_display_init()` first.
+
+Also, based on hands-on hardware feedback: `pomodoro_app.c`'s original
+layout had never been visually checked on a real screen - elements
+overlapped (a status line drawn at a hardcoded `y=3` nearly on top of
+the countdown number at `y=0`), redrew the *entire* content area on
+every change (visible as a flash on a real panel with no double
+buffer, even after gating redraws to once/sec), and used a plain,
+one-shot countdown with no concept of a work/rest cycle. Now: a real
+15-minute-work / 5-minute-rest loop that auto-advances, a two-zone
+layout (colored phase panel + big MM:SS with a "LEFT"/"PAUSED" caption,
+modeled after a real pomodoro timer's own display per explicit design
+feedback), and per-element redraw (only the specific rect that changed,
+not the whole content area) to avoid the flash.
+
+**First shared design system**: `apps/ui/components/theme.h` - color and
+spacing tokens (`ARDUBOT_COLOR_*`, `ARDUBOT_SPACE_*`,
+`ARDUBOT_TYPE_SCALE_*`) every `app_ui_t`-based app should use instead of
+inventing its own RGB565 literals, so the whole app suite reads as one
+consistent design. `apps/app_ui.c`'s title/help bar colors and
+`info_app.c`/`pomodoro_app.c`/`counter_app.c`'s own colors now all pull
+from this one file.
+
+**Reusable components**, also in `apps/app_ui.c` (declared in
+`app_ui.h`), built from the layout patterns `pomodoro_app.c`/
+`counter_app.c` each independently hand-rolled before this existed:
+`app_ui_big_text()` (a centered stat number/word at an arbitrary scale -
+`app_ui_text_color()` is always the app's fixed body scale, too small
+for a headline), `app_ui_bar()` (left-to-right depleting/filling bar),
+`app_ui_bar_centered()` (a signed-value gauge growing from a center
+tick), and `app_ui_panel()` (a solid-color box with a centered label -
+e.g. pomodoro's "WORK"/"REST" block). All take content-relative x (like
+`app_ui_rect_color()` already does for y) and handle the
+`content_x`/`content_y` offset internally, so callers stop needing to
+add it by hand. `counter_app.c` and `pomodoro_app.c` are now built from
+these instead of their own inline layout math.
+
+**Not yet done**: every other existing stdapp (stopwatch/pong/shell/
+settings/etc.) still has its own pre-existing styling, untouched by this
+pass - "the whole OS has a unified UI" needs each of those migrated to
+`theme.h`'s tokens and `app_ui.c`'s components too, not just the three
+apps this session happened to touch. Do that as a deliberate follow-up
+pass across `apps/stdapps/*`, not assumed-done from this phase.
+
 **Goal:** the actual payoff — `launcher`, `counter`, `pomodoro`,
 `taskmgr`, `pong` running for real, via the real kernel, on the physical
 board.

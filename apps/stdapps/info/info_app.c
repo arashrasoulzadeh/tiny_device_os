@@ -1,6 +1,7 @@
 #include "app_framework.h"
 #include "app_kit.h"
 #include "device_info.h"
+#include "theme.h"
 
 extern const app_icon_t info_app_icon;
 
@@ -53,7 +54,8 @@ static void redraw_uptime_line(uint32_t up_s, uint32_t installed_apps) {
     /* Clear just this row's rect, not the whole screen (see on_init's
      * comment) - full row width so a shorter new value can't leave a
      * trailing fragment of a longer old one behind. */
-    app_ui_rect_color(&g_ui, g_ui.ui.content_x, row_y, g_ui.ui.content_w, row_h, 0, 0x0000);
+    app_ui_rect_color(&g_ui, g_ui.ui.content_x, row_y, g_ui.ui.content_w, row_h, 0,
+                      ARDUBOT_COLOR_BG);
     app_ui_linef(&g_ui, 2, "Up:%us Apps:%u", (unsigned)up_s, (unsigned)installed_apps);
     app_display_flush(&g_ui.ctx.display); /* app_ui_end_frame()'s job - needed on sim too */
 }

@@ -88,6 +88,18 @@ void app_ui_rect(app_ui_t* app, int x, int y, int w, int h, bool fill);
 void app_ui_pixel_color(app_ui_t* app, int x, int y, uint16_t rgb565);
 void app_ui_rect_color(app_ui_t* app, int x, int y, int w, int h, int radius, uint16_t rgb565);
 
+/* Reusable components (apps/app_ui.c) - every app_ui_t-based stdapp
+ * (not games) should compose from these instead of re-deriving the
+ * same layout/content-offset math per app. See apps/app_ui.c's own
+ * comment above their definitions for the full rationale. */
+void app_ui_big_text(app_ui_t* app, int y, const char* text, int scale, uint16_t rgb565);
+void app_ui_bar(app_ui_t* app, int y, int h, int fill_w, uint16_t track_color,
+                uint16_t fill_color);
+void app_ui_bar_centered(app_ui_t* app, int y, int h, int fill_px_signed, uint16_t track_color,
+                         uint16_t fill_color, uint16_t tick_color);
+void app_ui_panel(app_ui_t* app, int x, int y, int w, int h, const char* label, int label_scale,
+                  uint16_t bg_color, uint16_t text_color);
+
 /* Row-based text: row 0 is the top content line, row 1 the next, etc. -
  * the row height always matches app->ui.text_scale, so apps never hardcode
  * a *_scale pixel offset themselves (that was a recurring bug: every stdapp
