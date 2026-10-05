@@ -57,6 +57,8 @@ static void on_init(void* app) {
  * mockup. No per-task CPU% here: unlike FreeRTOS this cooperative
  * scheduler doesn't track a per-task runtime counter, so a CPU% column
  * would have to be fabricated — shown instead: name, state, priority. */
+#define TASKMGR_MAX_VISIBLE_ROWS 8
+
 static void on_frame(void* app) {
     (void)app;
     int max_slots = 0;
@@ -78,6 +80,9 @@ static void on_frame(void* app) {
     if (visible_rows < 1) {
         visible_rows = 1;
     }
+    if (visible_rows > TASKMGR_MAX_VISIBLE_ROWS) {
+        visible_rows = TASKMGR_MAX_VISIBLE_ROWS;
+    }
     if (g_scroll > active_count - visible_rows) {
         g_scroll = active_count - visible_rows;
     }
@@ -85,13 +90,21 @@ static void on_frame(void* app) {
         g_scroll = 0;
     }
 
-    app_ui_begin_frame(&g_ui);
-    app_ui_linef(&g_ui, 0, "Tasks:%d Tick:%lu", active_count,
-                (unsigned long)scheduler_get_tick_count());
-    app_ui_line(&g_ui, 1, "NAME      ST P");
-
+    /* Build the screen's text content first and only actually redraw
+     * (full clear + redraw) if it differs from what's already on
+     * screen - this ran unthrottled at this app's fps regardless of
+     * whether anything had changed, which was visible as a flash on a
+     * real panel with no double buffer (confirmed on hardware,
+     * RISCV_TODO.md Phase 4/5 - same root cause info_app.c/
+     * pomodoro_app.c already hit). Showing uptime in whole seconds
+     * instead of the raw millisecond tick count also stops the header
+     * line itself from appearing to change on every single poll. */
+    char header[32];
+    char rows[TASKMGR_MAX_VISIBLE_ROWS][24];
+    int shown = 0;
+    snprintf(header, sizeof(header), "Tasks:%d Up:%lus", active_count,
+            (unsigned long)(scheduler_get_tick_count() / 1000));
     {
-        int shown = 0;
         int skipped = 0;
         for (i = 0; i < max_slots && shown < visible_rows; i++) {
             if (slots[i].name[0] == '\0') {
@@ -101,14 +114,41 @@ static void on_frame(void* app) {
                 skipped++;
                 continue;
             }
-            char line[24];
-            snprintf(line, sizeof(line), "%-9.9s %c %c", slots[i].name,
+            snprintf(rows[shown], sizeof(rows[shown]), "%-9.9s %c %c", slots[i].name,
                      task_state_char(slots[i].state), task_prio_char(slots[i].priority));
-            app_ui_line(&g_ui, header_rows + shown, line);
             shown++;
         }
     }
 
+    static char last_header[32];
+    static char last_rows[TASKMGR_MAX_VISIBLE_ROWS][24];
+    static int last_shown = -1;
+    bool changed = (shown != last_shown) || strcmp(header, last_header) != 0;
+    if (!changed) {
+        for (i = 0; i < shown; i++) {
+            if (strcmp(rows[i], last_rows[i]) != 0) {
+                changed = true;
+                break;
+            }
+        }
+    }
+    if (!changed) {
+        return;
+    }
+    strncpy(last_header, header, sizeof(last_header) - 1);
+    last_header[sizeof(last_header) - 1] = '\0';
+    for (i = 0; i < shown; i++) {
+        strncpy(last_rows[i], rows[i], sizeof(last_rows[i]) - 1);
+        last_rows[i][sizeof(last_rows[i]) - 1] = '\0';
+    }
+    last_shown = shown;
+
+    app_ui_begin_frame(&g_ui);
+    app_ui_line(&g_ui, 0, header);
+    app_ui_line(&g_ui, 1, "NAME      ST P");
+    for (i = 0; i < shown; i++) {
+        app_ui_line(&g_ui, header_rows + i, rows[i]);
+    }
     app_ui_end_frame(&g_ui);
 }
 
