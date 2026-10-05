@@ -375,7 +375,10 @@ void app_kit_run(const app_desc_t* desc) {
     ctx.dirty = true;
     ctx.running = true;
 
-    uint32_t fps = desc->fps > 0 ? desc->fps : 30;
+    /* ARDUBOT_DEFAULT_FPS (apps/ui/components/display.h) is the device-
+     * configured default (device_config_esp32c6.yaml's app_kit.default_fps)
+     * - an app's own manifest .fps, when set, always wins over it. */
+    uint32_t fps = desc->fps > 0 ? desc->fps : ARDUBOT_DEFAULT_FPS;
 
     if (app_display_init(&ctx.display, "/dev/display0") != 0) {
         APP_ERROR("app_kit: display init failed for %s", desc->name ? desc->name : "?");

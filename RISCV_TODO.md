@@ -376,6 +376,71 @@ firmware built in Phase 2 (not from `main.cpp`).
 
 ## Phase 4 — wire `apps/app_framework.h` to the real HAL
 
+**Status: done — a real stdapp (info) runs on physical hardware through
+the full app framework, confirmed visually.**
+
+Scope grew well beyond "wire the display calls": the full `apps` library
+(`app.c`, `app_kit.c`, `app_ui.c`, `canvas.c`, `syscall.c`, `stdlog.c`,
+`input.c`, `ardubot_keys.c`, `device_info.c`) plus `sim/sim_gpio.c`
+(despite its name, a portable pin/key-state table with no simulator
+dependency) and the real `hal_gpio_esp32.c` driver had never been
+compiled for ESP32 before — getting there surfaced and fixed several
+real, previously-latent bugs, none specific to this phase's original
+plan:
+- `hal/include/hal_power.h` defined its own mirror `esp_sleep_wakeup_cause_t`
+  enum that collided with ESP-IDF's real `esp_sleep.h` the first time both
+  were ever compiled together. Guarded behind `ARDUBOT_TARGET_ESP32`.
+- `hal/arch/esp32/hal_gpio_esp32.c`'s ISR handler passed the wrong type to
+  the callback (`gpio` instead of `gpio->pin`) and never called
+  `gpio_install_isr_service()` before its first `gpio_isr_handler_add()`.
+- `apps/stdlog.c` had a `Serial.begin()` call inside a plain `.c` file
+  (self-labeled "pseudo-code" in its own comment) that could never have
+  compiled - dead, unused, removed.
+- `apps/app_framework.h`'s `app_button_init()` passed virtual pin-slot
+  numbers (from `apps/app_kit.c`'s sequential `g_next_pin`, starting at
+  20) straight into real `hal_gpio_open()`/`gpio_config()` - on this
+  board, slots 21/22 are the ST7789's real RST/BL pins, so binding a few
+  keys reconfigured the display driver's own control pins out from under
+  it and hung/faulted. Fixed by skipping the (already functionally inert
+  - it always passed a NULL callback) real-hardware GPIO path entirely
+  on ESP32; the real key-dispatch mechanism is `sim_gpio_handle_key()`,
+  driven by actual button polling in `kernel_boot.cpp`.
+- `apps/app_framework.h`'s ESP32 display singleton (`g_esp32_display`)
+  was a header-scope `static`, so every `.c` file including the header
+  got its own independent copy and each one would separately
+  `hal_display_open()`+`init()` the same real SPI/GFX driver - fixed with
+  a true file-scope singleton inside `hal_display_esp32_arduino.cpp`
+  itself, idempotent regardless of how many per-TU copies call it.
+- `boards/esp32-c6-lcd/src_kernel/kernel_boot.cpp`'s `loop()` copied
+  `sim_main.c`'s "`dt==0` → tick once anyway" fallback without accounting
+  for the fact that Arduino's `loop()` (unlike `sim_main.c`'s SDL loop,
+  paced to ~1ms/iteration by its own `sim_time_sleep_ms(1)`) has no
+  pacing at all and runs far faster than 1ms/iteration - ticked the
+  scheduler roughly once per `loop()` iteration instead of once per real
+  millisecond, racing "uptime" far ahead of wall-clock time (~100x).
+  Fixed by skipping the tick entirely when no real time has elapsed.
+- `apps/app_ui.h`'s `content_x`/`content_w` (left/right margin) were
+  hardcoded 0/full-width - invisible in the sim's SDL window, visibly
+  flush against a real panel's bezel. Made configurable
+  (`ARDUBOT_UI_PADDING`, `device_config_esp32c6.yaml`'s new `app_kit:`
+  block) and applied to the title/help bar text too (the bar
+  *backgrounds* intentionally still span full width).
+- `apps/app_kit.c`'s default app frame rate was a hardcoded `30` -  made
+  configurable (`ARDUBOT_DEFAULT_FPS`) the same way; an app's own
+  manifest `.fps` always wins when set.
+- `apps/stdapps/info/info_app.c` redrew (full `app_ui_begin_frame()`
+  clear + redraw) every single call at its frame rate even though
+  `app_is_dirty()` never actually gets cleared anywhere in this codebase
+  (`app_clear_dirty()` exists, nothing calls it) - visible as a flash on
+  a real panel with no double buffer. Fixed at the app level: the static
+  parts (title bar, the two lines that never change) draw once in
+  `on_init()`; `on_frame()` now only repaints the one line that actually
+  changes (uptime seconds), and only when it actually changes.
+
+None of these would have been caught without actually compiling and
+running on real hardware - sim never exercised any of these code paths
+for real GPIO/display/timing behavior.
+
 **Goal:** `apps/stdapps/*` can render on real hardware without any
 per-app changes — this is the layer that currently hardcodes
 `ssd1306_model.c`.

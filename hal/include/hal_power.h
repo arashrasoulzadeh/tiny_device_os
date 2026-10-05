@@ -29,6 +29,15 @@ int hal_power_remove_gpio_wake(hal_power_t* power, int gpio_num);
 int hal_power_add_rtc_wake(hal_power_t* power, uint32_t timeout_ms);
 int hal_power_add_uart_wake(hal_power_t* power, int uart_num);
 
+#if defined(ARDUBOT_TARGET_ESP32)
+/* On real ESP32 hardware, esp_sleep.h (pulled in transitively via
+ * FreeRTOS/esp_intr_alloc.h etc.) already defines esp_sleep_wakeup_cause_t
+ * and every ESP_SLEEP_WAKEUP_* value below - redefining them here collided
+ * the first time this header and a real ESP-IDF build coexisted in one
+ * translation unit (RISCV_TODO.md Phase 4). Use the real one instead of a
+ * second, incompatible mirror of it. */
+#include <esp_sleep.h>
+#else
 typedef enum {
     ESP_SLEEP_WAKEUP_UNDEFINED = 0,
     ESP_SLEEP_WAKEUP_TIMER,
@@ -42,6 +51,7 @@ typedef enum {
     ESP_SLEEP_WAKEUP_WIFI,
     ESP_SLEEP_WAKEUP_ALL,
 } esp_sleep_wakeup_cause_t;
+#endif
 
 esp_sleep_wakeup_cause_t hal_power_get_wake_cause(hal_power_t* power);
 const char* hal_power_get_wake_cause_str(esp_sleep_wakeup_cause_t cause);

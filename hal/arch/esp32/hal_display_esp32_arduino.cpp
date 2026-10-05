@@ -47,7 +47,23 @@ static uint16_t to_rgb565(uint32_t color, hal_display_color_format_t fmt) {
 
 extern "C" {
 
+/* Real singleton, file-scope (not the header's per-translation-unit
+ * static) - apps/app_framework.h's app_display_init() wrapper is a
+ * `static inline` function, so every .c file that includes it (app_kit.c,
+ * app_ui.c, canvas.c, each stdapp, ...) gets its OWN copy of that
+ * header's "static hal_display_t* g_esp32_display" variable. Without a
+ * true single source of truth down here, each of those copies would
+ * independently hal_display_open()+init() its own Arduino_ESP32SPI/
+ * Arduino_ST7789 pair against the same physical SPI pins - confirmed on
+ * hardware (RISCV_TODO.md Phase 4) as periman "duplicate"/"No deinit
+ * function" errors followed by a watchdog reset. */
+static hal_display_t* g_singleton = NULL;
+
 hal_display_t* hal_display_open(const char* path, const hal_display_config_t* config) {
+    if (g_singleton) {
+        return g_singleton;
+    }
+
     hal_display_t* d = new hal_display_t();
     memset(d, 0, sizeof(*d));
     (void)path;
@@ -66,18 +82,21 @@ hal_display_t* hal_display_open(const char* path, const hal_display_config_t* co
         d->config.pin_rst = ESP32C6_LCD_RST_GPIO;
         d->config.pin_bl = ESP32C6_LCD_BL_GPIO;
     }
+    g_singleton = d;
     return d;
 }
 
 void hal_display_close(hal_display_t* display) {
-    if (!display) return;
+    if (!display || display != g_singleton) return;
     delete display->gfx;
     delete display->bus;
     delete display;
+    g_singleton = NULL;
 }
 
 int hal_display_init(hal_display_t* display) {
-    if (!display || display->initialized) return -1;
+    if (!display) return -1;
+    if (display->initialized) return 0; /* already up - every caller's copy shares this one */
 
     display->bus = new Arduino_ESP32SPI(ESP32C6_LCD_DC_GPIO, ESP32C6_LCD_CS_GPIO,
                                          ESP32C6_LCD_SCLK_GPIO, ESP32C6_LCD_MOSI_GPIO,

@@ -22,22 +22,44 @@ extern "C" {
 #include "os_time.h"
 #include "host_stack.h"
 #include "hal_display.h"
+#include "app.h"
+#include "app_types.h"
+#include "sim_gpio.h"
+#include "ardubot_keys.h"
 }
 
-// RISCV_TODO.md Phase 3: real ST7789 HAL driver smoke test. Draws a
-// fixed test pattern once at boot through hal_display_* (not through
-// apps/app_framework.h - wiring that up is Phase 4) to visually confirm
-// the real HAL driver (hal/arch/esp32/hal_display_esp32_arduino.cpp)
-// actually pushes pixels to the physical panel with correct
-// orientation/colors.
-static void draw_phase3_test_pattern(hal_display_t* d) {
-    uint16_t w, h;
-    hal_display_get_size(d, &w, &h);
-    hal_display_fill_rect(d, 0, 0, w, h, 0x0000);                          // black bg
-    hal_display_fill_rect(d, 0, 0, w / 3, h, 0xF800);                      // red
-    hal_display_fill_rect(d, w / 3, 0, w / 3, h, 0x07E0);                  // green
-    hal_display_fill_rect(d, 2 * (w / 3), 0, w - 2 * (w / 3), h, 0x001F);  // blue
-    hal_display_draw_rect(d, 2, 2, w - 4, h - 4, 0xFFFF);                  // white border
+// RISCV_TODO.md Phase 4: boots one real app (info) through the real app
+// framework (apps/app_kit.c's app_kit_run -> on_init/on_frame loop), not
+// a hand-drawn test pattern. info_app_manifest is populated by
+// APP_DEFINE's constructor-attribute registration before setup() runs -
+// same extern-declare-and-use pattern sim/sim_main.c already relies on.
+extern app_manifest_t* info_app_manifest;
+
+// Bridges the board's two real buttons (GPIO18/19, same wiring as
+// device_config_esp32c6.yaml and boards/esp32-c6-lcd/src/main.cpp's
+// poll_buttons()) into sim_gpio's key-state table - apps/app_ui.c's key
+// bindings read key state via sim_gpio_read()/react to
+// sim_gpio_handle_key() edges, not via a real GPIO ISR callback (see
+// RISCV_TODO.md Phase 4 for why). UP -> SIM_KEY_UP, SELECT -> SIM_KEY_ENTER
+// (info_app.c binds SIM_KEY_ENTER to a refresh action).
+#define KERNEL_BOOT_BTN_UP_GPIO 18
+#define KERNEL_BOOT_BTN_SELECT_GPIO 19
+
+static void poll_real_buttons(void) {
+    static bool up_was_down = false;
+    static bool sel_was_down = false;
+
+    bool up_down = digitalRead(KERNEL_BOOT_BTN_UP_GPIO) == LOW;
+    bool sel_down = digitalRead(KERNEL_BOOT_BTN_SELECT_GPIO) == LOW;
+
+    if (up_down != up_was_down) {
+        sim_gpio_handle_key(SIM_KEY_UP, up_down);
+        up_was_down = up_down;
+    }
+    if (sel_down != sel_was_down) {
+        sim_gpio_handle_key(SIM_KEY_ENTER, sel_down);
+        sel_was_down = sel_down;
+    }
 }
 
 static task_tcb_t* g_demo_task_tcb;
@@ -58,13 +80,9 @@ void setup() {
     delay(500);
     Serial.println("[kernel_boot] ArdubotOS real kernel starting (Phase 2 skeleton)");
 
-    hal_display_t* display = hal_display_open("lcd0", NULL);
-    if (!display || hal_display_init(display) != 0) {
-        Serial.println("[kernel_boot] hal_display_init failed");
-    } else {
-        Serial.println("[kernel_boot] hal_display_init ok - drawing Phase 3 test pattern");
-        draw_phase3_test_pattern(display);
-    }
+    pinMode(KERNEL_BOOT_BTN_UP_GPIO, INPUT_PULLUP);
+    pinMode(KERNEL_BOOT_BTN_SELECT_GPIO, INPUT_PULLUP);
+    sim_gpio_init();
 
     if (scheduler_init() != 0) {
         Serial.println("[kernel_boot] scheduler_init failed");
@@ -82,19 +100,52 @@ void setup() {
         return;
     }
 
-    Serial.println("[kernel_boot] scheduler started - boot banner printed, entering loop()");
+    Serial.println("[kernel_boot] scheduler started - boot banner printed");
+
+    // RISCV_TODO.md Phase 4: boot one real app for real, through the real
+    // app framework - this is the actual proof (not Phase 3's standalone
+    // hal_display_* test pattern, which would otherwise double-init the
+    // display driver alongside app_kit_run's own app_display_init()).
+    if (!info_app_manifest) {
+        Serial.println("[kernel_boot] info_app_manifest not registered (APP_DEFINE "
+                        "constructor didn't run?)");
+        return;
+    }
+    if (app_install_manifest(info_app_manifest, "info") != 0) {
+        Serial.println("[kernel_boot] app_install_manifest(info) failed");
+        return;
+    }
+    if (app_start("info") != 0) {
+        Serial.println("[kernel_boot] app_start(info) failed");
+        return;
+    }
+    Serial.println("[kernel_boot] info app started - entering loop()");
 }
 
 void loop() {
+    poll_real_buttons();
+
     static uint32_t last_tick_ms = 0;
     uint32_t now_ms = millis();
     uint32_t dt = now_ms - last_tick_ms;
-    last_tick_ms = now_ms;
+
+    /* Unlike sim_main.c's SDL loop (paced to ~1ms/iteration by its own
+     * sim_time_sleep_ms(1)), Arduino's loop() here has no such pacing and
+     * runs far faster than 1ms per iteration whenever there's little
+     * work to do - dt is 0 on nearly every call. Forcing dt=1 and
+     * ticking anyway (sim_main.c's fallback, copied here without this
+     * difference in mind) made the scheduler tick roughly once per
+     * loop() iteration instead of once per real millisecond, racing
+     * "uptime" far ahead of wall-clock time (confirmed on hardware,
+     * RISCV_TODO.md Phase 4: ~100x). Skip ticking entirely when no real
+     * time has actually elapsed. */
     if (dt == 0) {
-        dt = 1;
-    } else if (dt > 50) {
-        dt = 50; /* clamp after any stall, same as sim_main.c */
+        return;
     }
+    if (dt > 50) {
+        dt = 50; /* clamp after any stall */
+    }
+    last_tick_ms = now_ms;
 
     time_set_now_us((time_us_t)now_ms * 1000);
 

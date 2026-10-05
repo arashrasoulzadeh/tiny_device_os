@@ -45,8 +45,7 @@ static gpio_int_type_t hal_to_esp_irq(hal_gpio_irq_t trigger) {
 static void IRAM_ATTR gpio_isr_handler(void* arg) {
     hal_gpio_t* gpio = (hal_gpio_t*)arg;
     if (gpio->irq_cb && gpio->irq_enabled) {
-        bool level = gpio_get_level(gpio->pin);
-        gpio->irq_cb(gpio, gpio->irq_arg);
+        gpio->irq_cb(gpio->pin, gpio->irq_arg);
     }
 }
 
@@ -130,6 +129,21 @@ int hal_gpio_set_irq(hal_gpio_t* gpio, hal_gpio_irq_t trigger, hal_gpio_callback
     }
     
     if (esp_trigger != GPIO_INTR_DISABLE) {
+        /* gpio_isr_handler_add() needs this called once, globally, before
+         * its first use - never done anywhere in this file (confirmed on
+         * hardware, RISCV_TODO.md Phase 4: "GPIO isr service is not
+         * installed"). ESP_OK vs. ESP_ERR_INVALID_STATE (already
+         * installed) are the only two outcomes that matter here; either
+         * is fine to proceed on. */
+        static bool isr_service_installed = false;
+        if (!isr_service_installed) {
+            esp_err_t install_err = gpio_install_isr_service(0);
+            if (install_err != ESP_OK && install_err != ESP_ERR_INVALID_STATE) {
+                return -1;
+            }
+            isr_service_installed = true;
+        }
+
         esp_err_t err = gpio_isr_handler_add(gpio->pin, gpio_isr_handler, gpio);
         if (err != ESP_OK) return -1;
         err = gpio_set_intr_type(gpio->pin, esp_trigger);

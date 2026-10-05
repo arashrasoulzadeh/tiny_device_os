@@ -127,13 +127,3 @@ void stdlog_flush(void) {
     }
 }
 
-// Arduino/Serial implementation for hardware
-#ifdef ARDUINO
-void stdlog_init_serial(unsigned long baud) {
-    Serial.begin(baud);
-    while (!Serial) {
-        ; // Wait for serial port to connect
-    }
-    g_stdlog_config.output = (FILE*)&Serial; // Note: This is pseudo-code, would need adaptation for Arduino
-}
-#endif

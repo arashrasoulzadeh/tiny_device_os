@@ -211,18 +211,22 @@ void app_ui_begin_frame(app_ui_t* app) {
          * defaulted to false (see app_ui_config_ui()'s comment). With a
          * real background/foreground color pair this actually reads. */
         int bar_h = 8 * app->ui.text_scale;
+        /* The bar background intentionally spans the full width (a
+         * colored bar with a visible side margin looks like a mistake,
+         * not padding) - only the title text itself gets the same left
+         * margin as body content, for visual consistency with it. */
         app_display_fill_rect_color(&app->ctx.display, 0, 0, APP_DISPLAY_WIDTH, bar_h, 0,
                                     APP_UI_COLOR_TITLE_BG);
-        app_display_text_color(&app->ctx.display, 2, 0, app->ui.title, app->ui.text_scale,
-                               APP_UI_COLOR_TITLE_TEXT);
+        app_display_text_color(&app->ctx.display, 2 + app->ui.content_x, 0, app->ui.title,
+                               app->ui.text_scale, APP_UI_COLOR_TITLE_TEXT);
     }
 }
 
 void app_ui_end_frame(app_ui_t* app) {
     if (app->ui.mode == APP_UI_MODE_UI && app->ui.show_help_bar && app->ui.help_text[0]) {
         int help_y = APP_DISPLAY_HEIGHT - 8 * app->ui.text_scale;
-        app_display_text_color(&app->ctx.display, 0, help_y, app->ui.help_text, app->ui.text_scale,
-                               APP_UI_COLOR_HELP);
+        app_display_text_color(&app->ctx.display, app->ui.content_x, help_y, app->ui.help_text,
+                               app->ui.text_scale, APP_UI_COLOR_HELP);
     }
     app_display_flush(&app->ctx.display);
 }

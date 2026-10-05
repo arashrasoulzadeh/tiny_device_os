@@ -47,6 +47,26 @@ lcd:
   rst: GPIO21
   bl: GPIO22
 
+# Real-kernel app framework (RISCV_TODO.md Phase 4+, [env:esp32-c6-kernel])
+# config - NOT the same "padding" as lcd.padding above, which is the OLD
+# main.cpp/gfx_mono.h sketch's own canvas-centering math
+# (width*scale + 2*padding == physical size) and has nothing to do with
+# apps/app_ui.c. This section's values aren't run through the yaml->
+# generated-header pipeline yet - platformio.ini's [env:esp32-c6-kernel]
+# build_flags mirror them manually (same pattern it already uses for
+# APP_DISPLAY_WIDTH/HEIGHT below) - change both together.
+app_kit:
+  # Left/right content margin in pixels (apps/app_ui.h's
+  # app_ui_config_ui() content_x/content_w). 0 means text/shapes start
+  # flush against the panel edge - fine in the sim's SDL window, visibly
+  # cramped on a real physical bezel.
+  ui_padding: 8
+  # Default app frame rate (Hz) for any app whose own manifest doesn't
+  # set .fps (apps/app_kit.c's app_kit_run) - an app can always ask for
+  # a higher (or lower) rate itself via APP_DEFINE's .fps field, which
+  # always wins over this default.
+  default_fps: 10
+
 inputs:
   buttons:
     - name: up
