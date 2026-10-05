@@ -62,6 +62,27 @@ void host_call_on_stack(void* stack_top, void (*fn)(void*), void* arg) {
     abort();
 }
 
+#elif defined(__riscv)
+/* ESP32-C6 (RV32IMAC) and other RISC-V targets: switch sp (x2), pass arg
+ * in a0 (x10) per the standard RISC-V calling convention, call via jalr,
+ * never returns. UNVERIFIED ON HARDWARE OR QEMU — no RISC-V cross-GCC/QEMU
+ * toolchain was available in the environment this was written in (see
+ * RISCV_TODO.md Phase 1). Validate with a real RISC-V build + the existing
+ * tests/unit/test_host_stack.c (already architecture-generic) before
+ * relying on this for anything beyond a build-time smoke test. */
+void host_call_on_stack(void* stack_top, void (*fn)(void*), void* arg) {
+    uintptr_t sp = ((uintptr_t)stack_top) & ~(uintptr_t)15u;
+    __asm__ __volatile__(
+        "mv sp, %0\n\t"
+        "mv a0, %2\n\t"
+        "jalr %1\n\t"
+        :
+        : "r"(sp), "r"(fn), "r"(arg)
+        : "a0", "a1", "a2", "a3", "a4", "a5", "a6", "a7",
+          "t0", "t1", "t2", "t3", "t4", "t5", "t6", "memory");
+    abort();
+}
+
 #else
 #error "host_call_on_stack: unsupported host architecture"
 #endif
