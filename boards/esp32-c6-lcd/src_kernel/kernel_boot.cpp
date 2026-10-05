@@ -21,6 +21,23 @@ extern "C" {
 #include "scheduler.h"
 #include "os_time.h"
 #include "host_stack.h"
+#include "hal_display.h"
+}
+
+// RISCV_TODO.md Phase 3: real ST7789 HAL driver smoke test. Draws a
+// fixed test pattern once at boot through hal_display_* (not through
+// apps/app_framework.h - wiring that up is Phase 4) to visually confirm
+// the real HAL driver (hal/arch/esp32/hal_display_esp32_arduino.cpp)
+// actually pushes pixels to the physical panel with correct
+// orientation/colors.
+static void draw_phase3_test_pattern(hal_display_t* d) {
+    uint16_t w, h;
+    hal_display_get_size(d, &w, &h);
+    hal_display_fill_rect(d, 0, 0, w, h, 0x0000);                          // black bg
+    hal_display_fill_rect(d, 0, 0, w / 3, h, 0xF800);                      // red
+    hal_display_fill_rect(d, w / 3, 0, w / 3, h, 0x07E0);                  // green
+    hal_display_fill_rect(d, 2 * (w / 3), 0, w - 2 * (w / 3), h, 0x001F);  // blue
+    hal_display_draw_rect(d, 2, 2, w - 4, h - 4, 0xFFFF);                  // white border
 }
 
 static task_tcb_t* g_demo_task_tcb;
@@ -40,6 +57,14 @@ void setup() {
     Serial.begin(115200);
     delay(500);
     Serial.println("[kernel_boot] ArdubotOS real kernel starting (Phase 2 skeleton)");
+
+    hal_display_t* display = hal_display_open("lcd0", NULL);
+    if (!display || hal_display_init(display) != 0) {
+        Serial.println("[kernel_boot] hal_display_init failed");
+    } else {
+        Serial.println("[kernel_boot] hal_display_init ok - drawing Phase 3 test pattern");
+        draw_phase3_test_pattern(display);
+    }
 
     if (scheduler_init() != 0) {
         Serial.println("[kernel_boot] scheduler_init failed");

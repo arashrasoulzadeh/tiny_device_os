@@ -314,6 +314,31 @@ the expected boot banner over serial. No display output expected yet.
 
 ## Phase 3 — `hal_display_esp32.c` real ST7789 driver
 
+**Status: done — confirmed visually on the physical panel.**
+
+Implemented as `hal/arch/esp32/hal_display_esp32_arduino.cpp` (new file)
+rather than fixing the raw-ESP-IDF `hal_display_esp32.c` stub this
+section originally planned around: Phase 0/2 already settled on reusing
+PlatformIO's proven Arduino framework instead of a from-scratch
+ESP-IDF/linker path, and Arduino_GFX (already a `lib_dep` of
+`[env:esp32-c6]`, already proven correct for this exact panel by
+`gfx_mono.h`/`main.cpp`) made hand-rolling raw SPI/ST7789 timing a second
+time pure risk with no benefit. `hal_display_esp32.c` (the original stub)
+is left in the tree untouched, undocumented as dead weight — it's a
+reasonable starting point if a future from-scratch/espidf path is ever
+actually taken, so it stays rather than being deleted.
+
+Reused the exact rotation/offset values proven in `gfx_mono.h`
+(`Arduino_ST7789(..., 1 /*rotation*/, true /*IPS*/, 172, 320, 34, 0, 34,
+0)`) and this board's pins from `device_config_esp32c6.yaml`
+(GPIO6/7/14/15/21/22). `kernel_boot.cpp` was extended with a
+`draw_phase3_test_pattern()` call in `setup()` — red/green/blue vertical
+stripes with a white border, drawn through `hal_display_*` directly (not
+through `apps/app_framework.h` yet - that's Phase 4). Flashed, and the
+user confirmed visually: the stripes and border render correctly on the
+physical screen, correctly oriented, right after the "hal_display_init
+ok" serial line and before the kernel scheduler's own boot banner.
+
 **Goal:** real pixels on the physical panel through the HAL, not the
 simulator's `ssd1306_model`.
 
