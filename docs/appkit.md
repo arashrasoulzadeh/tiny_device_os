@@ -2,8 +2,9 @@
 
 New screens start with **`#include "app_helper.h"`** and `APP_HELPER()`. Up, Down,
 Left, Right, Select, and Escape are already bound. Pass `.keys`, `.live`,
-`.game`, `.on_tick`, or `.on_ready` when a screen needs a different map, a
-frame every tick, no chrome, a per-frame step, or setup after the UI exists.
+`.game`, `.on_tick`, `.on_ready`, or `.state` / `.state_size` when a screen needs
+a different map, a frame every tick, no chrome, a per-frame step, setup after
+the UI exists, or a session restored on start and resume and stored on quit.
 The short example is in [`docs/apps.md`](apps.md).
 
 **`#include "app_kit.h"`** is the lower-level umbrella (`APP_DEFINE`, open/exit)

@@ -63,6 +63,7 @@ static void on_ready(app_helper_t* app) {
     g_button = ui_button_create(g_ctx, "TAP", on_tap);
     ui_widget_add_child((ui_widget_t*)row, g_button);
     ui_widget_focus(g_button);
+    update_count_label();
 
     ui_layout(g_ctx);
     APP_INFO("widgets ready");
@@ -91,5 +92,6 @@ static const app_ui_key_def_t widgets_keys[] = {
 APP_HELPER(widgets_app, "widgets", .version = "1.0.0", .author = "ArdubotOS", .title = "WIDGETS",
            .help = "Sel:tap  Bk:back",
            .description = "Widget framework demo (flex layout, label/button)",
-           .icon = &widgets_app_icon, .fps = 30, .live = true, .keys = widgets_keys,
+           .icon = &widgets_app_icon, .fps = 30, .live = true, .keys = widgets_keys, .state = &g_count,
+           .state_size = sizeof(g_count),
            .on_ready = on_ready, .on_draw = on_draw, .on_cleanup = on_cleanup)

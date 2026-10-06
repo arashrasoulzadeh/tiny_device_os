@@ -36,6 +36,10 @@ APP_HELPER(counter_app, "counter",
 
 Up and the `1` key increment. Down, Left, and Right are bound the same way. Select and the `2` key decrement. Escape leaves. The screen redraws when an event arrives, when `app_helper_invalidate(app)` runs, or when `.live = true`. `.on_tick` runs every frame before that check. `.on_ready` runs after the UI and keys exist (start a worker there). `.game = true` drops the title and help bars. `.keys` replaces the default map with a file-scope `app_ui_key_def_t` array; a `NULL` user pointer is filled in with the helper. `app_fmt_clock`, `app_fit_text_scale`, `app_bar_fill_px`, `app_gauge_fill_px`, `app_level_color`, `app_helper_clock`, `app_helper_bar`, `app_helper_gauge`, `app_helper_panel`, `app_helper_labelf`, and `app_helper_center_text` cover the layout math apps used to copy.
 
+## App state
+
+Point `.state` at a plain struct and set `.state_size`. The helper loads that struct when the app starts and when it resumes, and stores it when the app quits (leaves for the launcher, or the task stops). `app_set_state()` / `app_get_state()` are the same store if you need to update it from a worker. The copy stays in RAM. A later storage backend can sit behind those two calls.
+
 ## Lower-level app
 
 ```c

@@ -166,8 +166,9 @@ Warnings are errors (`-Wall -Wextra -Wpedantic -Werror`). Unused parameters need
 
 Use **`app_helper.h`** / `APP_HELPER` for a new screen — see [`docs/apps.md`](apps.md)
 and `apps/stdapps/counter/counter_app.c`. Pass `.keys` for a custom map,
-`.on_ready` to start a worker, `.on_tick` for a per-frame step, and `.live`
-when the screen must repaint every tick. `app_kit.h` / `APP_DEFINE` is the
+`.on_ready` to start a worker, `.on_tick` for a per-frame step, `.live`
+when the screen must repaint every tick, and `.state` / `.state_size` for the
+session restored on start and resume and stored on quit. `app_kit.h` / `APP_DEFINE` is the
 lower-level path when those fields are not enough.
 
 1. Create `apps/stdapps/<name>/` and implement `on_event` / `on_draw` (and

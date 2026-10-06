@@ -9,25 +9,25 @@
 // --- State ---
 typedef struct {
     char path[128];
-    vfs_dirent_t* entries;
-    int count;
     int selected;
     int offset;
 } fileman_state_t;
 
 static fileman_state_t g_fm;
+static vfs_dirent_t* g_entries;
+static int g_count;
 static app_helper_t* g_app;
 
 // --- Helpers ---
 static void refresh_list(void) {
-    if (g_fm.entries) {
-        free(g_fm.entries);
+    if (g_entries) {
+        free(g_entries);
     }
 
     vfs_dir_t* dir = vfs_opendir(g_fm.path);
     if (!dir) {
-        g_fm.count = 0;
-        g_fm.entries = NULL;
+        g_count = 0;
+        g_entries = NULL;
         return;
     }
 
@@ -38,30 +38,30 @@ static void refresh_list(void) {
 
     dir = vfs_opendir(g_fm.path);
     if (!dir) {
-        g_fm.count = 0;
-        g_fm.entries = NULL;
+        g_count = 0;
+        g_entries = NULL;
         return;
     }
 
-    g_fm.entries = malloc(count * sizeof(vfs_dirent_t));
-    g_fm.count = 0;
+    g_entries = malloc(count * sizeof(vfs_dirent_t));
+    g_count = 0;
 
-    while (vfs_readdir(dir, &g_fm.entries[g_fm.count]) == 0) {
-        g_fm.count++;
+    while (vfs_readdir(dir, &g_entries[g_count]) == 0) {
+        g_count++;
     }
     vfs_closedir(dir);
 
-    for (int i = 0; i < g_fm.count - 1; i++) {
-        for (int j = i + 1; j < g_fm.count; j++) {
-            if (g_fm.entries[i].is_dir && !g_fm.entries[j].is_dir) continue;
-            if (!g_fm.entries[i].is_dir && g_fm.entries[j].is_dir) {
-                vfs_dirent_t tmp = g_fm.entries[i];
-                g_fm.entries[i] = g_fm.entries[j];
-                g_fm.entries[j] = tmp;
-            } else if (strcmp(g_fm.entries[i].name, g_fm.entries[j].name) > 0) {
-                vfs_dirent_t tmp = g_fm.entries[i];
-                g_fm.entries[i] = g_fm.entries[j];
-                g_fm.entries[j] = tmp;
+    for (int i = 0; i < g_count - 1; i++) {
+        for (int j = i + 1; j < g_count; j++) {
+            if (g_entries[i].is_dir && !g_entries[j].is_dir) continue;
+            if (!g_entries[i].is_dir && g_entries[j].is_dir) {
+                vfs_dirent_t tmp = g_entries[i];
+                g_entries[i] = g_entries[j];
+                g_entries[j] = tmp;
+            } else if (strcmp(g_entries[i].name, g_entries[j].name) > 0) {
+                vfs_dirent_t tmp = g_entries[i];
+                g_entries[i] = g_entries[j];
+                g_entries[j] = tmp;
             }
         }
     }
@@ -82,7 +82,7 @@ static void on_up(void* app, void* user) {
 
 static void on_down(void* app, void* user) {
     (void)user; (void)app;
-    if (g_fm.selected < g_fm.count - 1) {
+    if (g_fm.selected < g_count - 1) {
         g_fm.selected++;
         int scale = g_app->ui.ui.text_scale;
         int max_visible = (g_app->ui.ui.content_h - 18 * scale) / (10 * scale);
@@ -93,9 +93,9 @@ static void on_down(void* app, void* user) {
 
 static void on_select(void* app, void* user) {
     (void)user; (void)app;
-    if (g_fm.count == 0) return;
+    if (g_count == 0) return;
 
-    vfs_dirent_t* entry = &g_fm.entries[g_fm.selected];
+    vfs_dirent_t* entry = &g_entries[g_fm.selected];
     /* g_fm.path can be up to sizeof(g_fm.path)-1 chars and entry->name up
      * to VFS_NAME_MAX-1 - a 128-byte buffer can't always hold
      * "path" + "/" + "name" in the worst case (gcc's -Wformat-truncation
@@ -135,14 +135,27 @@ static void on_back(void* app, void* user) {
 }
 
 static void on_ready(app_helper_t* app) {
+    int selected;
+    int offset;
     g_app = app;
-    strncpy(g_fm.path, "/flash", sizeof(g_fm.path) - 1);
-    g_fm.path[sizeof(g_fm.path) - 1] = '\0';
-    g_fm.entries = NULL;
-    g_fm.count = 0;
-    g_fm.selected = 0;
-    g_fm.offset = 0;
+    if (!app_helper_has_state(app)) {
+        strncpy(g_fm.path, "/flash", sizeof(g_fm.path) - 1);
+        g_fm.path[sizeof(g_fm.path) - 1] = '\0';
+        g_fm.selected = 0;
+        g_fm.offset = 0;
+    }
+    selected = g_fm.selected;
+    offset = g_fm.offset;
+    g_entries = NULL;
+    g_count = 0;
     refresh_list();
+    if (app_helper_has_state(app)) {
+        if (selected >= g_count) {
+            selected = g_count > 0 ? g_count - 1 : 0;
+        }
+        g_fm.selected = selected;
+        g_fm.offset = offset;
+    }
     APP_INFO("File Manager ready - /flash");
 }
 
@@ -154,9 +167,9 @@ static void on_draw(app_helper_t* app) {
     app_ui_textf(&app->ui, 0, 0, "Path: %s", g_fm.path);
     app_ui_text(&app->ui, 0, 8 * scale, "----------------");
 
-    for (int i = g_fm.offset; i < g_fm.count && i < g_fm.offset + max_visible; i++) {
+    for (int i = g_fm.offset; i < g_count && i < g_fm.offset + max_visible; i++) {
         int y = 18 * scale + (i - g_fm.offset) * 10 * scale;
-        vfs_dirent_t* entry = &g_fm.entries[i];
+        vfs_dirent_t* entry = &g_entries[i];
         bool is_selected = (i == g_fm.selected);
 
         char size_str[16];
@@ -175,16 +188,16 @@ static void on_draw(app_helper_t* app) {
 
     // Status bar
     char status[64];
-    snprintf(status, sizeof(status), "Items: %d  Sel: %d", g_fm.count, g_fm.selected);
+    snprintf(status, sizeof(status), "Items: %d  Sel: %d", g_count, g_fm.selected);
     (void)status;
 }
 
 static void on_cleanup(app_helper_t* app) {
     (void)app;
-    if (g_fm.entries) {
-        free(g_fm.entries);
-        g_fm.entries = NULL;
-        g_fm.count = 0;
+    if (g_entries) {
+        free(g_entries);
+        g_entries = NULL;
+        g_count = 0;
     }
     APP_INFO("File Manager closed");
 }
@@ -200,5 +213,6 @@ static const app_ui_key_def_t fileman_keys[] = {
 
 APP_HELPER(fileman_app, "fileman", .version = "1.0.0", .author = "ArdubotOS", .title = "FILE MANAGER",
            .help = "Up/Dn:Nav Sel:Open Bk:Back", .description = "File manager - browse flash/SD",
-           .type = APP_TYPE_TOOL, .fps = 30, .live = true, .keys = fileman_keys, .on_ready = on_ready,
+           .type = APP_TYPE_TOOL, .fps = 30, .live = true, .keys = fileman_keys, .state = &g_fm,
+           .state_size = sizeof(g_fm), .on_ready = on_ready,
            .on_draw = on_draw, .on_cleanup = on_cleanup)

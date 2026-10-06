@@ -1,4 +1,5 @@
 #include "app.h"
+#include "app_runtime.h"
 #include "module.h"
 #include "syscall.h"
 #include "scheduler.h"
@@ -304,7 +305,8 @@ int app_stop(const char* name) {
     
     if (!app) return -1;
     if (app->state != APP_STATE_RUNNING) return -1;
-    
+
+    app_state_capture(name);
     if (app->task) {
         task_delete(app->task);
         app->task = NULL;
@@ -332,6 +334,7 @@ int app_suspend(const char* name) {
      * meantime - which meant nothing could ever see this app as resumable
      * (app_resume() requires state == SUSPENDED) until it was too late to
      * matter. */
+    app_state_capture(name);
     app->state = APP_STATE_SUSPENDED;
     if (app->task) {
         task_suspend(app->task);
@@ -345,7 +348,8 @@ int app_resume(const char* name) {
     app_t* app = app_find(name);
     if (!app) return -1;
     if (app->state != APP_STATE_SUSPENDED) return -1;
-    
+
+    app_state_apply(name);
     if (app->task) {
         task_resume(app->task);
     }

@@ -60,6 +60,7 @@ void stopwatch_tick_hour(stopwatch_t* sw) {
 static app_helper_t* g_app;
 
 static void notify_dirty(void) {
+    app_set_state("stopwatch", &g_sw, sizeof(g_sw));
     app_helper_invalidate(g_app);
 }
 
@@ -161,7 +162,9 @@ static void on_event(app_helper_t* app, app_helper_event_t ev) {
 static void on_ready(app_helper_t* app) {
     g_app = app;
     g_workers_alive = true;
-    stopwatch_reset(&g_sw);
+    if (!app_helper_has_state(app)) {
+        stopwatch_reset(&g_sw);
+    }
 
     if (task_create("sw_sec", task_seconds, NULL, TASK_PRIO_NORMAL, 0, &g_sec_task) != 0 ||
         task_create("sw_min", task_minutes, NULL, TASK_PRIO_NORMAL, 0, &g_min_task) != 0 ||
@@ -190,5 +193,6 @@ static void on_cleanup(app_helper_t* app) {
 APP_HELPER(stopwatch_app, "stopwatch", .version = "1.0.0", .author = "ArdubotOS",
            .title = "STOPWATCH", .help = "Up:start/stop Sel:reset Bk:back",
            .description = "Multithread stopwatch (sec/min/hour tasks)", .type = APP_TYPE_TOOL,
-           .icon = &stopwatch_app_icon, .fps = 30, .on_event = on_event, .on_ready = on_ready,
+           .icon = &stopwatch_app_icon, .fps = 30, .state = &g_sw, .state_size = sizeof(g_sw),
+           .on_event = on_event, .on_ready = on_ready,
            .on_draw = on_draw, .on_cleanup = on_cleanup)

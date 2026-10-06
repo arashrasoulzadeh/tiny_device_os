@@ -12,6 +12,7 @@
  * each entry in order.
  */
 
+#include "app_runtime.h"
 #include "app_ui.h"
 #include "theme.h"
 
@@ -45,6 +46,8 @@ typedef struct {
     app_type_t type;
     uint32_t fps;
     const app_icon_t* icon;
+    void* state;
+    size_t state_size;
     bool game;
     bool live;
     const app_ui_key_def_t* keys;
@@ -59,6 +62,7 @@ struct app_helper {
     app_ui_t ui;
     const app_helper_desc_t* desc;
     bool needs_draw;
+    bool state_loaded;
 };
 
 /* "MM:SS" into buf. Negative seconds become 00:00. Returns the length
@@ -86,6 +90,15 @@ void app_helper_stop(app_helper_t* app);
 void app_helper_frame(app_helper_t* app);
 void app_helper_emit(app_helper_t* app, app_helper_event_t ev);
 void app_helper_invalidate(app_helper_t* app);
+
+/* Copy this app's session to or from the runtime store. */
+int app_helper_set_state(const app_helper_t* app, const void* data, size_t size);
+int app_helper_get_state(const app_helper_t* app, void* data, size_t size);
+
+/* True when start or resume loaded a snapshot into .state. */
+static inline bool app_helper_has_state(const app_helper_t* app) {
+    return app && app->state_loaded;
+}
 
 static inline int app_helper_content_w(const app_helper_t* app) {
     return app ? app->ui.ui.content_w : 0;

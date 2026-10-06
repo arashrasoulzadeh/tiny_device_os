@@ -156,15 +156,39 @@ int app_helper_start(app_helper_t* app, void* real_app, const app_helper_desc_t*
     } else if (bind_default_keys(app) != 0) {
         return -1;
     }
+    app->state_loaded = false;
+    if (desc->name && desc->state && desc->state_size > 0) {
+        if (app_state_bind(desc->name, desc->state, desc->state_size) == 0 &&
+            app_state_apply(desc->name) == 0) {
+            app->state_loaded = true;
+        }
+    }
     if (desc->on_ready) {
         desc->on_ready(app);
     }
     return 0;
 }
 
+int app_helper_set_state(const app_helper_t* app, const void* data, size_t size) {
+    if (!app || !app->desc) {
+        return -1;
+    }
+    return app_set_state(app->desc->name, data, size);
+}
+
+int app_helper_get_state(const app_helper_t* app, void* data, size_t size) {
+    if (!app || !app->desc) {
+        return -1;
+    }
+    return app_get_state(app->desc->name, data, size);
+}
+
 void app_helper_stop(app_helper_t* app) {
     if (!app) {
         return;
+    }
+    if (app->desc && app->desc->name) {
+        app_state_capture(app->desc->name);
     }
     if (app->desc && app->desc->on_cleanup) {
         app->desc->on_cleanup(app);

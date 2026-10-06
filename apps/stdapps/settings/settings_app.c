@@ -35,11 +35,15 @@ static const char* setting_keys[] = {
 };
 
 // --- State ---
-static int g_selected = 0;
-static bool g_editing = false;
-static char g_edit_buffer[64];
-static int g_edit_pos = 0;
-static int g_last_key = 0;
+typedef struct {
+    int selected;
+    bool editing;
+    char edit_buffer[64];
+    int edit_pos;
+    int last_key;
+} settings_state_t;
+
+static settings_state_t g_st;
 
 // --- Helpers ---
 static void load_setting(int idx, char* buf, size_t len) {
@@ -59,44 +63,44 @@ static void save_setting(int idx, const char* value) {
 // --- Button Handlers ---
 static void on_up(void* app, void* user) {
     (void)user; (void)app;
-    if (!g_editing) {
-        g_selected = (g_selected > 0) ? g_selected - 1 : SETTING_COUNT - 1;
+    if (!g_st.editing) {
+        g_st.selected = (g_st.selected > 0) ? g_st.selected - 1 : SETTING_COUNT - 1;
         app_mark_dirty(app);
     }
 }
 
 static void on_down(void* app, void* user) {
     (void)user; (void)app;
-    if (!g_editing) {
-        g_selected = (g_selected + 1) % SETTING_COUNT;
+    if (!g_st.editing) {
+        g_st.selected = (g_st.selected + 1) % SETTING_COUNT;
         app_mark_dirty(app);
     }
 }
 
 static void on_select(void* app, void* user) {
     (void)user; (void)app;
-    if (!g_editing) {
-        g_editing = true;
-        load_setting(g_selected, g_edit_buffer, sizeof(g_edit_buffer));
-        g_edit_pos = strlen(g_edit_buffer);
+    if (!g_st.editing) {
+        g_st.editing = true;
+        load_setting(g_st.selected, g_st.edit_buffer, sizeof(g_st.edit_buffer));
+        g_st.edit_pos = strlen(g_st.edit_buffer);
         app_mark_dirty(app);
     } else {
         static const char* chars = "abcdefghijklmnopqrstuvwxyz0123456789 -_=./@_";
-        if (g_last_key == 0) {
-            g_last_key = chars[0];
+        if (g_st.last_key == 0) {
+            g_st.last_key = chars[0];
         } else {
-            const char* p = strchr(chars, g_last_key);
+            const char* p = strchr(chars, g_st.last_key);
             if (p && *(p + 1)) {
-                g_last_key = *(p + 1);
+                g_st.last_key = *(p + 1);
             } else {
-                g_last_key = chars[0];
+                g_st.last_key = chars[0];
             }
         }
         
-        if (g_edit_pos < (int)sizeof(g_edit_buffer) - 1) {
-            memmove(&g_edit_buffer[g_edit_pos + 1], &g_edit_buffer[g_edit_pos], strlen(g_edit_buffer) - g_edit_pos + 1);
-            g_edit_buffer[g_edit_pos] = g_last_key;
-            g_edit_pos++;
+        if (g_st.edit_pos < (int)sizeof(g_st.edit_buffer) - 1) {
+            memmove(&g_st.edit_buffer[g_st.edit_pos + 1], &g_st.edit_buffer[g_st.edit_pos], strlen(g_st.edit_buffer) - g_st.edit_pos + 1);
+            g_st.edit_buffer[g_st.edit_pos] = g_st.last_key;
+            g_st.edit_pos++;
             app_mark_dirty(app);
         }
     }
@@ -104,17 +108,17 @@ static void on_select(void* app, void* user) {
 
 static void on_key_backspace(void* app, void* user) {
     (void)user;
-    if (g_editing) {
-        if (g_edit_pos > 0) {
-            memmove(&g_edit_buffer[g_edit_pos - 1], &g_edit_buffer[g_edit_pos], strlen(g_edit_buffer) - g_edit_pos + 1);
-            g_edit_pos--;
+    if (g_st.editing) {
+        if (g_st.edit_pos > 0) {
+            memmove(&g_st.edit_buffer[g_st.edit_pos - 1], &g_st.edit_buffer[g_st.edit_pos], strlen(g_st.edit_buffer) - g_st.edit_pos + 1);
+            g_st.edit_pos--;
         } else {
             /* Nothing left to delete - confirm and leave edit mode. Without
              * this, editing was a dead end: Up/Down no-op while editing and
              * Escape was also bound to app_request_exit, so there was no
              * way back to the list short of quitting the whole app. */
-            save_setting(g_selected, g_edit_buffer);
-            g_editing = false;
+            save_setting(g_st.selected, g_st.edit_buffer);
+            g_st.editing = false;
         }
         app_mark_dirty(app);
     } else {
@@ -124,16 +128,16 @@ static void on_key_backspace(void* app, void* user) {
 
 static void on_key_left(void* app, void* user) {
     (void)user; (void)app;
-    if (g_editing && g_edit_pos > 0) {
-        g_edit_pos--;
+    if (g_st.editing && g_st.edit_pos > 0) {
+        g_st.edit_pos--;
         app_mark_dirty(app);
     }
 }
 
 static void on_key_right(void* app, void* user) {
     (void)user; (void)app;
-    if (g_editing && g_edit_pos < (int)strlen(g_edit_buffer)) {
-        g_edit_pos++;
+    if (g_st.editing && g_st.edit_pos < (int)strlen(g_st.edit_buffer)) {
+        g_st.edit_pos++;
         app_mark_dirty(app);
     }
 }
@@ -166,8 +170,8 @@ static void on_draw(app_helper_t* app) {
     const int row_h = 18 * scale;
     
     for (int i = 0; i < SETTING_COUNT; i++) {
-        bool is_selected = (i == g_selected);
-        bool is_editing = g_editing && (i == g_selected);
+        bool is_selected = (i == g_st.selected);
+        bool is_editing = g_st.editing && (i == g_st.selected);
         
         if (y + line_h > app->ui.ui.content_h) break;
         
@@ -175,12 +179,12 @@ static void on_draw(app_helper_t* app) {
         app_ui_textf(&app->ui, 0, y, "%s %s", is_selected ? ">" : " ", setting_names[i]);
         
         // Value or edit buffer - +1 for the trailing "_" appended below,
-        // since g_edit_buffer can be a full sizeof(g_edit_buffer)-1 chars
+        // since g_st.edit_buffer can be a full sizeof(g_st.edit_buffer)-1 chars
         // (gcc's -Wformat-truncation correctly flags a same-sized buffer
-        // as unable to always hold g_edit_buffer + "_" + the NUL).
-        char value[sizeof(g_edit_buffer) + 1];
+        // as unable to always hold g_st.edit_buffer + "_" + the NUL).
+        char value[sizeof(g_st.edit_buffer) + 1];
         if (is_editing) {
-            snprintf(value, sizeof(value), "%s_", g_edit_buffer);
+            snprintf(value, sizeof(value), "%s_", g_st.edit_buffer);
         } else {
             load_setting(i, value, sizeof(value));
         }
@@ -189,7 +193,7 @@ static void on_draw(app_helper_t* app) {
         // Cursor indicator when editing
         if (is_editing) {
             int cursor_x = 0;
-            for (int j = 0; j < g_edit_pos && j < 20; j++) cursor_x += 6 * scale;
+            for (int j = 0; j < g_st.edit_pos && j < 20; j++) cursor_x += 6 * scale;
             app_ui_pixel(&app->ui, cursor_x, y + 15 * scale, true);
         }
 
@@ -206,5 +210,6 @@ static void on_cleanup(app_helper_t* app) {
 APP_HELPER(settings_app, "settings", .version = "1.0.0", .author = "ArdubotOS", .title = "SETTINGS",
            .help = "Up/Dn:Nav Sel:Edit Bk:Back",
            .description = "System settings - WiFi, display, sound, timezone", .type = APP_TYPE_SYSTEM,
-           .fps = 30, .live = true, .keys = settings_keys, .on_ready = on_ready, .on_draw = on_draw,
+           .fps = 30, .live = true, .keys = settings_keys, .state = &g_st, .state_size = sizeof(g_st),
+           .on_ready = on_ready, .on_draw = on_draw,
            .on_cleanup = on_cleanup)

@@ -12,7 +12,9 @@ static void fill_rect_color(app_ui_t* app, int x, int y, int w, int h, uint16_t 
 }
 
 static void on_ready(app_helper_t* app) {
-    pong_reset(&g_pong);
+    if (!app_helper_has_state(app)) {
+        pong_reset(&g_pong);
+    }
 
     /* on_tick polls these pins directly (continuous "held" state, unlike
      * a key callback's press edge). Register them before Escape so the
@@ -67,4 +69,5 @@ static const app_ui_key_def_t pong_keys[] = {
 APP_HELPER(pong_app, "pong", .version = "1.0.0", .author = "ArdubotOS",
            .description = "Pong - Up/Down paddle, Select restarts", .type = APP_TYPE_GAME,
            .icon = &pong_app_icon, .fps = 30, .game = true, .live = true, .keys = pong_keys,
+           .state = &g_pong, .state_size = sizeof(g_pong),
            .on_ready = on_ready, .on_tick = on_tick, .on_draw = on_draw)

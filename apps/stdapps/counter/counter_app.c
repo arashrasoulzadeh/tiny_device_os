@@ -38,4 +38,4 @@ static void on_draw(app_helper_t* app) {
 APP_HELPER(counter_app, "counter", .version = "2.0.0", .title = "COUNTER",
          .help = "Up:+  Sel:-  hold:back",
          .description = "Dynamic counter with sign-colored gauge", .icon = &counter_app_icon,
-         .on_event = on_event, .on_draw = on_draw)
+         .state = &g_count, .state_size = sizeof(g_count), .on_event = on_event, .on_draw = on_draw)

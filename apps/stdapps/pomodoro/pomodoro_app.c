@@ -8,12 +8,16 @@ extern const app_icon_t pomodoro_app_icon;
 #define REST_S (5 * 60)
 #define DONE_FLASHES 6
 
-static int g_phase; /* 0 = work, 1 = rest */
-static int32_t g_remaining_s;
-static bool g_running;
-static bool g_done;
-static bool g_flash_on;
-static int g_flash_count;
+typedef struct {
+    int phase; /* 0 = work, 1 = rest */
+    int32_t remaining_s;
+    bool running;
+    bool done;
+    bool flash_on;
+    int flash_count;
+} pomodoro_state_t;
+
+static pomodoro_state_t g_st;
 static volatile bool g_worker_alive;
 static task_tcb_t* g_sec_task;
 static app_helper_t* g_app;
@@ -27,12 +31,12 @@ static const char* phase_name(int phase) {
 }
 
 static void start_phase(int phase) {
-    g_phase = phase;
-    g_remaining_s = phase_seconds(phase);
-    g_running = true;
-    g_done = false;
-    g_flash_on = false;
-    g_flash_count = 0;
+    g_st.phase = phase;
+    g_st.remaining_s = phase_seconds(phase);
+    g_st.running = true;
+    g_st.done = false;
+    g_st.flash_on = false;
+    g_st.flash_count = 0;
 }
 
 static void task_seconds(void* arg) {
@@ -44,24 +48,25 @@ static void task_seconds(void* arg) {
             break;
         }
         scheduler_lock();
-        if (g_done) {
-            g_flash_on = !g_flash_on;
-            if (++g_flash_count >= DONE_FLASHES) {
-                start_phase(!g_phase);
+        if (g_st.done) {
+            g_st.flash_on = !g_st.flash_on;
+            if (++g_st.flash_count >= DONE_FLASHES) {
+                start_phase(!g_st.phase);
             }
             changed = 1;
-        } else if (g_running) {
-            if (--g_remaining_s <= 0) {
-                g_remaining_s = 0;
-                g_running = false;
-                g_done = true;
-                g_flash_on = true;
-                g_flash_count = 0;
+        } else if (g_st.running) {
+            if (--g_st.remaining_s <= 0) {
+                g_st.remaining_s = 0;
+                g_st.running = false;
+                g_st.done = true;
+                g_st.flash_on = true;
+                g_st.flash_count = 0;
             }
             changed = 1;
         }
         scheduler_unlock();
         if (changed) {
+            app_set_state("pomodoro", &g_st, sizeof(g_st));
             app_helper_invalidate(g_app);
             changed = 0;
         }
@@ -72,10 +77,10 @@ static void on_event(app_helper_t* app, app_helper_event_t ev) {
     (void)app;
     scheduler_lock();
     if (ev == APP_EV_UP) {
-        if (g_done) {
-            start_phase(!g_phase);
+        if (g_st.done) {
+            start_phase(!g_st.phase);
         } else {
-            g_running = !g_running;
+            g_st.running = !g_st.running;
         }
     } else if (ev == APP_EV_SELECT) {
         start_phase(0);
@@ -86,7 +91,9 @@ static void on_event(app_helper_t* app, app_helper_event_t ev) {
 static void on_ready(app_helper_t* app) {
     g_app = app;
     g_worker_alive = true;
-    start_phase(0);
+    if (!app_helper_has_state(app)) {
+        start_phase(0);
+    }
     if (task_create("pomo_sec", task_seconds, NULL, TASK_PRIO_NORMAL, 0, &g_sec_task) != 0) {
         APP_ERROR("Failed to create pomodoro worker task");
         g_worker_alive = false;
@@ -108,11 +115,11 @@ static void on_draw(app_helper_t* app) {
     uint16_t num_color;
 
     scheduler_lock();
-    remaining = g_remaining_s;
-    phase = g_phase;
-    running = g_running;
-    done = g_done;
-    flash = g_flash_on;
+    remaining = g_st.remaining_s;
+    phase = g_st.phase;
+    running = g_st.running;
+    done = g_st.done;
+    flash = g_st.flash_on;
     scheduler_unlock();
 
     accent = phase ? ARDUBOT_COLOR_ACCENT_COOL : ARDUBOT_COLOR_ACCENT_WARM;
@@ -150,5 +157,6 @@ static void on_cleanup(app_helper_t* app) {
 
 APP_HELPER(pomodoro_app, "pomodoro", .version = "1.0.0", .author = "ArdubotOS", .title = "POMODORO",
            .help = "Up:start/pause Sel:reset", .description = "Pomodoro countdown timer",
-           .type = APP_TYPE_TOOL, .icon = &pomodoro_app_icon, .fps = 30, .on_event = on_event,
+           .type = APP_TYPE_TOOL, .icon = &pomodoro_app_icon, .fps = 30, .state = &g_st,
+           .state_size = sizeof(g_st), .on_event = on_event,
            .on_ready = on_ready, .on_draw = on_draw, .on_cleanup = on_cleanup)

@@ -16,7 +16,7 @@ static void on_launch(void* app, void* user) {
 }
 
 static void on_ready(app_helper_t* app) {
-    (void)app;
+    int keep = g_menu.selected;
     app_kit_catalog_build("launcher");
     if (APP_DISPLAY_HEIGHT <= 32) {
         app_menu_init(&g_menu, 8, 10);
@@ -27,6 +27,9 @@ static void on_ready(app_helper_t* app) {
         app_menu_set_icon_strip(&g_menu);
         app_menu_load_catalog(&g_menu);
         APP_INFO("Launcher icon strip ready (%d apps)", app_kit_catalog_count());
+    }
+    if (app_helper_has_state(app) && keep >= 0 && keep < g_menu.count) {
+        g_menu.selected = keep;
     }
     APP_INFO("Launcher ready");
 }
@@ -56,5 +59,6 @@ static const app_ui_key_def_t launcher_keys[] = {
 APP_HELPER(launcher_app, "launcher", .version = "1.0.0", .author = "ArdubotOS", .title = "LAUNCHER",
            .help = "Up/Dn:Nav Sel:Launch Bk:Back", .description = "System launcher / home app",
            .type = APP_TYPE_SYSTEM, .fps = 30, .icon = &launcher_app_icon, .live = true,
+           .state = &g_menu.selected, .state_size = sizeof(g_menu.selected),
            .keys = launcher_keys, .on_ready = on_ready, .on_draw = on_draw,
            .on_cleanup = on_cleanup)

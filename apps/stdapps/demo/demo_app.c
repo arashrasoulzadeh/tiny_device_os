@@ -18,8 +18,12 @@ typedef enum {
     DEMO_ADC,
 } demo_mode_t;
 
-static demo_mode_t g_mode = DEMO_MENU;
-static int g_selected = 0;
+typedef struct {
+    demo_mode_t mode;
+    int selected;
+} demo_state_t;
+
+static demo_state_t g_st;
 
 // Menu items
 static const char* g_menu_items[] = {
@@ -34,27 +38,27 @@ static const char* g_menu_items[] = {
 // --- Button Handlers ---
 static void on_up(void* app, void* user) {
     (void)user; (void)app;
-    if (g_mode == DEMO_MENU) {
-        g_selected = (g_selected > 0) ? g_selected - 1 : DEMO_MENU_COUNT - 1;
+    if (g_st.mode == DEMO_MENU) {
+        g_st.selected = (g_st.selected > 0) ? g_st.selected - 1 : DEMO_MENU_COUNT - 1;
         app_mark_dirty(app);
     }
 }
 
 static void on_down(void* app, void* user) {
     (void)user; (void)app;
-    if (g_mode == DEMO_MENU) {
-        g_selected = (g_selected + 1) % DEMO_MENU_COUNT;
+    if (g_st.mode == DEMO_MENU) {
+        g_st.selected = (g_st.selected + 1) % DEMO_MENU_COUNT;
         app_mark_dirty(app);
     }
 }
 
 static void on_select(void* app, void* user) {
     (void)user; (void)app;
-    switch (g_selected) {
-        case 0: g_mode = DEMO_GPIO; break;
-        case 1: g_mode = DEMO_I2C; break;
-        case 2: g_mode = DEMO_SPI; break;
-        case 3: g_mode = DEMO_ADC; break;
+    switch (g_st.selected) {
+        case 0: g_st.mode = DEMO_GPIO; break;
+        case 1: g_st.mode = DEMO_I2C; break;
+        case 2: g_st.mode = DEMO_SPI; break;
+        case 3: g_st.mode = DEMO_ADC; break;
         case 4: app_request_exit(app); break;
     }
     app_mark_dirty(app);
@@ -62,8 +66,8 @@ static void on_select(void* app, void* user) {
 
 static void on_back(void* app, void* user) {
     (void)user; (void)app;
-    if (g_mode != DEMO_MENU) {
-        g_mode = DEMO_MENU;
+    if (g_st.mode != DEMO_MENU) {
+        g_st.mode = DEMO_MENU;
         app_mark_dirty(app);
     } else {
         app_request_exit(app);
@@ -150,13 +154,13 @@ static void on_draw(app_helper_t* app) {
     const int scale = app->ui.ui.text_scale;
     const int line_h = 8 * scale;
 
-    if (g_mode == DEMO_MENU) {
+    if (g_st.mode == DEMO_MENU) {
         app_ui_text(&app->ui, 0, 0, "=== HARDWARE DEMO ===");
         app_ui_text(&app->ui, 0, line_h * 2, "Select test:");
 
         for (int i = 0; i < DEMO_MENU_COUNT; i++) {
             int y = line_h * 4 + i * (line_h + 4 * scale);
-            bool sel = (i == g_selected);
+            bool sel = (i == g_st.selected);
             app_ui_textf(&app->ui, 0, y, "%s %s", sel ? ">" : " ", g_menu_items[i]);
         }
         app_ui_text(&app->ui, 0, APP_DISPLAY_HEIGHT - line_h, "Up/Dn:Nav Sel:Run Esc:Back");
@@ -167,24 +171,24 @@ static void on_draw(app_helper_t* app) {
             "SPI Loopback",
             "ADC Read",
         };
-        app_ui_textf(&app->ui, 0, 0, "%s", test_names[g_mode]);
+        app_ui_textf(&app->ui, 0, 0, "%s", test_names[g_st.mode]);
         
-        if (g_mode == DEMO_GPIO) {
+        if (g_st.mode == DEMO_GPIO) {
             app_ui_text(&app->ui, 0, line_h * 2, "Toggling GPIO 0...");
             gpio_test();
-            g_mode = DEMO_MENU;
-        } else if (g_mode == DEMO_I2C) {
+            g_st.mode = DEMO_MENU;
+        } else if (g_st.mode == DEMO_I2C) {
             app_ui_text(&app->ui, 0, line_h * 2, "Scanning I2C bus...");
             i2c_scan();
-            g_mode = DEMO_MENU;
-        } else if (g_mode == DEMO_SPI) {
+            g_st.mode = DEMO_MENU;
+        } else if (g_st.mode == DEMO_SPI) {
             app_ui_text(&app->ui, 0, line_h * 2, "SPI loopback...");
             spi_loopback();
-            g_mode = DEMO_MENU;
-        } else if (g_mode == DEMO_ADC) {
+            g_st.mode = DEMO_MENU;
+        } else if (g_st.mode == DEMO_ADC) {
             app_ui_text(&app->ui, 0, line_h * 2, "Reading ADC...");
             adc_read();
-            g_mode = DEMO_MENU;
+            g_st.mode = DEMO_MENU;
         }
     }
     
@@ -198,5 +202,6 @@ static void on_cleanup(app_helper_t* app) {
 APP_HELPER(demo_app, "demo", .version = "1.0.0", .author = "ArdubotOS", .title = "HARDWARE DEMO",
            .help = "Up/Dn:Nav Sel:Run Esc:Back",
            .description = "Hardware test suite - GPIO, I2C, SPI, ADC", .type = APP_TYPE_TOOL, .fps = 30,
-           .live = true, .keys = demo_keys, .on_ready = on_ready, .on_draw = on_draw,
+           .live = true, .keys = demo_keys, .state = &g_st, .state_size = sizeof(g_st),
+           .on_ready = on_ready, .on_draw = on_draw,
            .on_cleanup = on_cleanup)
