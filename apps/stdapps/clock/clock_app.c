@@ -5,8 +5,6 @@
 #include <stdlib.h>
 #include <time.h>
 
-extern const app_icon_t clock_app_icon;
-
 static int g_shown_s = -1;
 
 static void read_now(int* hour, int* minute, int* second) {
@@ -117,6 +115,5 @@ static void on_draw(app_helper_t* app) {
                            ARDUBOT_COLOR_TEXT_MUTED);
 }
 
-APP_HELPER(clock_app, "clock", .title = "CLOCK", .help = "Up:+hour  Sel:+min",
-           .type = APP_TYPE_TOOL, .icon = &clock_app_icon, .fps = 10, .on_event = on_event,
-           .on_tick = on_tick, .on_draw = on_draw)
+APP_HELPER(clock_app, "clock", .fps = 10, .on_event = on_event, .on_tick = on_tick,
+           .on_draw = on_draw)

@@ -31,13 +31,13 @@ list automatically. It does **not** install the app into any running build —
 that's a separate, explicit step (section 4), on purpose: scaffolding and
 installing are different decisions, and most of the nine built-in apps in
 this repo are scaffolded but not all of them are installed in the launcher.
-`app.json` is where the name, version, author, and description live; the
-compile copies them into the app, so the scaffold does not repeat them in
-`APP_DEFINE`.
+`app.json` is where the name, version, author, description, title, and help
+live; the compile copies them into the app. The scaffold's `APP_HELPER` does
+not repeat them, and it picks up `blink_app_icon` from `blink_icon.c`.
 
-Open `apps/stdapps/blink/blink_app.c`. The template gives you a minimal
-`on_init`/`on_frame` pair and an `APP_DEFINE(...)` block — that's the whole
-contract an app has to satisfy.
+Open `apps/stdapps/blink/blink_app.c`. The template gives you `on_draw` and
+an `APP_HELPER(...)` block. The rest of this tutorial shows the lower-level
+`APP_DEFINE` path, which is the same contract without the helper.
 
 One thing to know before you look at it: the scaffold generates code
 against the older row-based `app_ui_t` kit (`app_framework.h`), not the

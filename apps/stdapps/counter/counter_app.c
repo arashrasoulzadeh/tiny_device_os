@@ -2,8 +2,6 @@
 
 #include <stdio.h>
 
-extern const app_icon_t counter_app_icon;
-
 #define COUNTER_MAX_SCALE 6
 #define COUNTER_GAUGE_RANGE 20 /* visual clamp only - the count itself is unbounded */
 
@@ -35,6 +33,5 @@ static void on_draw(app_helper_t* app) {
                    fill_color);
 }
 
-APP_HELPER(counter_app, "counter", .title = "COUNTER",
-         .help = "Up:+  Sel:-  hold:back", .icon = &counter_app_icon,
-         .state = &g_count, .state_size = sizeof(g_count), .on_event = on_event, .on_draw = on_draw)
+APP_HELPER(counter_app, "counter", .state = &g_count, .state_size = sizeof(g_count),
+           .on_event = on_event, .on_draw = on_draw)

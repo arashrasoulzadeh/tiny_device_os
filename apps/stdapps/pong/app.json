@@ -3,5 +3,7 @@
   "version": "1.0.0",
   "author": "ArdubotOS",
   "description": "Pong - Up/Down paddle, Select restarts",
-  "depends": []
+  "depends": [],
+  "title": "PONG",
+  "help": "Up/Dn:paddle Sel:restart"
 }

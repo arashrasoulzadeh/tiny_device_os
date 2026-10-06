@@ -7,5 +7,7 @@
   "min_display": {
     "width": 0,
     "height": 0
-  }
+  },
+  "title": "LAUNCHER",
+  "help": "Up/Dn:Nav Sel:Launch Bk:Back"
 }

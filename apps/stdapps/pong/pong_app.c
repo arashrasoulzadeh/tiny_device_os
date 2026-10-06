@@ -1,8 +1,6 @@
 #include "app_framework.h"
 #include "pong.h"
 
-extern const app_icon_t pong_app_icon;
-
 static pong_t g_pong;
 
 static void fill_rect_color(app_ui_t* app, int x, int y, int w, int h, uint16_t rgb565) {
@@ -64,7 +62,6 @@ static const app_ui_key_def_t pong_keys[] = {
     {0, NULL, NULL},
 };
 
-APP_HELPER(pong_app, "pong", .type = APP_TYPE_GAME,
-           .icon = &pong_app_icon, .fps = 30, .game = true, .live = true, .keys = pong_keys,
-           .state = &g_pong, .state_size = sizeof(g_pong),
+APP_HELPER(pong_app, "pong", .type = APP_TYPE_GAME, .game = true, .live = true,
+           .keys = pong_keys, .state = &g_pong, .state_size = sizeof(g_pong),
            .on_ready = on_ready, .on_tick = on_tick, .on_draw = on_draw)

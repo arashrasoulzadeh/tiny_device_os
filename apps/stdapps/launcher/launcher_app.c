@@ -1,5 +1,4 @@
 #include "app_framework.h"
-#include "launcher_icon.h"
 
 static app_menu_t g_menu;
 
@@ -53,9 +52,7 @@ static const app_ui_key_def_t launcher_keys[] = {
     {0, NULL, NULL},
 };
 
-APP_HELPER(launcher_app, "launcher", .title = "LAUNCHER",
-           .help = "Up/Dn:Nav Sel:Launch Bk:Back",
-           .type = APP_TYPE_SYSTEM, .fps = 30, .icon = &launcher_app_icon, .live = true,
+APP_HELPER(launcher_app, "launcher", .type = APP_TYPE_SYSTEM, .live = true,
            .state = &g_menu.selected, .state_size = sizeof(g_menu.selected),
            .keys = launcher_keys, .on_ready = on_ready, .on_draw = on_draw,
            .on_cleanup = on_cleanup)

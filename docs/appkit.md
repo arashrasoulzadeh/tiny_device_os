@@ -65,7 +65,7 @@ APP_DEFINE(symbol, "install_name",
 );
 ```
 
-Name, version, author, and description come from the app's `app.json` at compile time. Pass them in `APP_DEFINE` only to override that file.
+Name, version, author, description, title, and help come from the app's `app.json` at compile time. `APP_HELPER` reads the title and help from that file and registers `<symbol>_icon` as the launcher icon. Pass `.type` or `.fps` only when the app is not a tool at 30 fps. Pass name, version, author, or description in `APP_DEFINE` only to override the file.
 
 Apps own their icons (`const app_icon_t` in a `*_icon.c`). `APP_DEFINE` registers
 `.icon` via `app_kit_set_icon`; the catalog/launcher never hardcodes glyphs by name.

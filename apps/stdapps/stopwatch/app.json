@@ -7,5 +7,7 @@
   "min_display": {
     "width": 0,
     "height": 0
-  }
+  },
+  "title": "STOPWATCH",
+  "help": "Up:start/stop Sel:reset Bk:back"
 }

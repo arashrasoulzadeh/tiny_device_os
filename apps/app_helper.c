@@ -144,8 +144,10 @@ int app_helper_start(app_helper_t* app, void* real_app, const app_helper_desc_t*
     if (desc->game) {
         app_ui_config_game(&cfg);
     } else {
-        app_ui_config_ui(&cfg, desc->title ? desc->title : (desc->name ? desc->name : ""),
-                         desc->help ? desc->help : "");
+        const char* title =
+            desc->title && desc->title[0] ? desc->title : app_manifest_title(desc->name);
+        const char* help = desc->help ? desc->help : app_manifest_help(desc->name);
+        app_ui_config_ui(&cfg, title, help);
     }
     if (app_ui_init(&app->ui, real_app, &cfg) != 0) {
         return -1;

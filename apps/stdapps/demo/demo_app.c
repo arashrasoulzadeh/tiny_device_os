@@ -146,47 +146,35 @@ static void on_ready(app_helper_t* app) {
 }
 
 static void on_draw(app_helper_t* app) {
-    const int scale = app->ui.ui.text_scale;
-    const int line_h = 8 * scale;
+    static const char* names[] = {"GPIO Test", "I2C Scan", "SPI Loopback", "ADC Read"};
+    static const char* running[] = {
+        "Toggling GPIO 0...",
+        "Scanning I2C bus...",
+        "SPI loopback...",
+        "Reading ADC...",
+    };
+    int i;
 
     if (g_st.mode == DEMO_MENU) {
-        app_ui_text(&app->ui, 0, 0, "=== HARDWARE DEMO ===");
-        app_ui_text(&app->ui, 0, line_h * 2, "Select test:");
-
-        for (int i = 0; i < DEMO_MENU_COUNT; i++) {
-            int y = line_h * 4 + i * (line_h + 4 * scale);
-            bool sel = (i == g_st.selected);
-            app_ui_textf(&app->ui, 0, y, "%s %s", sel ? ">" : " ", g_menu_items[i]);
+        app_helper_label(app, 0, "Select test:");
+        for (i = 0; i < DEMO_MENU_COUNT; i++) {
+            app_helper_labelf(app, i + 2, "%s %s", i == g_st.selected ? ">" : " ", g_menu_items[i]);
         }
-        app_ui_text(&app->ui, 0, APP_DISPLAY_HEIGHT - line_h, "Up/Dn:Nav Sel:Run Esc:Back");
-    } else {
-        const char* test_names[] = {
-            "GPIO Test",
-            "I2C Scan",
-            "SPI Loopback",
-            "ADC Read",
-        };
-        app_ui_textf(&app->ui, 0, 0, "%s", test_names[g_st.mode]);
-        
-        if (g_st.mode == DEMO_GPIO) {
-            app_ui_text(&app->ui, 0, line_h * 2, "Toggling GPIO 0...");
-            gpio_test();
-            g_st.mode = DEMO_MENU;
-        } else if (g_st.mode == DEMO_I2C) {
-            app_ui_text(&app->ui, 0, line_h * 2, "Scanning I2C bus...");
-            i2c_scan();
-            g_st.mode = DEMO_MENU;
-        } else if (g_st.mode == DEMO_SPI) {
-            app_ui_text(&app->ui, 0, line_h * 2, "SPI loopback...");
-            spi_loopback();
-            g_st.mode = DEMO_MENU;
-        } else if (g_st.mode == DEMO_ADC) {
-            app_ui_text(&app->ui, 0, line_h * 2, "Reading ADC...");
-            adc_read();
-            g_st.mode = DEMO_MENU;
-        }
+        return;
     }
-    
+
+    app_helper_label(app, 0, names[g_st.mode - 1]);
+    app_helper_label(app, 2, running[g_st.mode - 1]);
+    if (g_st.mode == DEMO_GPIO) {
+        gpio_test();
+    } else if (g_st.mode == DEMO_I2C) {
+        i2c_scan();
+    } else if (g_st.mode == DEMO_SPI) {
+        spi_loopback();
+    } else if (g_st.mode == DEMO_ADC) {
+        adc_read();
+    }
+    g_st.mode = DEMO_MENU;
 }
 
 static void on_cleanup(app_helper_t* app) {
@@ -194,8 +182,6 @@ static void on_cleanup(app_helper_t* app) {
     APP_INFO("Demo closed");
 }
 
-APP_HELPER(demo_app, "demo", .title = "HARDWARE DEMO",
-           .help = "Up/Dn:Nav Sel:Run Esc:Back", .type = APP_TYPE_TOOL, .fps = 30,
-           .live = true, .keys = demo_keys, .state = &g_st, .state_size = sizeof(g_st),
-           .on_ready = on_ready, .on_draw = on_draw,
+APP_HELPER(demo_app, "demo", .live = true, .keys = demo_keys, .state = &g_st,
+           .state_size = sizeof(g_st), .on_ready = on_ready, .on_draw = on_draw,
            .on_cleanup = on_cleanup)

@@ -183,9 +183,10 @@ lower-level path when those fields are not enough.
 2. Redraw with `app_helper_invalidate`, `app_helper_label` / `app_helper_labelf`,
    `app_helper_number`, `app_helper_bar`, or `app_helper_panel`.
 3. End the file with
-   `APP_HELPER(my_app, "my_app", .title = "...", .on_event = ..., .on_draw = ...)`.
-   Put name, version, author, and description in `app.json`; the compile
-   reads that file into the manifest.
+   `APP_HELPER(my_app, "my_app", .on_event = ..., .on_draw = ...)`.
+   Put name, version, author, description, title, and help in `app.json`;
+   the compile reads that file into the manifest. The icon is `my_app_icon`.
+   Leave `.type` and `.fps` off unless the app is not a tool at 30 fps.
 4. Add `<name>/<name>_app.c` and its include dir to `apps/stdapps/CMakeLists.txt`.
 5. Install/start via `app_install_manifest(my_app_manifest, "my_app")` and
    `app_start("my_app")` (see `sim/sim_main.c`).

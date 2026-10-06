@@ -18,11 +18,22 @@ class AppManifestTests(unittest.TestCase):
         text = render_inc(
             [
                 ("ping", {"description": 'say "hi"'}),
-                ("pong", {"version": "3", "author": "Ada", "description": "ball"}),
+                (
+                    "pong",
+                    {
+                        "version": "3",
+                        "author": "Ada",
+                        "description": "ball",
+                        "title": "PONG",
+                        "help": "hit",
+                    },
+                ),
             ]
         )
-        self.assertIn('{ "ping", "1.0.0", "ArdubotOS", "say \\"hi\\"" },', text)
-        self.assertIn('{ "pong", "3", "Ada", "ball" },', text)
+        self.assertIn(
+            '{ "ping", "1.0.0", "ArdubotOS", "say \\"hi\\"", "ping", "" },', text
+        )
+        self.assertIn('{ "pong", "3", "Ada", "ball", "PONG", "hit" },', text)
 
     def test_load_apps_reads_app_json_by_directory_name(self):
         with tempfile.TemporaryDirectory() as tmp:

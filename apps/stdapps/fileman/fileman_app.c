@@ -68,6 +68,20 @@ static void refresh_list(void) {
     g_fm.offset = 0;
 }
 
+static int list_rows(const app_helper_t* app) {
+    int row_h;
+    int rows;
+    if (!app) {
+        return 1;
+    }
+    row_h = app_ui_row_h(&app->ui);
+    if (row_h < 1) {
+        return 1;
+    }
+    rows = (app->ui.ui.content_h - app->ui.ui.content_y) / row_h;
+    return rows > 1 ? rows - 1 : 1;
+}
+
 // --- Button Handlers ---
 static void on_up(void* app, void* user) {
     (void)user; (void)app;
@@ -82,8 +96,7 @@ static void on_down(void* app, void* user) {
     (void)user; (void)app;
     if (g_fm.selected < g_count - 1) {
         g_fm.selected++;
-        int scale = g_app->ui.ui.text_scale;
-        int max_visible = (g_app->ui.ui.content_h - 18 * scale) / (10 * scale);
+        int max_visible = list_rows(g_app);
         if (g_fm.selected >= g_fm.offset + max_visible) g_fm.offset = g_fm.selected - max_visible + 1;
         app_mark_dirty(app);
     }
@@ -158,36 +171,22 @@ static void on_ready(app_helper_t* app) {
 }
 
 static void on_draw(app_helper_t* app) {
-    int scale = app->ui.ui.text_scale;
-    int max_visible = (app->ui.ui.content_h - 18 * scale) / (10 * scale);
+    int max_visible = list_rows(app);
+    int i;
+    int row = 1;
 
-    // Path header
-    app_ui_textf(&app->ui, 0, 0, "Path: %s", g_fm.path);
-    app_ui_text(&app->ui, 0, 8 * scale, "----------------");
-
-    for (int i = g_fm.offset; i < g_count && i < g_fm.offset + max_visible; i++) {
-        int y = 18 * scale + (i - g_fm.offset) * 10 * scale;
+    app_helper_labelf(app, 0, "Path: %s", g_fm.path);
+    for (i = g_fm.offset; i < g_count && i < g_fm.offset + max_visible; i++) {
         vfs_dirent_t* entry = &g_entries[i];
-        bool is_selected = (i == g_fm.selected);
-
         char size_str[16];
         if (entry->is_dir) {
             size_str[0] = '\0';
         } else {
             snprintf(size_str, sizeof(size_str), "%u B", (unsigned)entry->size);
         }
-
-        app_ui_textf(&app->ui, 0, y, "%s%s  %s %s",
-                      is_selected ? ">" : " ",
-                      entry->is_dir ? "[DIR] " : "     ",
-                      entry->name,
-                      size_str);
+        app_helper_labelf(app, row++, "%s%s  %s %s", i == g_fm.selected ? ">" : " ",
+                          entry->is_dir ? "[DIR] " : "     ", entry->name, size_str);
     }
-
-    // Status bar
-    char status[64];
-    snprintf(status, sizeof(status), "Items: %d  Sel: %d", g_count, g_fm.selected);
-    (void)status;
 }
 
 static void on_cleanup(app_helper_t* app) {
@@ -209,8 +208,6 @@ static const app_ui_key_def_t fileman_keys[] = {
     {0, NULL, NULL},
 };
 
-APP_HELPER(fileman_app, "fileman", .title = "FILE MANAGER",
-           .help = "Up/Dn:Nav Sel:Open Bk:Back",
-           .type = APP_TYPE_TOOL, .fps = 30, .live = true, .keys = fileman_keys, .state = &g_fm,
-           .state_size = sizeof(g_fm), .on_ready = on_ready,
-           .on_draw = on_draw, .on_cleanup = on_cleanup)
+APP_HELPER(fileman_app, "fileman", .live = true, .keys = fileman_keys, .state = &g_fm,
+           .state_size = sizeof(g_fm), .on_ready = on_ready, .on_draw = on_draw,
+           .on_cleanup = on_cleanup)

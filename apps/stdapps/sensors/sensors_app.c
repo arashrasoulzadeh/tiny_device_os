@@ -3,8 +3,6 @@
 
 #include <stdio.h>
 
-extern const app_icon_t sensors_app_icon;
-
 static int32_t g_last[SENSOR_SERVICE_MAX];
 static int g_last_n = -1;
 
@@ -68,6 +66,4 @@ static void on_draw(app_helper_t* app) {
     }
 }
 
-APP_HELPER(sensors_app, "sensors", .title = "SENSORS", .help = "Bk:Back",
-           .type = APP_TYPE_TOOL, .icon = &sensors_app_icon, .fps = 2, .on_tick = on_tick,
-           .on_draw = on_draw)
+APP_HELPER(sensors_app, "sensors", .fps = 2, .on_tick = on_tick, .on_draw = on_draw)

@@ -6,8 +6,6 @@
 /* Widget-framework demo: flex row, label, and button, drawn through the
  * helper's frame instead of a hand-rolled begin/end pair. */
 
-extern const app_icon_t widgets_app_icon;
-
 static app_helper_t* g_app;
 static ui_context_t* g_ctx;
 static ui_widget_t* g_count_label;
@@ -88,8 +86,6 @@ static const app_ui_key_def_t widgets_keys[] = {
     {0, NULL, NULL},
 };
 
-APP_HELPER(widgets_app, "widgets", .title = "WIDGETS",
-           .help = "Sel:tap  Bk:back",
-           .icon = &widgets_app_icon, .fps = 30, .live = true, .keys = widgets_keys, .state = &g_count,
-           .state_size = sizeof(g_count),
-           .on_ready = on_ready, .on_draw = on_draw, .on_cleanup = on_cleanup)
+APP_HELPER(widgets_app, "widgets", .live = true, .keys = widgets_keys, .state = &g_count,
+           .state_size = sizeof(g_count), .on_ready = on_ready, .on_draw = on_draw,
+           .on_cleanup = on_cleanup)

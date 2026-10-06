@@ -16,6 +16,8 @@ Package format (app.json, one per apps/stdapps/<name>/ directory):
       "version": "1.0.0",
       "author": "you",
       "description": "...",
+      "title": "MYGAME",       // top bar; defaults to the directory name
+      "help": "Bk:back",       // bottom bar
       "depends": []            // names of other installed stdapps, checked
                                 // at install time; no fetching/resolution -
                                 // there is no hosted registry yet, so this
@@ -85,14 +87,11 @@ def cmd_monitor(args: argparse.Namespace) -> int:
 
 APP_C_TEMPLATE = '''#include "app_framework.h"
 
-extern const app_icon_t {name}_app_icon;
-
 static void on_draw(app_helper_t* app) {{
     app_helper_label(app, 0, "{title}");
 }}
 
-APP_HELPER({name}_app, "{name}", .title = "{title}", .help = "Bk:back",
-           .icon = &{name}_app_icon, .on_draw = on_draw)
+APP_HELPER({name}_app, "{name}", .on_draw = on_draw)
 '''
 
 ICON_C_TEMPLATE = '''#include "icons.h"
@@ -157,6 +156,8 @@ def cmd_create_app(args: argparse.Namespace) -> int:
         "version": "1.0.0",
         "author": "",
         "description": title,
+        "title": title,
+        "help": "Bk:back",
         "depends": [],
         "min_display": {"width": 0, "height": 0},
     }, indent=2) + "\n")

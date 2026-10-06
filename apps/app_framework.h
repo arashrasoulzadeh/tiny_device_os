@@ -7,7 +7,7 @@
  *   fw/layout.h  canvas, screen, menu, catalog, status
  *   fw/events.h  os_event_subscribe / os_event_publish
  *
- * Name, version, author, and description still come from app.json.
+ * Name, version, author, description, title, and help come from app.json.
  */
 
 #include <stdarg.h>

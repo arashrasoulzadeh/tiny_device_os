@@ -7,5 +7,7 @@
   "min_display": {
     "width": 0,
     "height": 0
-  }
+  },
+  "title": "COUNTER",
+  "help": "Up:+  Sel:-  hold:back"
 }

@@ -3,8 +3,6 @@
 
 #include <stddef.h>
 
-extern const app_icon_t stopwatch_app_icon;
-
 static stopwatch_t g_sw;
 static volatile bool g_workers_alive;
 
@@ -180,7 +178,6 @@ static void on_draw(app_helper_t* app) {
     app_helper_labelf(app, 0, "%02u:%02u:%02u", (unsigned)g_sw.hours, (unsigned)g_sw.minutes,
                       (unsigned)g_sw.seconds);
     app_helper_label(app, 2, g_sw.running ? "RUN" : "STP");
-    app_helper_label(app, 3, "Up:tog Sel:rst");
 }
 
 static void on_cleanup(app_helper_t* app) {
@@ -189,8 +186,6 @@ static void on_cleanup(app_helper_t* app) {
     APP_INFO("Stopwatch workers stopped");
 }
 
-APP_HELPER(stopwatch_app, "stopwatch", .title = "STOPWATCH",
-           .help = "Up:start/stop Sel:reset Bk:back", .type = APP_TYPE_TOOL,
-           .icon = &stopwatch_app_icon, .fps = 30, .state = &g_sw, .state_size = sizeof(g_sw),
-           .on_event = on_event, .on_ready = on_ready,
-           .on_draw = on_draw, .on_cleanup = on_cleanup)
+APP_HELPER(stopwatch_app, "stopwatch", .state = &g_sw, .state_size = sizeof(g_sw),
+           .on_event = on_event, .on_ready = on_ready, .on_draw = on_draw,
+           .on_cleanup = on_cleanup)

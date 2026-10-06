@@ -3,8 +3,6 @@
 
 #include <stdint.h>
 
-extern const app_icon_t info_app_icon;
-
 static device_info_t g_info;
 static uint32_t g_shown_up_s = UINT32_MAX;
 
@@ -53,6 +51,5 @@ static void on_ready(app_helper_t* app) {
     APP_INFO("Info app ready");
 }
 
-APP_HELPER(info_app, "info", .title = "INFO", .help = "Sel:Refresh  Bk:Back",
-           .type = APP_TYPE_TOOL, .icon = &info_app_icon, .fps = 10, .on_event = on_event,
-           .on_tick = on_tick, .on_ready = on_ready, .on_draw = on_draw)
+APP_HELPER(info_app, "info", .fps = 10, .on_event = on_event, .on_tick = on_tick,
+           .on_ready = on_ready, .on_draw = on_draw)

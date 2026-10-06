@@ -2,8 +2,6 @@
 
 #include <string.h>
 
-extern const app_icon_t taskmgr_app_icon;
-
 static int g_scroll = 0;
 
 static char task_state_char(task_state_t s) {
@@ -133,7 +131,6 @@ static void on_draw(app_helper_t* app) {
     }
 }
 
-APP_HELPER(taskmgr_app, "taskmgr", .title = "TASKS", .help = "Up:scroll  Bk:back",
-           .type = APP_TYPE_TOOL, .icon = &taskmgr_app_icon, .fps = 10, .live = true, .state = &g_scroll,
+APP_HELPER(taskmgr_app, "taskmgr", .fps = 10, .live = true, .state = &g_scroll,
            .state_size = sizeof(g_scroll), .on_event = on_event, .on_ready = on_ready,
            .on_draw = on_draw)

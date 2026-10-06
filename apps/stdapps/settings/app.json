@@ -7,5 +7,7 @@
   "min_display": {
     "width": 0,
     "height": 0
-  }
+  },
+  "title": "SETTINGS",
+  "help": "Up/Dn:Nav Sel:Edit Bk:Back"
 }

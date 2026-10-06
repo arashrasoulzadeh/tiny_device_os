@@ -3,5 +3,7 @@
   "version": "1.0.0",
   "author": "ArdubotOS",
   "description": "Pomodoro countdown timer",
-  "depends": []
+  "depends": [],
+  "title": "POMODORO",
+  "help": "Up:start/pause Sel:reset"
 }

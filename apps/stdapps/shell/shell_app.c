@@ -360,10 +360,6 @@ static void on_draw(app_helper_t* app) {
     if (g_cursor < 20) {
         app_ui_pixel(&app->ui, prompt_w + g_cursor * char_w, 0, true);
     }
-    
-    // Status
-    app_ui_textf(&app->ui, 0, app->ui.ui.content_h - 8, "ArdubotOS Shell  Type 'help'  Up/Down: history");
-    
 }
 
 static void on_cleanup(app_helper_t* app) {
@@ -375,8 +371,6 @@ static void on_cleanup(app_helper_t* app) {
     APP_INFO("Shell closed");
 }
 
-APP_HELPER(shell_app, "shell", .title = "SHELL",
-           .help = "ArdubotOS Shell  Type 'help'  Up/Down: history",
-           .type = APP_TYPE_SYSTEM, .fps = 30, .live = true, .keys = shell_keys, .state = &g_shell,
-           .state_size = sizeof(g_shell), .on_ready = on_ready,
+APP_HELPER(shell_app, "shell", .type = APP_TYPE_SYSTEM, .live = true, .keys = shell_keys,
+           .state = &g_shell, .state_size = sizeof(g_shell), .on_ready = on_ready,
            .on_draw = on_draw, .on_cleanup = on_cleanup)

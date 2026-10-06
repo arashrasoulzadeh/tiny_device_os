@@ -7,5 +7,7 @@
   "min_display": {
     "width": 0,
     "height": 0
-  }
+  },
+  "title": "FILE MANAGER",
+  "help": "Up/Dn:Nav Sel:Open Bk:Back"
 }

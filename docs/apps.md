@@ -27,14 +27,13 @@ static void on_draw(app_helper_t* app) {
 }
 
 APP_HELPER(counter_app, "counter",
-    .title = "COUNTER",
-    .help = "Up:+  Sel:-",
-    .icon = &counter_app_icon,
+    .state = &g_count,
+    .state_size = sizeof(g_count),
     .on_event = on_event,
     .on_draw = on_draw);
 ```
 
-Name, version, author, and description come from `apps/stdapps/<name>/app.json`. Configure and the device build both turn that file into the manifest, so `APP_HELPER` does not take those fields.
+Name, version, author, description, title, and help come from `apps/stdapps/<name>/app.json`. Configure and the device build both turn that file into the manifest. `APP_HELPER` does not take those fields. The launcher icon is `<symbol>_icon` (`counter_app` uses `counter_app_icon`). `.type` defaults to `APP_TYPE_TOOL` and `.fps` defaults to 30, so pass them only when the app is a game, a system app, or a different frame rate.
 
 Up and the `1` key increment. Down, Left, and Right are bound the same way. Select and the `2` key decrement. Escape leaves. The screen redraws when an event arrives, when `app_helper_invalidate(app)` runs, or when `.live = true`. `.on_tick` runs every frame before that check. `.on_ready` runs after the UI and keys exist (start a worker there). `.game = true` drops the title and help bars. `.keys` replaces the default map with a file-scope `app_ui_key_def_t` array; a `NULL` user pointer is filled in with the helper. `app_fmt_clock`, `app_fit_text_scale`, `app_bar_fill_px`, `app_gauge_fill_px`, `app_level_color`, `app_helper_clock`, `app_helper_bar`, `app_helper_gauge`, `app_helper_panel`, `app_helper_labelf`, and `app_helper_center_text` cover the layout math apps used to copy.
 

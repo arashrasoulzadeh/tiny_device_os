@@ -9,6 +9,8 @@ void test_counter_identity_comes_from_app_json(void) {
     TEST_ASSERT_EQUAL_STRING("ArdubotOS", app_manifest_author("counter"));
     TEST_ASSERT_EQUAL_STRING("Dynamic counter with sign-colored gauge",
                              app_manifest_description("counter"));
+    TEST_ASSERT_EQUAL_STRING("COUNTER", app_manifest_title("counter"));
+    TEST_ASSERT_EQUAL_STRING("Up:+  Sel:-  hold:back", app_manifest_help("counter"));
 }
 
 void test_unknown_name_uses_the_builtin_defaults(void) {
@@ -16,6 +18,10 @@ void test_unknown_name_uses_the_builtin_defaults(void) {
     TEST_ASSERT_EQUAL_STRING("ArdubotOS", app_manifest_author(NULL));
     TEST_ASSERT_EQUAL_STRING("missing", app_manifest_description("missing"));
     TEST_ASSERT_EQUAL_STRING("", app_manifest_description(NULL));
+    TEST_ASSERT_EQUAL_STRING("missing", app_manifest_title("missing"));
+    TEST_ASSERT_EQUAL_STRING("", app_manifest_title(NULL));
+    TEST_ASSERT_EQUAL_STRING("", app_manifest_help("missing"));
+    TEST_ASSERT_EQUAL_STRING("", app_manifest_help(NULL));
 }
 
 int main(void) {

@@ -3,5 +3,7 @@
   "version": "1.0.0",
   "author": "ArdubotOS",
   "description": "Kernel task list (htop-style)",
-  "depends": []
+  "depends": [],
+  "title": "TASKS",
+  "help": "Up:scroll  Bk:back"
 }

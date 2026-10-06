@@ -7,11 +7,13 @@ typedef struct {
     const char* version;
     const char* author;
     const char* description;
+    const char* title;
+    const char* help;
 } app_manifest_row_t;
 
 static const app_manifest_row_t g_rows[] = {
 #include "app_manifests.inc"
-    { NULL, NULL, NULL, NULL },
+    { NULL, NULL, NULL, NULL, NULL, NULL },
 };
 
 static const app_manifest_row_t* find_row(const char* name) {
@@ -43,4 +45,20 @@ const char* app_manifest_description(const char* name) {
         return row->description;
     }
     return name ? name : "";
+}
+
+const char* app_manifest_title(const char* name) {
+    const app_manifest_row_t* row = find_row(name);
+    if (row && row->title && row->title[0]) {
+        return row->title;
+    }
+    return name ? name : "";
+}
+
+const char* app_manifest_help(const char* name) {
+    const app_manifest_row_t* row = find_row(name);
+    if (row && row->help) {
+        return row->help;
+    }
+    return "";
 }

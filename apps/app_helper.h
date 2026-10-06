@@ -10,6 +10,11 @@
  * every frame before the redraw check. .game drops the title and help
  * bars. Two handlers on one key still go in .keys; the helper calls
  * each entry in order.
+ *
+ * Title and help come from app.json when those fields are left out.
+ * The launcher icon is <symbol>_icon (pomodoro_app uses pomodoro_app_icon).
+ * .type defaults to APP_TYPE_TOOL and .fps defaults to 30. Pass either
+ * only when this app is different.
  */
 
 #include "app_runtime.h"
@@ -119,24 +124,26 @@ void app_helper_panel(app_helper_t* app, int x, int y, int w, int h, const char*
 /* Latest sample for a sensor key from the device config. Same as sensor_get(). */
 int app_helper_sensor(const char* key, int32_t* value);
 
-#define APP_HELPER(symbol, install_name, ...)                                                    \
+#define APP_HELPER(symbol, install_name, ...)                                                      \
+    extern const app_icon_t symbol##_icon;                                                         \
     static app_helper_t symbol##_helper;                                                           \
     static const app_helper_desc_t symbol##_helper_desc = {                                        \
-        .name = (install_name),                                                                \
-        __VA_ARGS__};                                                                          \
-    static void symbol##_helper_init(void* raw) {                                                \
-        app_helper_start(&symbol##_helper, raw, &symbol##_helper_desc);                              \
-    }                                                                                          \
-    static void symbol##_helper_frame_fn(void* raw) {                                            \
-        (void)raw;                                                                             \
+        .name = (install_name),                                                                    \
+        __VA_ARGS__};                                                                              \
+    static void symbol##_helper_init(void* raw) {                                                  \
+        app_helper_start(&symbol##_helper, raw, &symbol##_helper_desc);                            \
+    }                                                                                              \
+    static void symbol##_helper_frame_fn(void* raw) {                                              \
+        (void)raw;                                                                                 \
         app_helper_frame(&symbol##_helper);                                                        \
-    }                                                                                          \
-    static void symbol##_helper_cleanup_fn(void* raw) {                                          \
-        (void)raw;                                                                             \
+    }                                                                                              \
+    static void symbol##_helper_cleanup_fn(void* raw) {                                            \
+        (void)raw;                                                                                 \
         app_helper_stop(&symbol##_helper);                                                         \
-    }                                                                                          \
-    APP_DEFINE(symbol, install_name, .type = symbol##_helper_desc.type,                          \
-               .icon = symbol##_helper_desc.icon, .fps = symbol##_helper_desc.fps,                 \
+    }                                                                                              \
+    APP_DEFINE(symbol, install_name,                                                               \
+               .type = symbol##_helper_desc.type != 0 ? symbol##_helper_desc.type : APP_TYPE_TOOL, \
+               .icon = &symbol##_icon, .fps = symbol##_helper_desc.fps,                            \
                .on_init = symbol##_helper_init, .on_frame = symbol##_helper_frame_fn,              \
                .on_cleanup = symbol##_helper_cleanup_fn)
 

@@ -46,6 +46,8 @@ def render_inc(apps: list[tuple[str, dict]]) -> str:
         version = _text(meta, "version", DEFAULT_VERSION)
         author = _text(meta, "author", DEFAULT_AUTHOR)
         description = _text(meta, "description", name)
+        title = _text(meta, "title", name)
+        help_text = _text(meta, "help", "")
         lines.append(
             "    { "
             + ", ".join(
@@ -54,6 +56,8 @@ def render_inc(apps: list[tuple[str, dict]]) -> str:
                     c_string(version),
                     c_string(author),
                     c_string(description),
+                    c_string(title),
+                    c_string(help_text),
                 )
             )
             + " },"

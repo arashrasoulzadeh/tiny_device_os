@@ -7,5 +7,7 @@
   "min_display": {
     "width": 0,
     "height": 0
-  }
+  },
+  "title": "SHELL",
+  "help": "ArdubotOS Shell  Type 'help'  Up/Down: history"
 }

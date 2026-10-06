@@ -161,43 +161,32 @@ static void on_ready(app_helper_t* app) {
     APP_INFO("Settings ready - Up/Down navigate, Enter: cycle char/select, Esc: backspace/back");
 }
 
+static void edit_text(char* out, size_t cap) {
+    int n = (int)strlen(g_st.edit_buffer);
+    int pos = g_st.edit_pos;
+    if (pos < 0) {
+        pos = 0;
+    }
+    if (pos > n) {
+        pos = n;
+    }
+    snprintf(out, cap, "%.*s|%s", pos, g_st.edit_buffer, g_st.edit_buffer + pos);
+}
+
 static void on_draw(app_helper_t* app) {
-    int y = 0;
-    const int scale = app->ui.ui.text_scale;
-    const int line_h = 14 * scale;
-    const int row_h = 18 * scale;
-    
-    for (int i = 0; i < SETTING_COUNT; i++) {
-        bool is_selected = (i == g_st.selected);
-        bool is_editing = g_st.editing && (i == g_st.selected);
-        
-        if (y + line_h > app->ui.ui.content_h) break;
-        
-        // Selection indicator
-        app_ui_textf(&app->ui, 0, y, "%s %s", is_selected ? ">" : " ", setting_names[i]);
-        
-        // Value or edit buffer - +1 for the trailing "_" appended below,
-        // since g_st.edit_buffer can be a full sizeof(g_st.edit_buffer)-1 chars
-        // (gcc's -Wformat-truncation correctly flags a same-sized buffer
-        // as unable to always hold g_st.edit_buffer + "_" + the NUL).
-        char value[sizeof(g_st.edit_buffer) + 1];
-        if (is_editing) {
-            snprintf(value, sizeof(value), "%s_", g_st.edit_buffer);
+    int i;
+    int row = 0;
+    for (i = 0; i < SETTING_COUNT; i++) {
+        char value[sizeof(g_st.edit_buffer) + 2];
+        bool selected = i == g_st.selected;
+        if (g_st.editing && selected) {
+            edit_text(value, sizeof(value));
         } else {
             load_setting(i, value, sizeof(value));
         }
-        app_ui_text(&app->ui, 0, y + 8 * scale, value);
-
-        // Cursor indicator when editing
-        if (is_editing) {
-            int cursor_x = 0;
-            for (int j = 0; j < g_st.edit_pos && j < 20; j++) cursor_x += 6 * scale;
-            app_ui_pixel(&app->ui, cursor_x, y + 15 * scale, true);
-        }
-
-        y += row_h;
+        app_helper_labelf(app, row++, "%s %s", selected ? ">" : " ", setting_names[i]);
+        app_helper_label(app, row++, value);
     }
-    
 }
 
 static void on_cleanup(app_helper_t* app) {
@@ -205,8 +194,6 @@ static void on_cleanup(app_helper_t* app) {
     APP_INFO("Settings closed");
 }
 
-APP_HELPER(settings_app, "settings", .title = "SETTINGS",
-           .help = "Up/Dn:Nav Sel:Edit Bk:Back", .type = APP_TYPE_SYSTEM,
-           .fps = 30, .live = true, .keys = settings_keys, .state = &g_st, .state_size = sizeof(g_st),
-           .on_ready = on_ready, .on_draw = on_draw,
-           .on_cleanup = on_cleanup)
+APP_HELPER(settings_app, "settings", .type = APP_TYPE_SYSTEM, .live = true,
+           .keys = settings_keys, .state = &g_st, .state_size = sizeof(g_st),
+           .on_ready = on_ready, .on_draw = on_draw, .on_cleanup = on_cleanup)

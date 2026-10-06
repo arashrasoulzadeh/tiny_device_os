@@ -1,7 +1,5 @@
 #include "app_framework.h"
 
-extern const app_icon_t pomodoro_app_icon;
-
 #define WORK_S (15 * 60)
 #define REST_S (5 * 60)
 #define DONE_FLASHES 6
@@ -153,8 +151,6 @@ static void on_cleanup(app_helper_t* app) {
     }
 }
 
-APP_HELPER(pomodoro_app, "pomodoro", .title = "POMODORO",
-           .help = "Up:start/pause Sel:reset",
-           .type = APP_TYPE_TOOL, .icon = &pomodoro_app_icon, .fps = 30, .state = &g_st,
-           .state_size = sizeof(g_st), .on_event = on_event,
-           .on_ready = on_ready, .on_draw = on_draw, .on_cleanup = on_cleanup)
+APP_HELPER(pomodoro_app, "pomodoro", .state = &g_st, .state_size = sizeof(g_st),
+           .on_event = on_event, .on_ready = on_ready, .on_draw = on_draw,
+           .on_cleanup = on_cleanup)
