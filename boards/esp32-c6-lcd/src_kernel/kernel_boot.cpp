@@ -1,20 +1,9 @@
-// ArdubotOS kernel boot wrapper for ESP32-C6 (RISCV_TODO.md Phase 2).
+// ArdubotOS kernel boot wrapper for ESP32-C6.
 //
-// This is NOT boards/esp32-c6-lcd/src/main.cpp (the standalone Arduino
-// sketch, left untouched as the proven fallback) - it links the REAL
-// kernel/ sources against the Arduino framework's own startup/linking,
-// which is already proven to boot on this board (see platformio.ini's
-// [env:esp32-c6] / main.cpp). Arduino's app_main() supplies the startup
-// code and calls setup()/loop() here, same contract as main.cpp, but
-// setup()/loop() now drive the real kernel scheduler instead of
-// reimplementing app logic by hand.
-//
-// Scope for Phase 2: no apps/stdapps yet, no display - just prove that
-// scheduler_init()/task_create()/scheduler_start() link and actually run
-// a task on real hardware. Backed by kernel/scheduler_esp32.c (real
-// FreeRTOS tasks), not kernel/scheduler.c's cooperative fiber model used
-// by sim - see RISCV_TODO.md Phase 2 for why the fiber model doesn't
-// work under FreeRTOS's hardware stack-pointer guard on this chip.
+// Arduino's app_main() calls setup()/loop() here. Apps are not drawn in
+// this file: stdapps_install() registers the builtins compiled from
+// apps/stdapps/, and app_start() runs one of them. The scheduler is
+// kernel/scheduler_esp32.c (FreeRTOS tasks), not the sim fiber scheduler.
 #include <Arduino.h>
 
 extern "C" {
@@ -26,31 +15,23 @@ extern "C" {
 #include "app_types.h"
 #include "sim_gpio.h"
 #include "ardubot_keys.h"
+#include "stdapps_register.h"
 }
 
-// RISCV_TODO.md Phase 4/5: boots one real app through the real app
-// framework (apps/app_kit.c's app_kit_run -> on_init/on_frame loop), not
-// a hand-drawn test pattern. Both manifests are populated by APP_DEFINE's
-// constructor-attribute registration before setup() runs - same
-// extern-declare-and-use pattern sim/sim_main.c already relies on. Only
-// one is actually app_start()'d (see setup() below) - the other stays
-// linked in and ready to swap to.
-extern app_manifest_t* pomodoro_app_manifest;
-extern app_manifest_t* taskmgr_app_manifest;
-
 // Bridges the board's two real buttons (GPIO18/19, same wiring as
-// device_config_esp32c6.yaml and boards/esp32-c6-lcd/src/main.cpp's
-// poll_buttons()) into sim_gpio's key-state table - apps/app_ui.c's key
-// bindings read key state via sim_gpio_read()/react to
-// sim_gpio_handle_key() edges, not via a real GPIO ISR callback (see
-// RISCV_TODO.md Phase 4 for why). UP -> SIM_KEY_UP, SELECT -> SIM_KEY_ENTER
-// (taskmgr_app.c binds UP to scroll; SELECT is unused there).
+// device_config_esp32c6.yaml) into sim_gpio's key-state table. Apps in
+// apps/stdapps/ bind keys through that table. UP is held as SIM_KEY_UP.
+// A short SELECT press is SIM_KEY_ENTER; holding SELECT is SIM_KEY_ESCAPE
+// (back to the launcher).
 #define KERNEL_BOOT_BTN_UP_GPIO 18
 #define KERNEL_BOOT_BTN_SELECT_GPIO 19
+#define KERNEL_BOOT_LONG_PRESS_MS 700
 
 static void poll_real_buttons(void) {
     static bool up_was_down = false;
     static bool sel_was_down = false;
+    static uint32_t sel_down_ms = 0;
+    static bool sel_long_fired = false;
 
     bool up_down = digitalRead(KERNEL_BOOT_BTN_UP_GPIO) == LOW;
     bool sel_down = digitalRead(KERNEL_BOOT_BTN_SELECT_GPIO) == LOW;
@@ -59,9 +40,23 @@ static void poll_real_buttons(void) {
         sim_gpio_handle_key(SIM_KEY_UP, up_down);
         up_was_down = up_down;
     }
-    if (sel_down != sel_was_down) {
-        sim_gpio_handle_key(SIM_KEY_ENTER, sel_down);
-        sel_was_down = sel_down;
+
+    uint32_t now = millis();
+    if (sel_down && !sel_was_down) {
+        sel_was_down = true;
+        sel_down_ms = now;
+        sel_long_fired = false;
+    } else if (sel_down && sel_was_down && !sel_long_fired &&
+               (now - sel_down_ms) >= KERNEL_BOOT_LONG_PRESS_MS) {
+        sel_long_fired = true;
+        sim_gpio_handle_key(SIM_KEY_ESCAPE, true);
+        sim_gpio_handle_key(SIM_KEY_ESCAPE, false);
+    } else if (!sel_down && sel_was_down) {
+        if (!sel_long_fired) {
+            sim_gpio_handle_key(SIM_KEY_ENTER, true);
+            sim_gpio_handle_key(SIM_KEY_ENTER, false);
+        }
+        sel_was_down = false;
     }
 }
 
@@ -105,24 +100,17 @@ void setup() {
 
     Serial.println("[kernel_boot] scheduler started - boot banner printed");
 
-    // RISCV_TODO.md Phase 4: boot one real app for real, through the real
-    // app framework - this is the actual proof (not Phase 3's standalone
-    // hal_display_* test pattern, which would otherwise double-init the
-    // display driver alongside app_kit_run's own app_display_init()).
-    if (!taskmgr_app_manifest) {
-        Serial.println("[kernel_boot] taskmgr_app_manifest not registered (APP_DEFINE "
-                        "constructor didn't run?)");
+    // Every builtin comes from apps/stdapps via stdapps_install().
+    if (app_init() != 0 || stdapps_install() != 0) {
+        Serial.println("[kernel_boot] stdapps_install failed");
         return;
     }
-    if (app_install_manifest(taskmgr_app_manifest, "taskmgr") != 0) {
-        Serial.println("[kernel_boot] app_install_manifest(taskmgr) failed");
+    const char* start = stdapps_start_name();
+    if (app_start(start) != 0) {
+        Serial.printf("[kernel_boot] app_start(%s) failed\n", start);
         return;
     }
-    if (app_start("taskmgr") != 0) {
-        Serial.println("[kernel_boot] app_start(taskmgr) failed");
-        return;
-    }
-    Serial.println("[kernel_boot] taskmgr app started - entering loop()");
+    Serial.printf("[kernel_boot] %s started - entering loop()\n", start);
 }
 
 void loop() {

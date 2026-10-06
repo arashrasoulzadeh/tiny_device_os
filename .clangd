@@ -1,7 +1,8 @@
-# Point clangd at the host simulator compilation database.
-# `build/compile_commands.json` is empty; `make` writes the real one under build/sim/Debug.
-# -Ihal/include covers arch sources (ESP8266/ESP32) that the sim build does not compile.
+# clangd / Cursor: one database at the repo root, produced by
+# `make compile-commands`. Simulator commands cover apps, kernel, and HAL.
+# Device-only files (board sketches, kernel_boot.cpp) are appended from
+# PlatformIO so Arduino/ESP headers resolve too.
 CompileFlags:
-  CompilationDatabase: build/sim/Debug
-  Add:
-    - -Ihal/include
+  CompilationDatabase: .
+Index:
+  Background: Build

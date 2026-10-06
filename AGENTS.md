@@ -25,9 +25,11 @@ cd build
 ctest --test-dir build --output-on-failure
 ```
 
-IDE indexing (clangd / Go to Definition / Find References) needs `build/compile_commands.json`
-(emitted by `CMAKE_EXPORT_COMPILE_COMMANDS`). After the first configure, reload the window if
-symbols still won't resolve. Repo-root `.clangd` points clangd at `build/`.
+IDE indexing (clangd / Cursor Go to Definition, completions, Find All References) uses
+the repo-root `compile_commands.json`. Generate it with `make compile-commands` (simulator
+database plus PlatformIO envs `esp32-c6`, `esp32-c6-kernel`, and `nodemcu`). `.clangd` and
+`.vscode/settings.json` both point at that file. Reload the window after the first generate
+if symbols still won't resolve. The file is gitignored because the paths in it are absolute.
 
 Host dependencies: SDL2, PortAudio.
 - macOS: `brew install sdl2 portaudio`

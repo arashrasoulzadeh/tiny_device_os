@@ -1,0 +1,9 @@
+{
+  "clangd.arguments": [
+    "--compile-commands-dir=${workspaceFolder}",
+    "--background-index",
+    "--completion-style=detailed"
+  ],
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json",
+  "C_Cpp.default.browse.limitSymbolsToIncludedHeaders": false
+}

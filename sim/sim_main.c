@@ -30,6 +30,7 @@
 #endif
 
 #include "scheduler.h"
+#include "stdapps_register.h"
 #include "os_time.h"
 #include "hal_gpio.h"
 #include "hal_display.h"
@@ -162,34 +163,6 @@ static void sim_quit_cb(void* arg) {
  * read, every 100ms) never actually started via task_create() anywhere
  * - removed as dead code under -Werror=unused-function. */
 
-// External builtin app manifests (from APP_DEFINE)
-/* Each extern is guarded by the ARDUBOT_APP_*_ENABLED macro CMake generates
- * from ARDUBOT_ENABLED_APPS (apps/stdapps/CMakeLists.txt) - an app that
- * wasn't compiled in has no manifest symbol to link against. launcher is
- * always compiled in (enforced there too), so it's never guarded. */
-extern app_manifest_t* launcher_app_manifest;
-#ifdef ARDUBOT_APP_COUNTER_ENABLED
-extern app_manifest_t* counter_app_manifest;
-#endif
-#ifdef ARDUBOT_APP_INFO_ENABLED
-extern app_manifest_t* info_app_manifest;
-#endif
-#ifdef ARDUBOT_APP_STOPWATCH_ENABLED
-extern app_manifest_t* stopwatch_app_manifest;
-#endif
-#ifdef ARDUBOT_APP_PONG_ENABLED
-extern app_manifest_t* pong_app_manifest;
-#endif
-#ifdef ARDUBOT_APP_WIDGETS_ENABLED
-extern app_manifest_t* widgets_app_manifest;
-#endif
-#ifdef ARDUBOT_APP_POMODORO_ENABLED
-extern app_manifest_t* pomodoro_app_manifest;
-#endif
-#ifdef ARDUBOT_APP_TASKMGR_ENABLED
-extern app_manifest_t* taskmgr_app_manifest;
-#endif
-
 int main(int argc, char** argv) {
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
@@ -317,86 +290,22 @@ int main(int argc, char** argv) {
         }
     }
 
-    /* Install builtins, then start the home/launcher app. Main app is
-     * selected here via app_start("launcher"). Each block is guarded by
-     * whether ARDUBOT_ENABLED_APPS actually compiled that app in - see the
-     * extern declarations above. Disabled regardless of that list: settings,
-     * fileman, shell, demo - not exposed in the launcher catalog for now. */
-#ifdef ARDUBOT_APP_COUNTER_ENABLED
-    if (app_install_manifest(counter_app_manifest, "counter") != 0) {
-        fprintf(stderr, "Failed to install counter app\n");
+    /* Builtin apps are installed only from apps/stdapps_register.c.
+     * ESC from the start app still returns to the launcher
+     * (app_request_exit() re-focuses APP_KIT_HOME_NAME="launcher"). */
+    if (stdapps_install() != 0) {
+        fprintf(stderr, "Failed to install builtin apps\n");
         return 1;
     }
-#endif
-#ifdef ARDUBOT_APP_INFO_ENABLED
-    if (app_install_manifest(info_app_manifest, "info") != 0) {
-        fprintf(stderr, "Failed to install info app\n");
-        return 1;
+    {
+        const char* start = stdapps_start_name();
+        if (app_start(start) != 0) {
+            fprintf(stderr, "Failed to start %s app\n", start);
+            return 1;
+        }
+        printf("%s started (main app)\n", start);
+        fflush(stdout);
     }
-#endif
-#ifdef ARDUBOT_APP_STOPWATCH_ENABLED
-    if (app_install_manifest(stopwatch_app_manifest, "stopwatch") != 0) {
-        fprintf(stderr, "Failed to install stopwatch app\n");
-        return 1;
-    }
-#endif
-#ifdef ARDUBOT_APP_PONG_ENABLED
-    if (app_install_manifest(pong_app_manifest, "pong") != 0) {
-        fprintf(stderr, "Failed to install pong app\n");
-        return 1;
-    }
-#endif
-#ifdef ARDUBOT_APP_WIDGETS_ENABLED
-    if (app_install_manifest(widgets_app_manifest, "widgets") != 0) {
-        fprintf(stderr, "Failed to install widgets app\n");
-        return 1;
-    }
-#endif
-#ifdef ARDUBOT_APP_POMODORO_ENABLED
-    if (app_install_manifest(pomodoro_app_manifest, "pomodoro") != 0) {
-        fprintf(stderr, "Failed to install pomodoro app\n");
-        return 1;
-    }
-#endif
-#ifdef ARDUBOT_APP_TASKMGR_ENABLED
-    if (app_install_manifest(taskmgr_app_manifest, "taskmgr") != 0) {
-        fprintf(stderr, "Failed to install taskmgr app\n");
-        return 1;
-    }
-#endif
-    if (app_install_manifest(launcher_app_manifest, "launcher") != 0) {
-        fprintf(stderr, "Failed to install launcher app\n");
-        return 1;
-    }
-
-    /* Snapshot launchable apps once — launcher menu reads this, no per-visit refresh. */
-    if (app_kit_catalog_build("launcher") < 0) {
-        fprintf(stderr, "Failed to build app catalog\n");
-        return 1;
-    }
-
-    /* Pomodoro boots directly instead of the launcher menu (per the "set it
-     * as launcher" ask) — ESC from it still returns to the launcher
-     * (app_request_exit() always re-focuses APP_KIT_HOME_NAME="launcher",
-     * which stays installed and in the catalog either way). */
-#ifdef ARDUBOT_APP_POMODORO_ENABLED
-    if (app_start("pomodoro") != 0) {
-        fprintf(stderr, "Failed to start pomodoro app\n");
-        return 1;
-    }
-#else
-    if (app_start("launcher") != 0) {
-        fprintf(stderr, "Failed to start launcher app\n");
-        return 1;
-    }
-#endif
-
-#ifdef ARDUBOT_APP_POMODORO_ENABLED
-    printf("Pomodoro started (main app)\n");
-#else
-    printf("Launcher started (main app)\n");
-#endif
-    fflush(stdout);
 
     /* One scheduler tick == 1 ms of wall time. SDL frames often take longer
      * than 1 ms, so catch up multiple ticks per loop from sim_time. */

@@ -2,7 +2,9 @@
 #include "app_kit.h"
 #include "theme.h"
 
+#include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 extern const app_icon_t pomodoro_app_icon;
 

@@ -165,7 +165,7 @@ static void icon_pomodoro(int x, int y, int s, uint16_t fill, uint16_t accent) {
   display.fill_box(cx - s / 4, y + s / 6, s / 2, s / 10, s / 20, accent);
 }
 
-static AppId g_app = APP_COUNTER; /* default boot screen for this board */
+static AppId g_app = APP_POMODORO; /* default boot screen for this board */
 static int g_sel = 0;
 static int32_t g_count = 0;
 static uint32_t g_boot_ms = 0;

@@ -84,6 +84,11 @@ ctest --test-dir build --output-on-failure
 
 Or via the Makefile wrapper: `make`, `make test`, `make run` (SDL emulator).
 
+`make compile-commands` writes the repo-root `compile_commands.json` that clangd and
+Cursor use for completions and Find All References. It merges the simulator
+database with PlatformIO's `esp32-c6`, `esp32-c6-kernel`, and `nodemcu` databases
+so board sketches are indexed too. Reload the editor window after generating it.
+
 Wi-Fi icons in the emulator use `device_secrets.yaml` when that file exists
 (copy `device_secrets.yaml.example`). Without it the status bar shows Wi-Fi off.
 See `README.md`.

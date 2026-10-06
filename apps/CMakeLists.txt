@@ -9,6 +9,7 @@ add_library(apps STATIC
     device_info.c
     stdlog.c
     app_ui.c
+    stdapps_register.c
     ui/components/canvas.c
     ui/components/menu.c
     ui/components/catalog.c

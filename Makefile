@@ -258,9 +258,13 @@ coverage:
 	@lcov --summary $(COVERAGE_DIR)/coverage.filtered.info
 	@echo "HTML report: $(COVERAGE_DIR)/html/index.html"
 
-# Generate compile_commands.json for IDE
+# One compile_commands.json for clangd / Cursor: simulator commands win for
+# shared sources, then device-only translation units from PlatformIO.
+# IDE_PIO_ENVS overrides the device list; IDE_NO_PIO=1 skips device envs.
+IDE_PIO_ENVS ?= esp32-c6 esp32-c6-kernel nodemcu
 compile-commands: configure
-	@cp $(BUILD_DIR)/compile_commands.json . 2>/dev/null || true
+	python3 scripts/ide_compile_db.py collect --sim $(BUILD_DIR)/compile_commands.json \
+	  $(if $(IDE_NO_PIO),--no-pio,$(foreach env,$(IDE_PIO_ENVS),--env $(env)))
 
 # ============================================================================
 # Architecture-specific stripped/minified build
@@ -466,7 +470,7 @@ help:
 	@echo "  usb-ports     - List detected USB serial ports"
 	@echo "  device-config - Show device_config.yaml and generate device_config.h"
 	@echo "  coverage      - Generate HTML coverage report"
-	@echo "  compile-commands - Copy compile_commands.json to project root"
+	@echo "  compile-commands - Merge sim + device compile_commands.json for the IDE"
 	@echo "  compile       - Create build/compiled/arch_name with stripped/uglified output"
 	@echo "  compile-clean - Clean compiled output"
 	@echo "  compile-info  - Show compile configuration"
