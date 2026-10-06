@@ -1,7 +1,5 @@
 #include "app_framework.h"
-#include "app_helper.h"
 #include "clock.h"
-#include "icons.h"
 #include "clock_service.h"
 
 #include <stdlib.h>

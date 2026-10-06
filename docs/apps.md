@@ -1,6 +1,6 @@
 # Writing apps
 
-Prefer **`app_helper.h`** for a new screen. Full API and component map: [`docs/appkit.md`](appkit.md).
+Prefer **`app_framework.h`** for a new screen. Full API and component map: [`docs/appkit.md`](appkit.md).
 `APP_DEFINE` in `app_kit.h` remains when an app cannot be expressed with the helper fields below.
 
 This page is the short path: minimal example, install, and which app boots.
@@ -8,7 +8,7 @@ This page is the short path: minimal example, install, and which app boots.
 ## App helper
 
 ```c
-#include "app_helper.h"
+#include "app_framework.h"
 
 #include <stdio.h>
 

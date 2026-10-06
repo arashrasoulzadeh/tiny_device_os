@@ -1,6 +1,4 @@
 #include "app_framework.h"
-#include "app_helper.h"
-#include "vfs.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>

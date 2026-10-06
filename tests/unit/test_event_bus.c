@@ -1,5 +1,6 @@
 #include "unity.h"
 #include "event.h"
+#include "fw/events.h"
 #include "scheduler.h"
 #include <string.h>
 
@@ -102,6 +103,19 @@ void test_cleanup_app_deactivates_its_subscriptions(void) {
     TEST_ASSERT_EQUAL(0, g_calls);
 }
 
+void test_os_event_publish_reaches_a_subscriber(void) {
+    uint8_t key = 3;
+    g_calls = 0;
+    TEST_ASSERT_EQUAL(0, os_event_subscribe(1, FW_EVENT_INPUT, record_cb, NULL));
+    TEST_ASSERT_EQUAL(1, os_event_publish(FW_EVENT_INPUT, &key, sizeof(key)));
+    TEST_ASSERT_EQUAL(1, g_calls);
+    TEST_ASSERT_EQUAL(EVENT_TYPE_UI, g_last_type);
+    TEST_ASSERT_EQUAL_UINT32(sizeof(key), g_last_size);
+    TEST_ASSERT_EQUAL(0, os_event_unsubscribe(1, FW_EVENT_INPUT));
+    TEST_ASSERT_EQUAL(0, os_event_publish(FW_EVENT_INPUT, &key, sizeof(key)));
+    TEST_ASSERT_EQUAL(1, g_calls);
+}
+
 void test_publish_rejects_oversized_payload(void) {
     char big[EVENT_MAX_DATA + 1] = {0};
     TEST_ASSERT_EQUAL(-1, event_publish_sync("topic.a", big, sizeof(big), EVENT_TYPE_CUSTOM, 1));
@@ -116,6 +130,7 @@ int main(void) {
     RUN_TEST(test_higher_priority_subscribers_are_delivered_first);
     RUN_TEST(test_async_publish_is_not_delivered_until_queue_processed);
     RUN_TEST(test_cleanup_app_deactivates_its_subscriptions);
+    RUN_TEST(test_os_event_publish_reaches_a_subscriber);
     RUN_TEST(test_publish_rejects_oversized_payload);
     return UNITY_END();
 }

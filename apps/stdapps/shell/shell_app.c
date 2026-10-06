@@ -1,7 +1,4 @@
 #include "app_framework.h"
-#include "app_helper.h"
-#include "app.h"
-#include "vfs.h"
 #include "alloc.h"
 #include <stdint.h>
 #include <stdio.h>

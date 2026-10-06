@@ -1,6 +1,4 @@
 #include "app_framework.h"
-#include "app_helper.h"
-#include "icons.h"
 
 extern const app_icon_t pomodoro_app_icon;
 

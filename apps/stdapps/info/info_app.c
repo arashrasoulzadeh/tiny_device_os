@@ -1,5 +1,4 @@
 #include "app_framework.h"
-#include "app_helper.h"
 #include "device_info.h"
 
 #include <stdint.h>

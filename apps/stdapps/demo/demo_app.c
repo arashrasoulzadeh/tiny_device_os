@@ -1,10 +1,5 @@
 #include "app_framework.h"
-#include "app_helper.h"
-#include "hal_gpio.h"
-#include "hal_i2c.h"
-#include "hal_spi.h"
 #include "hal_adc.h"
-#include "os_time.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>

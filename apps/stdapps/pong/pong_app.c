@@ -1,7 +1,5 @@
 #include "app_framework.h"
-#include "app_helper.h"
 #include "pong.h"
-#include "sim_gpio.h"
 
 extern const app_icon_t pong_app_icon;
 

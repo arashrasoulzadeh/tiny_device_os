@@ -84,44 +84,15 @@ def cmd_monitor(args: argparse.Namespace) -> int:
 
 
 APP_C_TEMPLATE = '''#include "app_framework.h"
-#include "app_kit.h"
 
 extern const app_icon_t {name}_app_icon;
 
-static app_ui_t g_ui;
-
-static void on_back(void* app, void* user) {{
-    (void)user;
-    app_request_exit(app);
+static void on_draw(app_helper_t* app) {{
+    app_helper_label(app, 0, "{title}");
 }}
 
-static void on_init(void* app) {{
-    app_ui_config_t cfg;
-    app_ui_config_ui(&cfg, "{title}", "Bk:back");
-    app_ui_init(&g_ui, app, &cfg);
-
-    app_ui_bind_keys(&g_ui, (app_ui_key_def_t[]){{
-        {{SIM_KEY_ESCAPE, on_back, NULL}},
-        {{0, NULL, NULL}},
-    }});
-
-    APP_INFO("{name} ready");
-}}
-
-static void on_frame(void* app) {{
-    (void)app;
-    app_ui_begin_frame(&g_ui);
-    app_ui_line(&g_ui, 0, "{title}");
-    app_ui_end_frame(&g_ui);
-}}
-
-static void on_cleanup(void* app) {{
-    (void)app;
-    app_ui_deinit(&g_ui);
-}}
-
-APP_DEFINE({name}_app, "{name}", .icon = &{name}_app_icon, .fps = 30,
-           .on_init = on_init, .on_frame = on_frame, .on_cleanup = on_cleanup)
+APP_HELPER({name}_app, "{name}", .title = "{title}", .help = "Bk:back",
+           .icon = &{name}_app_icon, .on_draw = on_draw)
 '''
 
 ICON_C_TEMPLATE = '''#include "icons.h"

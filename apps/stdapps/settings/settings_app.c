@@ -1,6 +1,4 @@
 #include "app_framework.h"
-#include "app_helper.h"
-#include "config_store.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>

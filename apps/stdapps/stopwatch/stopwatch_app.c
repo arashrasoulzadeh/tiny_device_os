@@ -1,5 +1,4 @@
 #include "app_framework.h"
-#include "app_helper.h"
 #include "stopwatch.h"
 
 #include <stddef.h>

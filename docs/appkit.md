@@ -16,16 +16,13 @@ Short how-to for adding a builtin: [`docs/apps.md`](apps.md).
 
 ```
 apps/
-  app_kit.h / app_kit.c          # runtime: ctx, APP_DEFINE, focus, keys, open/exit
+  app_framework.h                # the one include for an app
+  fw/ui.h                        # pixels, text, frame timing
+  fw/io.h                        # keys, settings store, files
+  fw/layout.h                    # canvas, screen, menu, catalog, status
+  fw/events.h                    # os_event_subscribe / os_event_publish
+  app_kit.h / app_kit.c          # runtime: ctx, APP_DEFINE, focus, open/exit
   stdapps/<name>/                # one folder per builtin app
-  ui/components/
-    display.h                    # APP_DISPLAY_WIDTH / HEIGHT (build-time)
-    canvas.h / canvas.c          # dirty + clear / text / flush
-    screen.h / screen.c          # dirty-gated titled frame (begin/end)
-    menu.h / menu.c              # vertical list + nav bind
-    catalog.h / catalog.c        # boot launch list
-    icons.h / icons.c            # 16×16 launcher glyphs
-    status.h / status.c          # top-right Wi-Fi, signal bars, battery
 ```
 
 ```mermaid

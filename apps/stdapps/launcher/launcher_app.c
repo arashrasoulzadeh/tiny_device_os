@@ -1,8 +1,5 @@
 #include "app_framework.h"
-#include "app_helper.h"
-#include "catalog.h"
 #include "launcher_icon.h"
-#include "menu.h"
 
 static app_menu_t g_menu;
 
