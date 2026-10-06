@@ -114,7 +114,11 @@ python3 tests/unit/test_device_secrets.py
 
 Files: `platformio.ini`. Builtin apps are only `apps/stdapps/`; board
 entry points install them through `apps/stdapps_register.c`. The ESP32-C6
-image (`[env:esp32-c6]`) boots that set. The NodeMCU image does not host
+image (`[env:esp32-c6]`) boots that set. Its ST7789 path composites into
+`hal/display_fb.c` and presents dirty rows from `hal_display_flush()`
+(called by `app_display_flush` / `app_ui_end_frame`) so a clear-then-draw
+is not visible on the glass. SPI stays at 40 MHz; the panel scan stays at
+the driver's ~60 Hz. The NodeMCU image does not host
 the app framework yet, so it does not draw its own launcher. Wiring:
 NodeMCU SSD1306 128×32 I2C (SCL=D1, SDA=D2), **UP** on D5, **SELECT** on D6
 (other side GND; long-press SELECT = back to launcher).
@@ -160,8 +164,9 @@ Warnings are errors (`-Wall -Wextra -Wpedantic -Werror`). Unused parameters need
 
 ## Add a built-in app
 
-Use **`app_kit.h`** / `APP_DEFINE` — see [`docs/apps.md`](apps.md) and
-`apps/stdapps/counter/counter_app.c`.
+Use **`app_helper.h`** / `APP_HELPER` for a new screen — see [`docs/apps.md`](apps.md)
+and `apps/stdapps/counter/counter_app.c`. `app_kit.h` / `APP_DEFINE` is the
+lower-level path when the app needs its own keys or a worker task.
 
 1. Create `apps/stdapps/<name>/` and implement `on_init` / `on_frame` (and
    optional `on_cleanup`) in `<name>_app.c`.

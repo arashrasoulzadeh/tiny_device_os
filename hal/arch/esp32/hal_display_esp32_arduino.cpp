@@ -11,6 +11,7 @@
 // second time. Only one of the two files is ever compiled in for a given
 // PlatformIO env, selected via build_src_filter.
 #include "hal_display.h"
+#include "display_fb.h"
 #include <Arduino.h>
 #include <Arduino_GFX_Library.h>
 #include <string.h>
@@ -26,13 +27,24 @@
 #define ESP32C6_LCD_BL_GPIO 22
 #define ESP32C6_LCD_NATIVE_WIDTH 172
 #define ESP32C6_LCD_NATIVE_HEIGHT 320
+/* Landscape size after rotation 1. One RGB565 frame is 320*172*2 = 110080
+ * bytes, which fits in the C6's RAM. SPI is already 40MHz on ESP32; a full
+ * frame at that rate is longer than the panel's 60Hz scan (ST7789 FRCTRL2
+ * 0x0F), so writes go into RAM and hal_display_flush() sends the dirty
+ * rows in one window. The glass never sees the clear underneath. */
+#define ESP32C6_LCD_FB_W ESP32C6_LCD_NATIVE_HEIGHT
+#define ESP32C6_LCD_FB_H ESP32C6_LCD_NATIVE_WIDTH
+#define ESP32C6_LCD_SPI_HZ 40000000
 
 struct hal_display {
     hal_display_config_t config;
     Arduino_DataBus* bus;
     Arduino_GFX* gfx;
+    display_fb_t fb;
     bool initialized;
 };
+
+static uint16_t g_fb_px[ESP32C6_LCD_FB_W * ESP32C6_LCD_FB_H];
 
 static uint16_t to_rgb565(uint32_t color, hal_display_color_format_t fmt) {
     if (fmt == HAL_DISPLAY_COLOR_RGB565) {
@@ -107,10 +119,13 @@ int hal_display_init(hal_display_t* display) {
     display->gfx = new Arduino_ST7789(display->bus, ESP32C6_LCD_RST_GPIO, 1 /*rotation*/,
                                        true /*IPS*/, ESP32C6_LCD_NATIVE_WIDTH,
                                        ESP32C6_LCD_NATIVE_HEIGHT, 34, 0, 34, 0);
-    if (!display->gfx->begin()) {
+    if (!display->gfx->begin(ESP32C6_LCD_SPI_HZ)) {
         return -1;
     }
-    display->gfx->fillScreen(0x0000);  // RGB565 black
+    display_fb_init(&display->fb, g_fb_px, ESP32C6_LCD_FB_W, ESP32C6_LCD_FB_H);
+    display_fb_fill_rect(&display->fb, 0, 0, ESP32C6_LCD_FB_W, ESP32C6_LCD_FB_H, 0x0000);
+    display->gfx->draw16bitRGBBitmap(0, 0, g_fb_px, ESP32C6_LCD_FB_W, ESP32C6_LCD_FB_H);
+    display_fb_clear_dirty(&display->fb);
 
     pinMode(ESP32C6_LCD_BL_GPIO, OUTPUT);
     digitalWrite(ESP32C6_LCD_BL_GPIO, HIGH);
@@ -128,35 +143,51 @@ int hal_display_deinit(hal_display_t* display) {
 
 int hal_display_draw_bitmap(hal_display_t* display, int16_t x, int16_t y, uint16_t w, uint16_t h,
                              const uint8_t* data) {
+    const uint16_t* src;
+    uint16_t row;
+    uint16_t col;
     if (!display || !display->initialized || !data) return -1;
-    display->gfx->draw16bitRGBBitmap(x, y, (uint16_t*)data, w, h);
+    src = (const uint16_t*)data;
+    for (row = 0; row < h; row++) {
+        for (col = 0; col < w; col++) {
+            display_fb_draw_pixel(&display->fb, (int16_t)(x + col), (int16_t)(y + row),
+                                  src[(uint32_t)row * w + col]);
+        }
+    }
     return 0;
 }
 
 int hal_display_fill_rect(hal_display_t* display, int16_t x, int16_t y, uint16_t w, uint16_t h,
                            uint32_t color) {
     if (!display || !display->initialized) return -1;
-    display->gfx->fillRect(x, y, w, h, to_rgb565(color, display->config.color_format));
+    display_fb_fill_rect(&display->fb, x, y, (int16_t)w, (int16_t)h,
+                         to_rgb565(color, display->config.color_format));
     return 0;
 }
 
 int hal_display_draw_pixel(hal_display_t* display, int16_t x, int16_t y, uint32_t color) {
     if (!display || !display->initialized) return -1;
-    display->gfx->drawPixel(x, y, to_rgb565(color, display->config.color_format));
+    display_fb_draw_pixel(&display->fb, x, y, to_rgb565(color, display->config.color_format));
     return 0;
 }
 
 int hal_display_draw_line(hal_display_t* display, int16_t x1, int16_t y1, int16_t x2, int16_t y2,
                            uint32_t color) {
     if (!display || !display->initialized) return -1;
-    display->gfx->drawLine(x1, y1, x2, y2, to_rgb565(color, display->config.color_format));
+    display_fb_draw_line(&display->fb, x1, y1, x2, y2,
+                         to_rgb565(color, display->config.color_format));
     return 0;
 }
 
 int hal_display_draw_rect(hal_display_t* display, int16_t x, int16_t y, uint16_t w, uint16_t h,
                            uint32_t color) {
-    if (!display || !display->initialized) return -1;
-    display->gfx->drawRect(x, y, w, h, to_rgb565(color, display->config.color_format));
+    uint16_t rgb;
+    if (!display || !display->initialized || w == 0 || h == 0) return -1;
+    rgb = to_rgb565(color, display->config.color_format);
+    display_fb_fill_rect(&display->fb, x, y, (int16_t)w, 1, rgb);
+    display_fb_fill_rect(&display->fb, x, (int16_t)(y + h - 1), (int16_t)w, 1, rgb);
+    display_fb_fill_rect(&display->fb, x, y, 1, (int16_t)h, rgb);
+    display_fb_fill_rect(&display->fb, (int16_t)(x + w - 1), y, 1, (int16_t)h, rgb);
     return 0;
 }
 
@@ -197,9 +228,17 @@ int hal_display_wake(hal_display_t* display) {
 }
 
 int hal_display_flush(hal_display_t* display) {
-    // Arduino_GFX writes straight to the panel on every draw call above -
-    // there's no separate framebuffer to flush.
-    (void)display;
+    int16_t y = 0;
+    int16_t rows = 0;
+    if (!display || !display->initialized || !display->gfx) return -1;
+    if (!display_fb_dirty_rows(&display->fb, &y, &rows) || rows <= 0) {
+        return 0;
+    }
+    /* Non-const pointer selects Arduino_TFT's writePixels() path: one
+     * address window for the whole dirty span, not a SPI setup per glyph. */
+    display->gfx->draw16bitRGBBitmap(0, y, g_fb_px + (int32_t)y * display->fb.w, display->fb.w,
+                                     rows);
+    display_fb_clear_dirty(&display->fb);
     return 0;
 }
 
@@ -207,7 +246,7 @@ int hal_display_set_flush_cb(hal_display_t* display, hal_display_flush_cb_t cb, 
     (void)display;
     (void)cb;
     (void)arg;
-    return 0;  // no-op: nothing to flush, see hal_display_flush() above.
+    return 0;  // Panel presents from hal_display_flush(); no extra callback.
 }
 
 void hal_display_get_size(const hal_display_t* display, uint16_t* width, uint16_t* height) {

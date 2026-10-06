@@ -1,7 +1,11 @@
 # App Kit reference
 
-Author apps with **`#include "app_kit.h"`**. That header is the umbrella for the
-runtime (`APP_DEFINE`, keys, open/exit) and the UI components under
+New screens start with **`#include "app_helper.h"`** and `APP_HELPER()` — Up, Select,
+and Escape are already bound, and the frame redraws only when something
+changes. The short example is in [`docs/apps.md`](apps.md).
+
+**`#include "app_kit.h"`** is the lower-level umbrella (`APP_DEFINE`, custom
+keys, open/exit) plus the UI components under
 [`apps/ui/components/`](../apps/ui/components/).
 
 Short how-to for adding a builtin: [`docs/apps.md`](apps.md).

@@ -1,10 +1,42 @@
 # Writing apps
 
-Prefer **`app_kit.h`**. Full API and component map: [`docs/appkit.md`](appkit.md).
+Prefer **`app_helper.h`** for a new screen. Full API and component map: [`docs/appkit.md`](appkit.md).
+`APP_DEFINE` in `app_kit.h` remains for apps that bind their own keys or run a worker task.
 
 This page is the short path: minimal example, install, and which app boots.
 
-## Minimal app
+## App helper
+
+```c
+#include "app_helper.h"
+
+#include <stdio.h>
+
+static int32_t g_count;
+
+static void on_event(app_helper_t* app, app_helper_event_t ev) {
+    (void)app;
+    if (ev == APP_EV_UP) g_count++;
+    if (ev == APP_EV_SELECT) g_count--;
+}
+
+static void on_draw(app_helper_t* app) {
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%ld", (long)g_count);
+    app_helper_number(app, 0, buf, 4, ARDUBOT_COLOR_TEXT);
+}
+
+APP_HELPER(counter_app, "counter",
+    .title = "COUNTER",
+    .help = "Up:+  Sel:-",
+    .icon = &counter_app_icon,
+    .on_event = on_event,
+    .on_draw = on_draw);
+```
+
+Up and the `1` key increment. Select and the `2` key decrement. Escape leaves. The screen redraws only when an event arrives; call `app_helper_invalidate(app)` when a timer changes what is on screen. `app_fmt_clock`, `app_fit_text_scale`, `app_bar_fill_px`, `app_gauge_fill_px`, `app_level_color`, `app_helper_clock`, `app_helper_bar`, `app_helper_gauge`, and `app_helper_panel` cover the layout math apps used to copy.
+
+## Lower-level app
 
 ```c
 #include "app_kit.h"

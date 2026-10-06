@@ -1,4 +1,4 @@
-add_library(hal STATIC)
+add_library(hal STATIC display_fb.c)
 
 target_include_directories(hal PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include

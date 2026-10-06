@@ -242,7 +242,11 @@ static inline void app_display_text(app_display_t* disp, int x, int y, const cha
 }
 
 static inline void app_display_flush(app_display_t* disp) {
-    (void)disp; /* Arduino_GFX writes straight to the panel - nothing to flush. */
+    /* Pixels live in the HAL framebuffer until this call. Skipping it
+     * leaves the previous frame on the glass. */
+    if (disp && disp->initialized) {
+        hal_display_flush(esp32_get_display());
+    }
 }
 
 static inline void app_display_pixel(app_display_t* disp, int x, int y, bool on) {
