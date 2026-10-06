@@ -75,6 +75,9 @@ uint8_t hal_display_get_brightness(const hal_display_t* display);
 int hal_display_sleep(hal_display_t* display);
 int hal_display_wake(hal_display_t* display);
 
+/* Present dirty pixels. Device drivers that composite off-glass (ESP32-C6
+ * ST7789) blit here; drivers that already wrote the panel return 0. */
+int hal_display_flush(hal_display_t* display);
 int hal_display_set_flush_cb(hal_display_t* display, hal_display_flush_cb_t cb, void* arg);
 
 void hal_display_get_size(const hal_display_t* display, uint16_t* width, uint16_t* height);
