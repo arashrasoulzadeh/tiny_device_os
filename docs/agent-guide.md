@@ -165,15 +165,17 @@ Warnings are errors (`-Wall -Wextra -Wpedantic -Werror`). Unused parameters need
 ## Add a built-in app
 
 Use **`app_helper.h`** / `APP_HELPER` for a new screen — see [`docs/apps.md`](apps.md)
-and `apps/stdapps/counter/counter_app.c`. `app_kit.h` / `APP_DEFINE` is the
-lower-level path when the app needs its own keys or a worker task.
+and `apps/stdapps/counter/counter_app.c`. Pass `.keys` for a custom map,
+`.on_ready` to start a worker, `.on_tick` for a per-frame step, and `.live`
+when the screen must repaint every tick. `app_kit.h` / `APP_DEFINE` is the
+lower-level path when those fields are not enough.
 
-1. Create `apps/stdapps/<name>/` and implement `on_init` / `on_frame` (and
-   optional `on_cleanup`) in `<name>_app.c`.
-2. Bind keys with `app_bind_key`, redraw with `app_mark_dirty` + `app_text` /
-   `app_textf` / `app_flush`.
+1. Create `apps/stdapps/<name>/` and implement `on_event` / `on_draw` (and
+   optional `on_ready`, `on_tick`, `on_cleanup`) in `<name>_app.c`.
+2. Redraw with `app_helper_invalidate`, `app_helper_label` / `app_helper_labelf`,
+   `app_helper_number`, `app_helper_bar`, or `app_helper_panel`.
 3. End the file with
-   `APP_DEFINE(my_app, "my_app", .version = "...", .on_init = ..., .on_frame = ...)`.
+   `APP_HELPER(my_app, "my_app", .title = "...", .on_event = ..., .on_draw = ...)`.
 4. Add `<name>/<name>_app.c` and its include dir to `apps/stdapps/CMakeLists.txt`.
 5. Install/start via `app_install_manifest(my_app_manifest, "my_app")` and
    `app_start("my_app")` (see `sim/sim_main.c`).

@@ -1,5 +1,5 @@
 #include "app_framework.h"
-#include "app_kit.h"
+#include "app_helper.h"
 #include "hal_gpio.h"
 #include "hal_i2c.h"
 #include "hal_spi.h"
@@ -20,7 +20,6 @@ typedef enum {
 
 static demo_mode_t g_mode = DEMO_MENU;
 static int g_selected = 0;
-static app_ui_t g_ui;
 
 // Menu items
 static const char* g_menu_items[] = {
@@ -133,38 +132,34 @@ static void adc_read(void) {
     hal_adc_close(adc);
 }
 
-// --- Lifecycle ---
-static void demo_init(void* app) {
-    app_ui_config_t cfg;
-    app_ui_config_ui(&cfg, "HARDWARE DEMO", "Up/Dn:Nav Sel:Run Esc:Back");
-    app_ui_init(&g_ui, app, &cfg);
+static const app_ui_key_def_t demo_keys[] = {
+    {SIM_KEY_UP, on_up, NULL},
+    {SIM_KEY_DOWN, on_down, NULL},
+    {SIM_KEY_ENTER, on_select, NULL},
+    {SIM_KEY_ESCAPE, on_back, NULL},
+    {SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL},
+    {0, NULL, NULL},
+};
 
-    app_ui_bind_key(&g_ui, SIM_KEY_UP, on_up, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_DOWN, on_down, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_select, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, on_back, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL);
-
+static void on_ready(app_helper_t* app) {
+    (void)app;
     APP_INFO("Demo ready - select test");
 }
 
-static void demo_frame(void* app) {
-    (void)app;
-    app_ui_begin_frame(&g_ui);
-
-    const int scale = g_ui.ui.text_scale;
+static void on_draw(app_helper_t* app) {
+    const int scale = app->ui.ui.text_scale;
     const int line_h = 8 * scale;
 
     if (g_mode == DEMO_MENU) {
-        app_ui_text(&g_ui, 0, 0, "=== HARDWARE DEMO ===");
-        app_ui_text(&g_ui, 0, line_h * 2, "Select test:");
+        app_ui_text(&app->ui, 0, 0, "=== HARDWARE DEMO ===");
+        app_ui_text(&app->ui, 0, line_h * 2, "Select test:");
 
         for (int i = 0; i < DEMO_MENU_COUNT; i++) {
             int y = line_h * 4 + i * (line_h + 4 * scale);
             bool sel = (i == g_selected);
-            app_ui_textf(&g_ui, 0, y, "%s %s", sel ? ">" : " ", g_menu_items[i]);
+            app_ui_textf(&app->ui, 0, y, "%s %s", sel ? ">" : " ", g_menu_items[i]);
         }
-        app_ui_text(&g_ui, 0, APP_DISPLAY_HEIGHT - line_h, "Up/Dn:Nav Sel:Run Esc:Back");
+        app_ui_text(&app->ui, 0, APP_DISPLAY_HEIGHT - line_h, "Up/Dn:Nav Sel:Run Esc:Back");
     } else {
         const char* test_names[] = {
             "GPIO Test",
@@ -172,37 +167,36 @@ static void demo_frame(void* app) {
             "SPI Loopback",
             "ADC Read",
         };
-        app_ui_textf(&g_ui, 0, 0, "%s", test_names[g_mode]);
+        app_ui_textf(&app->ui, 0, 0, "%s", test_names[g_mode]);
         
         if (g_mode == DEMO_GPIO) {
-            app_ui_text(&g_ui, 0, line_h * 2, "Toggling GPIO 0...");
+            app_ui_text(&app->ui, 0, line_h * 2, "Toggling GPIO 0...");
             gpio_test();
             g_mode = DEMO_MENU;
         } else if (g_mode == DEMO_I2C) {
-            app_ui_text(&g_ui, 0, line_h * 2, "Scanning I2C bus...");
+            app_ui_text(&app->ui, 0, line_h * 2, "Scanning I2C bus...");
             i2c_scan();
             g_mode = DEMO_MENU;
         } else if (g_mode == DEMO_SPI) {
-            app_ui_text(&g_ui, 0, line_h * 2, "SPI loopback...");
+            app_ui_text(&app->ui, 0, line_h * 2, "SPI loopback...");
             spi_loopback();
             g_mode = DEMO_MENU;
         } else if (g_mode == DEMO_ADC) {
-            app_ui_text(&g_ui, 0, line_h * 2, "Reading ADC...");
+            app_ui_text(&app->ui, 0, line_h * 2, "Reading ADC...");
             adc_read();
             g_mode = DEMO_MENU;
         }
     }
     
-    app_ui_end_frame(&g_ui);
 }
 
-static void demo_cleanup(void* app) {
+static void on_cleanup(app_helper_t* app) {
     (void)app;
-    app_ui_deinit(&g_ui);
     APP_INFO("Demo closed");
 }
 
-APP_DEFINE(demo_app, "demo", .version = "1.0.0", .author = "ArdubotOS",
-           .description = "Hardware test suite - GPIO, I2C, SPI, ADC",
-           .type = APP_TYPE_TOOL, .fps = 30,
-           .on_init = demo_init, .on_frame = demo_frame, .on_cleanup = demo_cleanup)
+APP_HELPER(demo_app, "demo", .version = "1.0.0", .author = "ArdubotOS", .title = "HARDWARE DEMO",
+           .help = "Up/Dn:Nav Sel:Run Esc:Back",
+           .description = "Hardware test suite - GPIO, I2C, SPI, ADC", .type = APP_TYPE_TOOL, .fps = 30,
+           .live = true, .keys = demo_keys, .on_ready = on_ready, .on_draw = on_draw,
+           .on_cleanup = on_cleanup)

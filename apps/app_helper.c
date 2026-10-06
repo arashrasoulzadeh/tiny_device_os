@@ -1,5 +1,7 @@
+#include "app_framework.h"
 #include "app_helper.h"
 
+#include <stdarg.h>
 #include <stdio.h>
 
 int app_fmt_clock(char* buf, size_t cap, int32_t seconds) {
@@ -81,37 +83,81 @@ uint16_t app_level_color(int32_t value, int32_t mid, int32_t low) {
     return ARDUBOT_COLOR_TEXT;
 }
 
-static void on_up(void* raw, void* user) {
+static void on_dir(void* raw, void* user, app_helper_event_t ev) {
     (void)raw;
-    app_helper_emit((app_helper_t*)user, APP_EV_UP);
+    app_helper_emit((app_helper_t*)user, ev);
+}
+
+static void on_up(void* raw, void* user) {
+    on_dir(raw, user, APP_EV_UP);
+}
+
+static void on_down(void* raw, void* user) {
+    on_dir(raw, user, APP_EV_DOWN);
+}
+
+static void on_left(void* raw, void* user) {
+    on_dir(raw, user, APP_EV_LEFT);
+}
+
+static void on_right(void* raw, void* user) {
+    on_dir(raw, user, APP_EV_RIGHT);
 }
 
 static void on_select(void* raw, void* user) {
-    (void)raw;
-    app_helper_emit((app_helper_t*)user, APP_EV_SELECT);
+    on_dir(raw, user, APP_EV_SELECT);
+}
+
+static int bind_default_keys(app_helper_t* app) {
+    app_ui_key_def_t keys[9];
+    keys[0] = (app_ui_key_def_t){SIM_KEY_UP, on_up, app};
+    keys[1] = (app_ui_key_def_t){SIM_KEY_1, on_up, app};
+    keys[2] = (app_ui_key_def_t){SIM_KEY_DOWN, on_down, app};
+    keys[3] = (app_ui_key_def_t){SIM_KEY_LEFT, on_left, app};
+    keys[4] = (app_ui_key_def_t){SIM_KEY_RIGHT, on_right, app};
+    keys[5] = (app_ui_key_def_t){SIM_KEY_ENTER, on_select, app};
+    keys[6] = (app_ui_key_def_t){SIM_KEY_2, on_select, app};
+    keys[7] = (app_ui_key_def_t){SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL};
+    keys[8] = (app_ui_key_def_t){0, NULL, NULL};
+    return app_ui_bind_keys(&app->ui, keys) < 0 ? -1 : 0;
+}
+
+static int bind_custom_keys(app_helper_t* app, const app_ui_key_def_t* defs) {
+    int n;
+    for (n = 0; defs[n].fn != NULL; n++) {
+        void* user = defs[n].user ? defs[n].user : (void*)app;
+        if (app_ui_bind_key(&app->ui, defs[n].key, defs[n].fn, user) != 0) {
+            return -1;
+        }
+    }
+    return 0;
 }
 
 int app_helper_start(app_helper_t* app, void* real_app, const app_helper_desc_t* desc) {
     app_ui_config_t cfg;
-    app_ui_key_def_t keys[6];
     if (!app || !desc) {
         return -1;
     }
     app->desc = desc;
     app->needs_draw = true;
-    app_ui_config_ui(&cfg, desc->title ? desc->title : (desc->name ? desc->name : ""),
-                     desc->help ? desc->help : "");
+    if (desc->game) {
+        app_ui_config_game(&cfg);
+    } else {
+        app_ui_config_ui(&cfg, desc->title ? desc->title : (desc->name ? desc->name : ""),
+                         desc->help ? desc->help : "");
+    }
     if (app_ui_init(&app->ui, real_app, &cfg) != 0) {
         return -1;
     }
-    keys[0] = (app_ui_key_def_t){SIM_KEY_UP, on_up, app};
-    keys[1] = (app_ui_key_def_t){SIM_KEY_1, on_up, app};
-    keys[2] = (app_ui_key_def_t){SIM_KEY_ENTER, on_select, app};
-    keys[3] = (app_ui_key_def_t){SIM_KEY_2, on_select, app};
-    keys[4] = (app_ui_key_def_t){SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL};
-    keys[5] = (app_ui_key_def_t){0, NULL, NULL};
-    if (app_ui_bind_keys(&app->ui, keys) < 0) {
+    if (desc->keys) {
+        if (bind_custom_keys(app, desc->keys) != 0) {
+            return -1;
+        }
+    } else if (bind_default_keys(app) != 0) {
         return -1;
+    }
+    if (desc->on_ready) {
+        desc->on_ready(app);
     }
     return 0;
 }
@@ -143,7 +189,13 @@ void app_helper_emit(app_helper_t* app, app_helper_event_t ev) {
 }
 
 void app_helper_frame(app_helper_t* app) {
-    if (!app || !app->needs_draw) {
+    if (!app) {
+        return;
+    }
+    if (app->desc && app->desc->on_tick) {
+        app->desc->on_tick(app);
+    }
+    if (!app->needs_draw && !(app->desc && app->desc->live)) {
         return;
     }
     app->needs_draw = false;
@@ -161,11 +213,41 @@ void app_helper_text(app_helper_t* app, int x, int y, const char* text, uint16_t
     app_ui_text_color(&app->ui, x, y, text, rgb565);
 }
 
+void app_helper_center_text(app_helper_t* app, int x, int y, int w, int h, const char* text,
+                            int scale, uint16_t rgb565) {
+    int tw;
+    int th;
+    int draw_y;
+    if (!app || !text || scale < 1 || w <= 0 || h <= 0) {
+        return;
+    }
+    tw = app_display_text_width(text, scale);
+    th = 7 * scale;
+    draw_y = y + app->ui.ui.content_y + (h - th) / 2;
+    if (draw_y < 0 || draw_y + th > app->ui.ui.content_h) {
+        return;
+    }
+    app_display_text_color(&app->ui.ctx.display, app->ui.ui.content_x + x + (w - tw) / 2, draw_y,
+                           text, scale, rgb565);
+}
+
 void app_helper_label(app_helper_t* app, int row, const char* text) {
     if (!app) {
         return;
     }
     app_ui_line(&app->ui, row, text);
+}
+
+void app_helper_labelf(app_helper_t* app, int row, const char* fmt, ...) {
+    char buf[96];
+    va_list ap;
+    if (!app || !fmt) {
+        return;
+    }
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    app_helper_label(app, row, buf);
 }
 
 void app_helper_number(app_helper_t* app, int y, const char* text, int scale, uint16_t rgb565) {

@@ -1,5 +1,5 @@
 #include "app_framework.h"
-#include "app_kit.h"
+#include "app_helper.h"
 #include "stopwatch.h"
 
 #include <stddef.h>
@@ -57,10 +57,10 @@ void stopwatch_tick_hour(stopwatch_t* sw) {
     }
 }
 
-static void notify_dirty(void* app) {
-    if (app) {
-        app_mark_dirty(app);
-    }
+static app_helper_t* g_app;
+
+static void notify_dirty(void) {
+    app_helper_invalidate(g_app);
 }
 
 static void task_seconds(void* arg) {
@@ -82,7 +82,7 @@ static void task_seconds(void* arg) {
             task_resume(g_min_task);
         }
         if (changed) {
-            notify_dirty(NULL);
+            notify_dirty();
         }
     }
 }
@@ -103,7 +103,7 @@ static void task_minutes(void* arg) {
         if (hour_due && g_hour_task) {
             task_resume(g_hour_task);
         }
-        notify_dirty(NULL);
+        notify_dirty();
     }
 }
 
@@ -117,7 +117,7 @@ static void task_hours(void* arg) {
         scheduler_lock();
         stopwatch_tick_hour(&g_sw);
         scheduler_unlock();
-        notify_dirty(NULL);
+        notify_dirty();
     }
 }
 
@@ -143,43 +143,26 @@ static void delete_workers(void) {
     }
 }
 
-static app_ui_t g_ui;
-
-static void on_toggle(void* app, void* user) {
-    (void)user; (void)app;
-    scheduler_lock();
-    g_sw.running = !g_sw.running;
-    scheduler_unlock();
-    app_mark_dirty(NULL);
-    APP_INFO("stopwatch %s", g_sw.running ? "running" : "stopped");
+static void on_event(app_helper_t* app, app_helper_event_t ev) {
+    (void)app;
+    if (ev == APP_EV_UP) {
+        scheduler_lock();
+        g_sw.running = !g_sw.running;
+        scheduler_unlock();
+        APP_INFO("stopwatch %s", g_sw.running ? "running" : "stopped");
+    } else if (ev == APP_EV_SELECT) {
+        scheduler_lock();
+        stopwatch_reset(&g_sw);
+        scheduler_unlock();
+        APP_INFO("stopwatch reset");
+    }
 }
 
-static void on_reset(void* app, void* user) {
-    (void)user; (void)app;
-    scheduler_lock();
-    stopwatch_reset(&g_sw);
-    scheduler_unlock();
-    app_mark_dirty(NULL);
-    APP_INFO("stopwatch reset");
-}
-
-static void on_init(void* app) {
-    app_ui_config_t cfg;
-    app_ui_config_ui(&cfg, "STOPWATCH", "Up:start/stop Sel:reset Bk:back");
-    app_ui_init(&g_ui, app, &cfg);
-    
-    app_ui_bind_keys(&g_ui, (app_ui_key_def_t[]){
-        {SIM_KEY_1, on_toggle, NULL},
-        {SIM_KEY_2, on_reset, NULL},
-        {SIM_KEY_UP, on_toggle, NULL},
-        {SIM_KEY_ENTER, on_reset, NULL},
-        {SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL},
-        {0, NULL, NULL},
-    });
-
+static void on_ready(app_helper_t* app) {
+    g_app = app;
     g_workers_alive = true;
     stopwatch_reset(&g_sw);
-    
+
     if (task_create("sw_sec", task_seconds, NULL, TASK_PRIO_NORMAL, 0, &g_sec_task) != 0 ||
         task_create("sw_min", task_minutes, NULL, TASK_PRIO_NORMAL, 0, &g_min_task) != 0 ||
         task_create("sw_hour", task_hours, NULL, TASK_PRIO_NORMAL, 0, &g_hour_task) != 0) {
@@ -187,33 +170,25 @@ static void on_init(void* app) {
         delete_workers();
         return;
     }
-    
+
     APP_INFO("Stopwatch ready");
 }
 
-static void on_frame(void* app) {
-    (void)app;
-    app_ui_begin_frame(&g_ui);
-    
-    uint8_t h = g_sw.hours;
-    uint8_t m = g_sw.minutes;
-    uint8_t s = g_sw.seconds;
-    bool running = g_sw.running;
-    
-    app_ui_linef(&g_ui, 0, "%02u:%02u:%02u", (unsigned)h, (unsigned)m, (unsigned)s);
-    app_ui_line(&g_ui, 2, running ? "RUN" : "STP");
-    app_ui_line(&g_ui, 3, "Up:tog Sel:rst");
-    app_ui_end_frame(&g_ui);
+static void on_draw(app_helper_t* app) {
+    app_helper_labelf(app, 0, "%02u:%02u:%02u", (unsigned)g_sw.hours, (unsigned)g_sw.minutes,
+                      (unsigned)g_sw.seconds);
+    app_helper_label(app, 2, g_sw.running ? "RUN" : "STP");
+    app_helper_label(app, 3, "Up:tog Sel:rst");
 }
 
-static void on_cleanup(void* app) {
+static void on_cleanup(app_helper_t* app) {
     (void)app;
     delete_workers();
-    app_ui_deinit(&g_ui);
     APP_INFO("Stopwatch workers stopped");
 }
 
-APP_DEFINE(stopwatch_app, "stopwatch", .version = "1.0.0", .author = "ArdubotOS",
+APP_HELPER(stopwatch_app, "stopwatch", .version = "1.0.0", .author = "ArdubotOS",
+           .title = "STOPWATCH", .help = "Up:start/stop Sel:reset Bk:back",
            .description = "Multithread stopwatch (sec/min/hour tasks)", .type = APP_TYPE_TOOL,
-           .icon = &stopwatch_app_icon, .fps = 30,
-           .on_init = on_init, .on_frame = on_frame, .on_cleanup = on_cleanup)
+           .icon = &stopwatch_app_icon, .fps = 30, .on_event = on_event, .on_ready = on_ready,
+           .on_draw = on_draw, .on_cleanup = on_cleanup)

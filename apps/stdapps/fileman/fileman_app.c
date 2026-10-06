@@ -1,5 +1,5 @@
 #include "app_framework.h"
-#include "app_kit.h"
+#include "app_helper.h"
 #include "vfs.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -16,7 +16,7 @@ typedef struct {
 } fileman_state_t;
 
 static fileman_state_t g_fm;
-static app_ui_t g_ui;
+static app_helper_t* g_app;
 
 // --- Helpers ---
 static void refresh_list(void) {
@@ -84,8 +84,8 @@ static void on_down(void* app, void* user) {
     (void)user; (void)app;
     if (g_fm.selected < g_fm.count - 1) {
         g_fm.selected++;
-        int scale = g_ui.ui.text_scale;
-        int max_visible = (g_ui.ui.content_h - 18 * scale) / (10 * scale);
+        int scale = g_app->ui.ui.text_scale;
+        int max_visible = (g_app->ui.ui.content_h - 18 * scale) / (10 * scale);
         if (g_fm.selected >= g_fm.offset + max_visible) g_fm.offset = g_fm.selected - max_visible + 1;
         app_mark_dirty(app);
     }
@@ -134,39 +134,25 @@ static void on_back(void* app, void* user) {
     }
 }
 
-// --- Lifecycle ---
-static void fileman_init(void* app) {
-    app_ui_config_t cfg;
-    app_ui_config_ui(&cfg, "FILE MANAGER", "Up/Dn:Nav Sel:Open Bk:Back");
-    app_ui_init(&g_ui, app, &cfg);
-
+static void on_ready(app_helper_t* app) {
+    g_app = app;
     strncpy(g_fm.path, "/flash", sizeof(g_fm.path) - 1);
     g_fm.path[sizeof(g_fm.path) - 1] = '\0';
     g_fm.entries = NULL;
     g_fm.count = 0;
     g_fm.selected = 0;
     g_fm.offset = 0;
-
-    app_ui_bind_key(&g_ui, SIM_KEY_UP, on_up, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_DOWN, on_down, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_select, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, on_back, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL);
-
     refresh_list();
     APP_INFO("File Manager ready - /flash");
 }
 
-static void fileman_frame(void* app) {
-    (void)app;
-    app_ui_begin_frame(&g_ui);
-
-    int scale = g_ui.ui.text_scale;
-    int max_visible = (g_ui.ui.content_h - 18 * scale) / (10 * scale);
+static void on_draw(app_helper_t* app) {
+    int scale = app->ui.ui.text_scale;
+    int max_visible = (app->ui.ui.content_h - 18 * scale) / (10 * scale);
 
     // Path header
-    app_ui_textf(&g_ui, 0, 0, "Path: %s", g_fm.path);
-    app_ui_text(&g_ui, 0, 8 * scale, "----------------");
+    app_ui_textf(&app->ui, 0, 0, "Path: %s", g_fm.path);
+    app_ui_text(&app->ui, 0, 8 * scale, "----------------");
 
     for (int i = g_fm.offset; i < g_fm.count && i < g_fm.offset + max_visible; i++) {
         int y = 18 * scale + (i - g_fm.offset) * 10 * scale;
@@ -180,7 +166,7 @@ static void fileman_frame(void* app) {
             snprintf(size_str, sizeof(size_str), "%u B", (unsigned)entry->size);
         }
 
-        app_ui_textf(&g_ui, 0, y, "%s%s  %s %s",
+        app_ui_textf(&app->ui, 0, y, "%s%s  %s %s",
                       is_selected ? ">" : " ",
                       entry->is_dir ? "[DIR] " : "     ",
                       entry->name,
@@ -190,21 +176,29 @@ static void fileman_frame(void* app) {
     // Status bar
     char status[64];
     snprintf(status, sizeof(status), "Items: %d  Sel: %d", g_fm.count, g_fm.selected);
-    app_ui_end_frame(&g_ui);
+    (void)status;
 }
 
-static void fileman_cleanup(void* app) {
+static void on_cleanup(app_helper_t* app) {
     (void)app;
     if (g_fm.entries) {
         free(g_fm.entries);
         g_fm.entries = NULL;
         g_fm.count = 0;
     }
-    app_ui_deinit(&g_ui);
     APP_INFO("File Manager closed");
 }
 
-APP_DEFINE(fileman_app, "fileman", .version = "1.0.0", .author = "ArdubotOS",
-           .description = "File manager - browse flash/SD",
-           .type = APP_TYPE_TOOL, .fps = 30,
-           .on_init = fileman_init, .on_frame = fileman_frame, .on_cleanup = fileman_cleanup)
+static const app_ui_key_def_t fileman_keys[] = {
+    {SIM_KEY_UP, on_up, NULL},
+    {SIM_KEY_DOWN, on_down, NULL},
+    {SIM_KEY_ENTER, on_select, NULL},
+    {SIM_KEY_ESCAPE, on_back, NULL},
+    {SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL},
+    {0, NULL, NULL},
+};
+
+APP_HELPER(fileman_app, "fileman", .version = "1.0.0", .author = "ArdubotOS", .title = "FILE MANAGER",
+           .help = "Up/Dn:Nav Sel:Open Bk:Back", .description = "File manager - browse flash/SD",
+           .type = APP_TYPE_TOOL, .fps = 30, .live = true, .keys = fileman_keys, .on_ready = on_ready,
+           .on_draw = on_draw, .on_cleanup = on_cleanup)

@@ -1,5 +1,5 @@
 #include "app_framework.h"
-#include "app_kit.h"
+#include "app_helper.h"
 #include "app.h"
 #include "vfs.h"
 #include "alloc.h"
@@ -20,7 +20,6 @@ static int g_cursor = 0;
 static char* g_history[SHELL_HISTORY_MAX];
 static int g_history_count = 0;
 static int g_history_pos = 0;
-static app_ui_t g_ui;
 static int g_last_key = 0;
 
 // --- Built-in Commands ---
@@ -328,60 +327,51 @@ static void on_key_char(void* app, void* user) {
     }
 }
 
-// --- Lifecycle ---
-static void shell_init(void* app) {
+static const app_ui_key_def_t shell_keys[] = {
+    {SIM_KEY_UP, on_up, NULL},
+    {SIM_KEY_DOWN, on_down, NULL},
+    {SIM_KEY_LEFT, on_left, NULL},
+    {SIM_KEY_RIGHT, on_right, NULL},
+    {SIM_KEY_ESCAPE, on_backspace, NULL},
+    {SIM_KEY_ENTER, on_select, NULL},
+    {SIM_KEY_ENTER, on_key_char, NULL},
+    {SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL},
+    {0, NULL, NULL},
+};
+
+static void on_ready(app_helper_t* app) {
     (void)app;
-    app_ui_config_t cfg;
-    app_ui_config_ui(&cfg, "SHELL", "ArdubotOS Shell  Type 'help'  Up/Down: history");
-    app_ui_init(&g_ui, app, &cfg);
-    
-    app_ui_bind_key(&g_ui, SIM_KEY_UP, on_up, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_DOWN, on_down, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_LEFT, on_left, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_RIGHT, on_right, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, on_backspace, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_select, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_key_char, NULL);
-    
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, (app_key_fn_t)app_request_exit_key, NULL);
-    
     APP_INFO("Shell ready - type commands, UP/DOWN history, Enter: exec/cycle char");
 }
 
-static void shell_frame(void* app) {
-    (void)app;
-    if (!app_is_dirty(app)) {
-        return;
-    }
-    app_ui_begin_frame(&g_ui);
-
-    const int scale = g_ui.ui.text_scale;
+static void on_draw(app_helper_t* app) {
+    const int scale = app->ui.ui.text_scale;
     const int char_w = 6 * scale;
     const int prompt_w = 2 * char_w; /* "> " */
 
     // Prompt
-    app_ui_text(&g_ui, 0, 0, "> ");
-    app_ui_text(&g_ui, prompt_w, 0, g_line);
+    app_ui_text(&app->ui, 0, 0, "> ");
+    app_ui_text(&app->ui, prompt_w, 0, g_line);
     if (g_cursor < 20) {
-        app_ui_pixel(&g_ui, prompt_w + g_cursor * char_w, 0, true);
+        app_ui_pixel(&app->ui, prompt_w + g_cursor * char_w, 0, true);
     }
     
     // Status
-    app_ui_textf(&g_ui, 0, g_ui.ui.content_h - 8, "ArdubotOS Shell  Type 'help'  Up/Down: history");
+    app_ui_textf(&app->ui, 0, app->ui.ui.content_h - 8, "ArdubotOS Shell  Type 'help'  Up/Down: history");
     
-    app_ui_end_frame(&g_ui);
 }
 
-static void shell_cleanup(void* app) {
+static void on_cleanup(app_helper_t* app) {
+    int i;
     (void)app;
-    for (int i = 0; i < g_history_count; i++) {
+    for (i = 0; i < g_history_count; i++) {
         free(g_history[i]);
     }
-    app_ui_deinit(&g_ui);
     APP_INFO("Shell closed");
 }
 
-APP_DEFINE(shell_app, "shell", .version = "1.0.0", .author = "ArdubotOS",
+APP_HELPER(shell_app, "shell", .version = "1.0.0", .author = "ArdubotOS", .title = "SHELL",
+           .help = "ArdubotOS Shell  Type 'help'  Up/Down: history",
            .description = "Interactive shell - type commands, UP/DOWN for history",
-           .type = APP_TYPE_SYSTEM, .fps = 30,
-           .on_init = shell_init, .on_frame = shell_frame, .on_cleanup = shell_cleanup)
+           .type = APP_TYPE_SYSTEM, .fps = 30, .live = true, .keys = shell_keys, .on_ready = on_ready,
+           .on_draw = on_draw, .on_cleanup = on_cleanup)

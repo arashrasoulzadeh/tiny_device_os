@@ -1,12 +1,15 @@
 #pragma once
 
 /**
- * App helper. One include, one event callback, one draw callback, and
- * APP_HELPER(). Up / 1 and Select / 2 are already bound;
- * Escape leaves the app. The frame is drawn only after an event or
- * app_helper_invalidate(), so a quiet screen does not repaint every tick.
+ * App helper. One include and APP_HELPER(). Up / 1, Down, Left, Right,
+ * and Select / 2 are already bound; Escape leaves the app. The frame is
+ * drawn after an event, app_helper_invalidate(), or when .live is set.
  *
- * Apps that need a custom key map or their own task still use APP_DEFINE.
+ * Pass .keys to replace that map (a file-scope array, one handler per
+ * entry). .on_ready runs after the UI and keys exist. .on_tick runs
+ * every frame before the redraw check. .game drops the title and help
+ * bars. Two handlers on one key still go in .keys; the helper calls
+ * each entry in order.
  */
 
 #include "app_ui.h"
@@ -21,14 +24,16 @@ extern "C" {
 
 typedef enum {
     APP_EV_UP = 1,
+    APP_EV_DOWN,
+    APP_EV_LEFT,
+    APP_EV_RIGHT,
     APP_EV_SELECT,
 } app_helper_event_t;
 
 typedef struct app_helper app_helper_t;
 
 typedef void (*app_helper_event_fn)(app_helper_t* app, app_helper_event_t ev);
-typedef void (*app_helper_draw_fn)(app_helper_t* app);
-typedef void (*app_helper_cleanup_fn)(app_helper_t* app);
+typedef void (*app_helper_fn)(app_helper_t* app);
 
 typedef struct {
     const char* name;
@@ -40,9 +45,14 @@ typedef struct {
     app_type_t type;
     uint32_t fps;
     const app_icon_t* icon;
+    bool game;
+    bool live;
+    const app_ui_key_def_t* keys;
     app_helper_event_fn on_event;
-    app_helper_draw_fn on_draw;
-    app_helper_cleanup_fn on_cleanup;
+    app_helper_fn on_tick;
+    app_helper_fn on_ready;
+    app_helper_fn on_draw;
+    app_helper_fn on_cleanup;
 } app_helper_desc_t;
 
 struct app_helper {
@@ -86,7 +96,10 @@ static inline int app_helper_content_h(const app_helper_t* app) {
 }
 
 void app_helper_text(app_helper_t* app, int x, int y, const char* text, uint16_t rgb565);
+void app_helper_center_text(app_helper_t* app, int x, int y, int w, int h, const char* text,
+                            int scale, uint16_t rgb565);
 void app_helper_label(app_helper_t* app, int row, const char* text);
+void app_helper_labelf(app_helper_t* app, int row, const char* fmt, ...);
 void app_helper_number(app_helper_t* app, int y, const char* text, int scale, uint16_t rgb565);
 void app_helper_clock(app_helper_t* app, int y, int32_t seconds, int scale, uint16_t rgb565);
 void app_helper_bar(app_helper_t* app, int y, int h, int fill_w, uint16_t fill);

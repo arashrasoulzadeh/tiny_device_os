@@ -1,5 +1,5 @@
 #include "app_framework.h"
-#include "app_kit.h"
+#include "app_helper.h"
 #include "config_store.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -40,7 +40,6 @@ static bool g_editing = false;
 static char g_edit_buffer[64];
 static int g_edit_pos = 0;
 static int g_last_key = 0;
-static app_ui_t g_ui;
 
 // --- Helpers ---
 static void load_setting(int idx, char* buf, size_t len) {
@@ -139,34 +138,30 @@ static void on_key_right(void* app, void* user) {
     }
 }
 
-// --- Lifecycle ---
-static void settings_init(void* app) {
-    app_ui_config_t cfg;
-    app_ui_config_ui(&cfg, "SETTINGS", "Up/Dn:Nav Sel:Edit Bk:Back");
-    app_ui_init(&g_ui, app, &cfg);
-    
-    app_ui_bind_key(&g_ui, SIM_KEY_UP, on_up, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_DOWN, on_down, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_LEFT, on_key_left, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_RIGHT, on_key_right, NULL);
-    /* on_key_backspace() owns all of Escape's behavior: backspace while
-     * editing, exit-edit-mode-and-save once the buffer is empty, or quit
-     * to the launcher when not editing. A second binding straight to
-     * app_request_exit() here would fire on every Escape regardless of
-     * editing state, fighting with backspace and making it impossible to
-     * back out of edit mode without quitting the whole app. */
-    app_ui_bind_key(&g_ui, SIM_KEY_ESCAPE, on_key_backspace, NULL);
-    app_ui_bind_key(&g_ui, SIM_KEY_ENTER, on_select, NULL);
+/* on_key_backspace() owns all of Escape's behavior: backspace while
+ * editing, exit-edit-mode-and-save once the buffer is empty, or quit
+ * to the launcher when not editing. A second binding straight to
+ * app_request_exit() here would fire on every Escape regardless of
+ * editing state, fighting with backspace and making it impossible to
+ * back out of edit mode without quitting the whole app. */
+static const app_ui_key_def_t settings_keys[] = {
+    {SIM_KEY_UP, on_up, NULL},
+    {SIM_KEY_DOWN, on_down, NULL},
+    {SIM_KEY_LEFT, on_key_left, NULL},
+    {SIM_KEY_RIGHT, on_key_right, NULL},
+    {SIM_KEY_ESCAPE, on_key_backspace, NULL},
+    {SIM_KEY_ENTER, on_select, NULL},
+    {0, NULL, NULL},
+};
 
+static void on_ready(app_helper_t* app) {
+    (void)app;
     APP_INFO("Settings ready - Up/Down navigate, Enter: cycle char/select, Esc: backspace/back");
 }
 
-static void settings_frame(void* app) {
-    (void)app;
-    app_ui_begin_frame(&g_ui);
-
+static void on_draw(app_helper_t* app) {
     int y = 0;
-    const int scale = g_ui.ui.text_scale;
+    const int scale = app->ui.ui.text_scale;
     const int line_h = 14 * scale;
     const int row_h = 18 * scale;
     
@@ -174,10 +169,10 @@ static void settings_frame(void* app) {
         bool is_selected = (i == g_selected);
         bool is_editing = g_editing && (i == g_selected);
         
-        if (y + line_h > g_ui.ui.content_h) break;
+        if (y + line_h > app->ui.ui.content_h) break;
         
         // Selection indicator
-        app_ui_textf(&g_ui, 0, y, "%s %s", is_selected ? ">" : " ", setting_names[i]);
+        app_ui_textf(&app->ui, 0, y, "%s %s", is_selected ? ">" : " ", setting_names[i]);
         
         // Value or edit buffer - +1 for the trailing "_" appended below,
         // since g_edit_buffer can be a full sizeof(g_edit_buffer)-1 chars
@@ -189,33 +184,27 @@ static void settings_frame(void* app) {
         } else {
             load_setting(i, value, sizeof(value));
         }
-        app_ui_text(&g_ui, 0, y + 8 * scale, value);
+        app_ui_text(&app->ui, 0, y + 8 * scale, value);
 
         // Cursor indicator when editing
         if (is_editing) {
             int cursor_x = 0;
             for (int j = 0; j < g_edit_pos && j < 20; j++) cursor_x += 6 * scale;
-            app_ui_pixel(&g_ui, cursor_x, y + 15 * scale, true);
+            app_ui_pixel(&app->ui, cursor_x, y + 15 * scale, true);
         }
 
         y += row_h;
     }
     
-    // Help text
-    if (!g_editing) {
-        app_ui_end_frame(&g_ui);
-    } else {
-        app_ui_end_frame(&g_ui);
-    }
 }
 
-static void settings_cleanup(void* app) {
+static void on_cleanup(app_helper_t* app) {
     (void)app;
-    app_ui_deinit(&g_ui);
     APP_INFO("Settings closed");
 }
 
-APP_DEFINE(settings_app, "settings", .version = "1.0.0", .author = "ArdubotOS",
-           .description = "System settings - WiFi, display, sound, timezone",
-           .type = APP_TYPE_SYSTEM, .fps = 30,
-           .on_init = settings_init, .on_frame = settings_frame, .on_cleanup = settings_cleanup)
+APP_HELPER(settings_app, "settings", .version = "1.0.0", .author = "ArdubotOS", .title = "SETTINGS",
+           .help = "Up/Dn:Nav Sel:Edit Bk:Back",
+           .description = "System settings - WiFi, display, sound, timezone", .type = APP_TYPE_SYSTEM,
+           .fps = 30, .live = true, .keys = settings_keys, .on_ready = on_ready, .on_draw = on_draw,
+           .on_cleanup = on_cleanup)

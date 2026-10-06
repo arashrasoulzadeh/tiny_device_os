@@ -1,7 +1,7 @@
 # Writing apps
 
 Prefer **`app_helper.h`** for a new screen. Full API and component map: [`docs/appkit.md`](appkit.md).
-`APP_DEFINE` in `app_kit.h` remains for apps that bind their own keys or run a worker task.
+`APP_DEFINE` in `app_kit.h` remains when an app cannot be expressed with the helper fields below.
 
 This page is the short path: minimal example, install, and which app boots.
 
@@ -34,7 +34,7 @@ APP_HELPER(counter_app, "counter",
     .on_draw = on_draw);
 ```
 
-Up and the `1` key increment. Select and the `2` key decrement. Escape leaves. The screen redraws only when an event arrives; call `app_helper_invalidate(app)` when a timer changes what is on screen. `app_fmt_clock`, `app_fit_text_scale`, `app_bar_fill_px`, `app_gauge_fill_px`, `app_level_color`, `app_helper_clock`, `app_helper_bar`, `app_helper_gauge`, and `app_helper_panel` cover the layout math apps used to copy.
+Up and the `1` key increment. Down, Left, and Right are bound the same way. Select and the `2` key decrement. Escape leaves. The screen redraws when an event arrives, when `app_helper_invalidate(app)` runs, or when `.live = true`. `.on_tick` runs every frame before that check. `.on_ready` runs after the UI and keys exist (start a worker there). `.game = true` drops the title and help bars. `.keys` replaces the default map with a file-scope `app_ui_key_def_t` array; a `NULL` user pointer is filled in with the helper. `app_fmt_clock`, `app_fit_text_scale`, `app_bar_fill_px`, `app_gauge_fill_px`, `app_level_color`, `app_helper_clock`, `app_helper_bar`, `app_helper_gauge`, `app_helper_panel`, `app_helper_labelf`, and `app_helper_center_text` cover the layout math apps used to copy.
 
 ## Lower-level app
 

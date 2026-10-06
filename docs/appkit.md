@@ -1,12 +1,13 @@
 # App Kit reference
 
-New screens start with **`#include "app_helper.h"`** and `APP_HELPER()` — Up, Select,
-and Escape are already bound, and the frame redraws only when something
-changes. The short example is in [`docs/apps.md`](apps.md).
+New screens start with **`#include "app_helper.h"`** and `APP_HELPER()`. Up, Down,
+Left, Right, Select, and Escape are already bound. Pass `.keys`, `.live`,
+`.game`, `.on_tick`, or `.on_ready` when a screen needs a different map, a
+frame every tick, no chrome, a per-frame step, or setup after the UI exists.
+The short example is in [`docs/apps.md`](apps.md).
 
-**`#include "app_kit.h"`** is the lower-level umbrella (`APP_DEFINE`, custom
-keys, open/exit) plus the UI components under
-[`apps/ui/components/`](../apps/ui/components/).
+**`#include "app_kit.h"`** is the lower-level umbrella (`APP_DEFINE`, open/exit)
+plus the UI components under [`apps/ui/components/`](../apps/ui/components/).
 
 Short how-to for adding a builtin: [`docs/apps.md`](apps.md).
 
