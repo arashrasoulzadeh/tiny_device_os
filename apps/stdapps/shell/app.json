@@ -1,8 +1,8 @@
 {
-  "name": "demo",
+  "name": "shell",
   "version": "1.0.0",
   "author": "ArdubotOS",
-  "description": "Framework demo app",
+  "description": "Interactive shell - type commands, UP/DOWN for history",
   "depends": [],
   "min_display": {
     "width": 0,

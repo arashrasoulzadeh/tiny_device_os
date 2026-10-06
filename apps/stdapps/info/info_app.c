@@ -54,7 +54,6 @@ static void on_ready(app_helper_t* app) {
     APP_INFO("Info app ready");
 }
 
-APP_HELPER(info_app, "info", .version = "1.0.0", .author = "ArdubotOS", .title = "INFO",
-           .help = "Sel:Refresh  Bk:Back", .description = "Device and OS information",
+APP_HELPER(info_app, "info", .title = "INFO", .help = "Sel:Refresh  Bk:Back",
            .type = APP_TYPE_TOOL, .icon = &info_app_icon, .fps = 10, .on_event = on_event,
            .on_tick = on_tick, .on_ready = on_ready, .on_draw = on_draw)

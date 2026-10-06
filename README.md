@@ -55,7 +55,7 @@ scale-correct, no hand-computed pixel math) and table-based key binding
 make create-app NAME=mygame
 ```
 
-This writes `apps/stdapps/mygame/{mygame_app.c, mygame_icon.c, package.json}`,
+This writes `apps/stdapps/mygame/{mygame_app.c, mygame_icon.c, app.json}`,
 registers it in `apps/stdapps/CMakeLists.txt`, and prints the two lines to add
 to `sim/sim_main.c` to actually install it (install is a separate, explicit
 step on purpose - see `sim/sim_main.c`'s comments on why only four of the
@@ -63,8 +63,10 @@ nine built-in apps are installed today).
 
 ### Package manager
 
-Every stdapp carries a `package.json` (name/version/author/depends/
-min_display). There's no hosted registry yet, so `ardubot install` only
+Every stdapp carries an `app.json` (name/version/author/depends/
+min_display). The compile copies name, version, author, and description
+into the app manifest, so those fields are not repeated in `APP_HELPER`.
+There's no hosted registry yet, so `ardubot install` only
 resolves a local directory:
 
 ```bash
@@ -76,7 +78,7 @@ make install-app SRC=../some-app      # copy it in + register it (checks `depend
 
 A device profile (`device_config.yaml`) can restrict which stdapps actually
 get *compiled* in - not just hidden at runtime. Without an explicit `apps:`
-list, every stdapp whose `package.json` `min_display` fits the configured
+list, every stdapp whose `app.json` `min_display` fits the configured
 `lcd.width`/`height` is included automatically:
 
 ```bash
@@ -154,7 +156,7 @@ as the realistic target to raise incrementally, not 100%.
 | `make usb [DEVICE=x] [PORT=y]` | Build + flash a real board |
 | `make monitor` | Serial monitor on the configured device |
 | `make create-app NAME=x` | Scaffold a new stdapp |
-| `make install-app SRC=path [FORCE=1]` | Install a `package.json` app from a local dir |
+| `make install-app SRC=path [FORCE=1]` | Install an `app.json` app from a local dir |
 | `make list-apps` | List installed stdapps |
 | `make docs` | Build Doxygen + mkdocs reference docs |
 | `make coverage` | Real lcov line/branch coverage report |

@@ -199,9 +199,8 @@ static void on_cleanup(app_helper_t* app) {
     APP_INFO("Demo closed");
 }
 
-APP_HELPER(demo_app, "demo", .version = "1.0.0", .author = "ArdubotOS", .title = "HARDWARE DEMO",
-           .help = "Up/Dn:Nav Sel:Run Esc:Back",
-           .description = "Hardware test suite - GPIO, I2C, SPI, ADC", .type = APP_TYPE_TOOL, .fps = 30,
+APP_HELPER(demo_app, "demo", .title = "HARDWARE DEMO",
+           .help = "Up/Dn:Nav Sel:Run Esc:Back", .type = APP_TYPE_TOOL, .fps = 30,
            .live = true, .keys = demo_keys, .state = &g_st, .state_size = sizeof(g_st),
            .on_ready = on_ready, .on_draw = on_draw,
            .on_cleanup = on_cleanup)

@@ -25,12 +25,15 @@ checkout, stop and fix that first — this tutorial assumes a working baseline.
 python3 scripts/ardubot.py create-app blink
 ```
 
-This creates `apps/stdapps/blink/{blink_app.c, blink_icon.c, package.json}`
+This creates `apps/stdapps/blink/{blink_app.c, blink_icon.c, app.json}`
 and registers `blink` in `apps/stdapps/CMakeLists.txt`'s `ARDUBOT_ALL_STDAPPS`
 list automatically. It does **not** install the app into any running build —
 that's a separate, explicit step (section 4), on purpose: scaffolding and
 installing are different decisions, and most of the nine built-in apps in
 this repo are scaffolded but not all of them are installed in the launcher.
+`app.json` is where the name, version, author, and description live; the
+compile copies them into the app, so the scaffold does not repeat them in
+`APP_DEFINE`.
 
 Open `apps/stdapps/blink/blink_app.c`. The template gives you a minimal
 `on_init`/`on_frame` pair and an `APP_DEFINE(...)` block — that's the whole
@@ -79,9 +82,6 @@ static void on_frame(app_ctx_t* app) {
 }
 
 APP_DEFINE(blink_app, "blink",
-    .version = "1.0.0",
-    .author = "you",
-    .description = "Blink demo app",
     .icon = &blink_app_icon,
     .fps = 30,
     .on_init = on_init,

@@ -1,8 +1,8 @@
 {
-  "name": "counter",
+  "name": "launcher",
   "version": "1.0.0",
   "author": "ArdubotOS",
-  "description": "Simple counter demo",
+  "description": "System launcher / home app",
   "depends": [],
   "min_display": {
     "width": 0,

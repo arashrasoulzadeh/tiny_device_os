@@ -1,8 +1,8 @@
 {
-  "name": "fileman",
+  "name": "demo",
   "version": "1.0.0",
   "author": "ArdubotOS",
-  "description": "File manager",
+  "description": "Hardware test suite - GPIO, I2C, SPI, ADC",
   "depends": [],
   "min_display": {
     "width": 0,

@@ -14,6 +14,7 @@ set(ARDUBOT_ALL_STDAPPS
     pomodoro
     taskmgr
     clock
+    sensors
 )
 
 # A device profile can restrict what actually gets compiled in, via
@@ -21,7 +22,7 @@ set(ARDUBOT_ALL_STDAPPS
 # list syntax). This is how "based on the device, only compile what fits"
 # is implemented: scripts/device_config.py resolve_apps() computes this
 # list from device_config.yaml (explicit `apps:` override, or auto-fit
-# against each app's package.json "min_display"), and the Makefile passes
+# against each app's app.json "min_display"), and the Makefile passes
 # it through CMAKE_OPTS for ARCH != sim. Unset (the sim default) means
 # "compile everything."
 if(NOT DEFINED ARDUBOT_ENABLED_APPS)

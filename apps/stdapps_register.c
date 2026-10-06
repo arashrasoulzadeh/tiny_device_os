@@ -69,6 +69,12 @@ int stdapps_install(void) {
         return -1;
     }
 #endif
+#ifdef ARDUBOT_APP_SENSORS_ENABLED
+    extern app_manifest_t* sensors_app_manifest;
+    if (install_manifest(sensors_app_manifest, "sensors") != 0) {
+        return -1;
+    }
+#endif
     /* Launcher is always built (apps/stdapps/CMakeLists.txt). settings,
      * fileman, shell, and demo stay out of the catalog even when their
      * sources are linked. */
@@ -83,7 +89,9 @@ int stdapps_install(void) {
 }
 
 const char* stdapps_start_name(void) {
-#ifdef ARDUBOT_APP_INFO_ENABLED
+#ifdef ARDUBOT_APP_SENSORS_ENABLED
+    return "sensors";
+#elif defined(ARDUBOT_APP_INFO_ENABLED)
     return "info";
 #elif defined(ARDUBOT_APP_CLOCK_ENABLED)
     return "clock";

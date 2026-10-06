@@ -211,8 +211,8 @@ static const app_ui_key_def_t fileman_keys[] = {
     {0, NULL, NULL},
 };
 
-APP_HELPER(fileman_app, "fileman", .version = "1.0.0", .author = "ArdubotOS", .title = "FILE MANAGER",
-           .help = "Up/Dn:Nav Sel:Open Bk:Back", .description = "File manager - browse flash/SD",
+APP_HELPER(fileman_app, "fileman", .title = "FILE MANAGER",
+           .help = "Up/Dn:Nav Sel:Open Bk:Back",
            .type = APP_TYPE_TOOL, .fps = 30, .live = true, .keys = fileman_keys, .state = &g_fm,
            .state_size = sizeof(g_fm), .on_ready = on_ready,
            .on_draw = on_draw, .on_cleanup = on_cleanup)

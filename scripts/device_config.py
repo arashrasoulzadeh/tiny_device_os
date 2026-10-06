@@ -204,7 +204,7 @@ def resolve_pin(label: str | int, board: str = "nodemcu") -> int:
 
 
 def load_stdapp_packages(stdapps_dir: str | Path | None = None) -> dict[str, dict]:
-    """Maps stdapp name -> parsed package.json (apps without one are {})."""
+    """Maps stdapp name -> parsed app.json (apps without one are {})."""
     base = Path(stdapps_dir) if stdapps_dir else (REPO_ROOT / "apps" / "stdapps")
     pkgs: dict[str, dict] = {}
     if not base.is_dir():
@@ -212,7 +212,7 @@ def load_stdapp_packages(stdapps_dir: str | Path | None = None) -> dict[str, dic
     for d in sorted(base.iterdir()):
         if not d.is_dir():
             continue
-        manifest = d / "package.json"
+        manifest = d / "app.json"
         pkgs[d.name] = json.loads(manifest.read_text()) if manifest.is_file() else {}
     return pkgs
 
@@ -224,7 +224,7 @@ def resolve_apps(
 
     An explicit `apps:` list in device_config.yaml is used as-is (unknown
     names are dropped with a reason). Without one, every stdapp whose
-    package.json "min_display" fits the configured lcd size is included -
+    app.json "min_display" fits the configured lcd size is included -
     this is the "compile what's suited to the device" behavior. A
     min_display of 0 (the default) means "fits anything."
     """
@@ -426,17 +426,21 @@ def generate_header(
             continue
         key = str(item.get("key", "")).strip()
         kind = str(item.get("type", "")).strip().lower()
-        if not re.fullmatch(r"[A-Za-z0-9_]+", key) or kind != "adc":
+        type_macro = {"adc": "SENSOR_TYPE_ADC", "temp": "SENSOR_TYPE_TEMP"}.get(kind)
+        if not re.fullmatch(r"[A-Za-z0-9_]+", key) or type_macro is None:
             continue
-        path = str(item.get("path") or "/dev/adc0")
-        if not re.fullmatch(r"(?:/dev/)?adc\d+", path):
-            continue
+        if kind == "adc":
+            path = str(item.get("path") or "/dev/adc0")
+            if not re.fullmatch(r"(?:/dev/)?adc\d+", path):
+                continue
+        else:
+            path = ""
         refresh = item.get("refresh_ms", 1000)
         refresh_ms = int(refresh) if refresh is not None else 1000
         if refresh_ms < 0:
             refresh_ms = 0
         lines.append(f'#define ARDUBOT_SENSOR_{sensor_n}_KEY "{key}"')
-        lines.append(f"#define ARDUBOT_SENSOR_{sensor_n}_TYPE SENSOR_TYPE_ADC")
+        lines.append(f"#define ARDUBOT_SENSOR_{sensor_n}_TYPE {type_macro}")
         lines.append(f'#define ARDUBOT_SENSOR_{sensor_n}_PATH "{path}"')
         lines.append(f"#define ARDUBOT_SENSOR_{sensor_n}_REFRESH_MS {refresh_ms}")
         sensor_n += 1

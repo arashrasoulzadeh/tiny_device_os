@@ -119,7 +119,6 @@ static void on_draw(app_helper_t* app) {
                            ARDUBOT_COLOR_TEXT_MUTED);
 }
 
-APP_HELPER(clock_app, "clock", .version = "1.0.0", .author = "ArdubotOS", .title = "CLOCK",
-           .help = "Up:+hour  Sel:+min", .description = "Analog and digital clock",
+APP_HELPER(clock_app, "clock", .title = "CLOCK", .help = "Up:+hour  Sel:+min",
            .type = APP_TYPE_TOOL, .icon = &clock_app_icon, .fps = 10, .on_event = on_event,
            .on_tick = on_tick, .on_draw = on_draw)

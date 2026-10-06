@@ -17,6 +17,7 @@ extern "C" {
 
 typedef enum {
     SENSOR_TYPE_ADC = 1,
+    SENSOR_TYPE_TEMP = 2,
 } sensor_type_t;
 
 #define SENSOR_SERVICE_MAX 8
@@ -24,6 +25,9 @@ typedef enum {
 int sensor_service_reset(void);
 int sensor_service_add(const char* key, sensor_type_t type, const char* path, uint32_t refresh_ms);
 int sensor_service_load_builtin(void);
+int sensor_service_count(void);
+const char* sensor_service_key(int index);
+sensor_type_t sensor_service_type(int index);
 
 /** Hardware samples taken. A cached read does not increase this. */
 uint32_t sensor_service_samples(void);

@@ -207,9 +207,8 @@ static void on_cleanup(app_helper_t* app) {
     APP_INFO("Settings closed");
 }
 
-APP_HELPER(settings_app, "settings", .version = "1.0.0", .author = "ArdubotOS", .title = "SETTINGS",
-           .help = "Up/Dn:Nav Sel:Edit Bk:Back",
-           .description = "System settings - WiFi, display, sound, timezone", .type = APP_TYPE_SYSTEM,
+APP_HELPER(settings_app, "settings", .title = "SETTINGS",
+           .help = "Up/Dn:Nav Sel:Edit Bk:Back", .type = APP_TYPE_SYSTEM,
            .fps = 30, .live = true, .keys = settings_keys, .state = &g_st, .state_size = sizeof(g_st),
            .on_ready = on_ready, .on_draw = on_draw,
            .on_cleanup = on_cleanup)

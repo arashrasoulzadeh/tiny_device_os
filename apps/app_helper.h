@@ -40,9 +40,6 @@ typedef struct {
     const char* name;
     const char* title;
     const char* help;
-    const char* version;
-    const char* author;
-    const char* description;
     app_type_t type;
     uint32_t fps;
     const app_icon_t* icon;
@@ -138,9 +135,7 @@ int app_helper_sensor(const char* key, int32_t* value);
         (void)raw;                                                                             \
         app_helper_stop(&symbol##_helper);                                                         \
     }                                                                                          \
-    APP_DEFINE(symbol, install_name, .version = symbol##_helper_desc.version,                    \
-               .author = symbol##_helper_desc.author,                                            \
-               .description = symbol##_helper_desc.description, .type = symbol##_helper_desc.type, \
+    APP_DEFINE(symbol, install_name, .type = symbol##_helper_desc.type,                          \
                .icon = symbol##_helper_desc.icon, .fps = symbol##_helper_desc.fps,                 \
                .on_init = symbol##_helper_init, .on_frame = symbol##_helper_frame_fn,              \
                .on_cleanup = symbol##_helper_cleanup_fn)

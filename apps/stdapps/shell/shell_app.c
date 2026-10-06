@@ -378,9 +378,8 @@ static void on_cleanup(app_helper_t* app) {
     APP_INFO("Shell closed");
 }
 
-APP_HELPER(shell_app, "shell", .version = "1.0.0", .author = "ArdubotOS", .title = "SHELL",
+APP_HELPER(shell_app, "shell", .title = "SHELL",
            .help = "ArdubotOS Shell  Type 'help'  Up/Down: history",
-           .description = "Interactive shell - type commands, UP/DOWN for history",
            .type = APP_TYPE_SYSTEM, .fps = 30, .live = true, .keys = shell_keys, .state = &g_shell,
            .state_size = sizeof(g_shell), .on_ready = on_ready,
            .on_draw = on_draw, .on_cleanup = on_cleanup)

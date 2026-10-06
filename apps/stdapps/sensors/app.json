@@ -1,0 +1,7 @@
+{
+  "name": "sensors",
+  "version": "1.0.0",
+  "author": "ArdubotOS",
+  "description": "Readings from the device sensors",
+  "depends": []
+}

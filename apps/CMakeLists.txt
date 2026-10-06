@@ -10,6 +10,7 @@ add_library(apps STATIC
     stdlog.c
     app_ui.c
     app_helper.c
+    app_manifest.c
     app_runtime.c
     clock_service.c
     sensor_service.c

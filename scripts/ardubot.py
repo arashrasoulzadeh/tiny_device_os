@@ -4,13 +4,13 @@
     ardubot flash               build + flash the current device_config.yaml target
     ardubot monitor             open a serial monitor on the device's port
     ardubot create-app <name>   scaffold a new stdapp from the app_ui kit template
-    ardubot install <path>      install a package.json-described app from a local dir
+    ardubot install <path>      install an app.json-described app from a local dir
     ardubot list                list installed stdapps and their package metadata
 
 Thin wrapper over the existing Makefile / scripts/*.py tooling - it exists so
 there is one documented command instead of five different `make` incantations.
 
-Package format (package.json, one per apps/stdapps/<name>/ directory):
+Package format (app.json, one per apps/stdapps/<name>/ directory):
     {
       "name": "mygame",        // must match the directory name
       "version": "1.0.0",
@@ -120,8 +120,7 @@ static void on_cleanup(void* app) {{
     app_ui_deinit(&g_ui);
 }}
 
-APP_DEFINE({name}_app, "{name}", .version = "1.0.0", .author = "ArdubotOS",
-           .description = "{title}", .icon = &{name}_app_icon, .fps = 30,
+APP_DEFINE({name}_app, "{name}", .icon = &{name}_app_icon, .fps = 30,
            .on_init = on_init, .on_frame = on_frame, .on_cleanup = on_cleanup)
 '''
 
@@ -142,12 +141,12 @@ def stdapps_dir() -> Path:
 
 
 def installed_packages() -> dict[str, dict]:
-    """Maps stdapp name -> parsed package.json (missing manifest -> {})."""
+    """Maps stdapp name -> parsed app.json (missing manifest -> {})."""
     pkgs: dict[str, dict] = {}
     for d in sorted(stdapps_dir().iterdir()):
         if not d.is_dir():
             continue
-        manifest = d / "package.json"
+        manifest = d / "app.json"
         pkgs[d.name] = json.loads(manifest.read_text()) if manifest.exists() else {}
     return pkgs
 
@@ -182,7 +181,7 @@ def cmd_create_app(args: argparse.Namespace) -> int:
     app_dir.mkdir(parents=True)
     (app_dir / f"{name}_app.c").write_text(APP_C_TEMPLATE.format(name=name, title=title))
     (app_dir / f"{name}_icon.c").write_text(ICON_C_TEMPLATE.format(name=name))
-    (app_dir / "package.json").write_text(json.dumps({
+    (app_dir / "app.json").write_text(json.dumps({
         "name": name,
         "version": "1.0.0",
         "author": "",
@@ -193,7 +192,7 @@ def cmd_create_app(args: argparse.Namespace) -> int:
 
     register_stdapp(name)
 
-    print(f"Created apps/stdapps/{name}/ ({name}_app.c, {name}_icon.c, package.json) "
+    print(f"Created apps/stdapps/{name}/ ({name}_app.c, {name}_icon.c, app.json) "
           f"and registered it in apps/stdapps/CMakeLists.txt.")
     print()
     print("To actually install it, add to sim/sim_main.c:")
@@ -204,9 +203,9 @@ def cmd_create_app(args: argparse.Namespace) -> int:
 
 def cmd_install(args: argparse.Namespace) -> int:
     src = Path(args.source).expanduser().resolve()
-    manifest_path = src / "package.json"
+    manifest_path = src / "app.json"
     if not manifest_path.is_file():
-        print(f"error: {manifest_path} not found - a package needs a package.json "
+        print(f"error: {manifest_path} not found - a package needs an app.json "
               "(see `ardubot --help` for the format)", file=sys.stderr)
         return 1
 
@@ -218,11 +217,11 @@ def cmd_install(args: argparse.Namespace) -> int:
 
     name = manifest.get("name", "")
     if not re.fullmatch(APP_NAME_RE, name):
-        print(f"error: package.json's \"name\" ({name!r}) must be lowercase "
+        print(f"error: app.json's \"name\" ({name!r}) must be lowercase "
               "alnum/underscore, starting with a letter", file=sys.stderr)
         return 1
     if src.name != name:
-        print(f"error: package.json says name={name!r} but the source directory is "
+        print(f"error: app.json says name={name!r} but the source directory is "
               f"{src.name!r} - rename one to match", file=sys.stderr)
         return 1
 
@@ -301,8 +300,8 @@ def main(argv: list[str]) -> int:
     p_create.add_argument("name")
     p_create.set_defaults(func=cmd_create_app)
 
-    p_install = sub.add_parser("install", help="install a package.json app from a local dir")
-    p_install.add_argument("source", help="path to a directory containing package.json")
+    p_install = sub.add_parser("install", help="install an app.json app from a local dir")
+    p_install.add_argument("source", help="path to a directory containing app.json")
     p_install.add_argument("--force", action="store_true",
                             help="overwrite an existing install of the same name")
     p_install.set_defaults(func=cmd_install)

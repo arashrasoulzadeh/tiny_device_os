@@ -34,6 +34,8 @@ APP_HELPER(counter_app, "counter",
     .on_draw = on_draw);
 ```
 
+Name, version, author, and description come from `apps/stdapps/<name>/app.json`. Configure and the device build both turn that file into the manifest, so `APP_HELPER` does not take those fields.
+
 Up and the `1` key increment. Down, Left, and Right are bound the same way. Select and the `2` key decrement. Escape leaves. The screen redraws when an event arrives, when `app_helper_invalidate(app)` runs, or when `.live = true`. `.on_tick` runs every frame before that check. `.on_ready` runs after the UI and keys exist (start a worker there). `.game = true` drops the title and help bars. `.keys` replaces the default map with a file-scope `app_ui_key_def_t` array; a `NULL` user pointer is filled in with the helper. `app_fmt_clock`, `app_fit_text_scale`, `app_bar_fill_px`, `app_gauge_fill_px`, `app_level_color`, `app_helper_clock`, `app_helper_bar`, `app_helper_gauge`, `app_helper_panel`, `app_helper_labelf`, and `app_helper_center_text` cover the layout math apps used to copy.
 
 ## App state
@@ -42,7 +44,7 @@ Point `.state` at a plain struct and set `.state_size`. The helper loads that st
 
 ## Clock and padding
 
-The image boots **info** when that app is compiled in, otherwise clock, otherwise pomodoro, otherwise the launcher. The clock reads the wall clock (`os_clock_now`), not uptime. Up adds an hour and Select adds a minute.
+The image boots **sensors** when that app is compiled in, otherwise info, otherwise clock, otherwise pomodoro, otherwise the launcher. The clock reads the wall clock (`os_clock_now`), not uptime. Up adds an hour and Select adds a minute.
 
 Every standard app's content box is inset by `ARDUBOT_UI_PADDING` on all four sides (16px when the panel is taller than 64). Games stay full-bleed.
 
@@ -50,17 +52,16 @@ A board with no battery RTC gets its clock from the clock service. `make usb` wr
 
 ## Sensors
 
-List them in the device config. Each entry is a map with `key`, `type` (`adc`), optional `path` (default `/dev/adc0`), and `refresh_ms` (default 1000):
+List them in the device config. Each entry is a map with `key`, `type` (`temp` for the chip temperature sensor, or `adc`), optional `path` for an ADC (default `/dev/adc0`), and `refresh_ms` (default 1000). The ESP32-C6-LCD board registers `temp`. The **sensors** app lists every registered key.
 
 ```yaml
 sensors:
   - key: temp
-    type: adc
-    path: /dev/adc0
+    type: temp
     refresh_ms: 1000
 ```
 
-`make usb` writes that list into `device_config.h`. Boot calls `sensor_service_load_builtin()`. An app reads a key with `app_helper_sensor("temp", &value)` (same as `sensor_get`). The service samples the hardware once per `refresh_ms` and returns the cached value until that interval has passed.
+`make usb` writes that list into `device_config.h`. Boot calls `sensor_service_load_builtin()`. An app reads a key with `app_helper_sensor("temp", &value)` (same as `sensor_get`). A `temp` sample is decidegrees Celsius (253 is 25.3 C). The service samples the hardware once per `refresh_ms` and returns the cached value until that interval has passed.
 
 ## Lower-level app
 
@@ -96,9 +97,6 @@ static void on_frame(app_ctx_t* app) {
 }
 
 APP_DEFINE(counter_app, "counter",
-    .version = "2.0.0",
-    .author = "ArdubotOS",
-    .description = "Simple counter demo",
     .icon = &counter_app_icon,   /* apps provide their own 16×16 icon */
     .fps = 30,
     .on_init = on_init,

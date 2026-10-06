@@ -1,0 +1,11 @@
+{
+  "name": "counter",
+  "version": "2.0.0",
+  "author": "ArdubotOS",
+  "description": "Dynamic counter with sign-colored gauge",
+  "depends": [],
+  "min_display": {
+    "width": 0,
+    "height": 0
+  }
+}

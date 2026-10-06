@@ -56,8 +56,8 @@ static const app_ui_key_def_t launcher_keys[] = {
     {0, NULL, NULL},
 };
 
-APP_HELPER(launcher_app, "launcher", .version = "1.0.0", .author = "ArdubotOS", .title = "LAUNCHER",
-           .help = "Up/Dn:Nav Sel:Launch Bk:Back", .description = "System launcher / home app",
+APP_HELPER(launcher_app, "launcher", .title = "LAUNCHER",
+           .help = "Up/Dn:Nav Sel:Launch Bk:Back",
            .type = APP_TYPE_SYSTEM, .fps = 30, .icon = &launcher_app_icon, .live = true,
            .state = &g_menu.selected, .state_size = sizeof(g_menu.selected),
            .keys = launcher_keys, .on_ready = on_ready, .on_draw = on_draw,

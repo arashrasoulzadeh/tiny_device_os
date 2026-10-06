@@ -59,9 +59,6 @@ flowchart TB
 
 ```c
 APP_DEFINE(symbol, "install_name",
-    .version = "1.0.0",
-    .author = "ArdubotOS",
-    .description = "...",
     .type = APP_TYPE_USER,   /* or SYSTEM / GAME / TOOL */
     .icon = &my_app_icon,    /* optional 16×16 launcher bitmap (app-owned) */
     .fps = 30,
@@ -70,6 +67,8 @@ APP_DEFINE(symbol, "install_name",
     .on_cleanup = on_cleanup   /* optional */
 );
 ```
+
+Name, version, author, and description come from the app's `app.json` at compile time. Pass them in `APP_DEFINE` only to override that file.
 
 Apps own their icons (`const app_icon_t` in a `*_icon.c`). `APP_DEFINE` registers
 `.icon` via `app_kit_set_icon`; the catalog/launcher never hardcodes glyphs by name.

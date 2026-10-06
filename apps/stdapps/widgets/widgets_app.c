@@ -89,9 +89,8 @@ static const app_ui_key_def_t widgets_keys[] = {
     {0, NULL, NULL},
 };
 
-APP_HELPER(widgets_app, "widgets", .version = "1.0.0", .author = "ArdubotOS", .title = "WIDGETS",
+APP_HELPER(widgets_app, "widgets", .title = "WIDGETS",
            .help = "Sel:tap  Bk:back",
-           .description = "Widget framework demo (flex layout, label/button)",
            .icon = &widgets_app_icon, .fps = 30, .live = true, .keys = widgets_keys, .state = &g_count,
            .state_size = sizeof(g_count),
            .on_ready = on_ready, .on_draw = on_draw, .on_cleanup = on_cleanup)

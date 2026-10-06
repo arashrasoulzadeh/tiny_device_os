@@ -1,8 +1,8 @@
 {
-  "name": "launcher",
+  "name": "settings",
   "version": "1.0.0",
   "author": "ArdubotOS",
-  "description": "App launcher / home screen",
+  "description": "System settings - WiFi, display, sound, timezone",
   "depends": [],
   "min_display": {
     "width": 0,

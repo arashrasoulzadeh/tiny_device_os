@@ -1,8 +1,8 @@
 {
-  "name": "settings",
+  "name": "fileman",
   "version": "1.0.0",
   "author": "ArdubotOS",
-  "description": "Device settings editor",
+  "description": "File manager - browse flash/SD",
   "depends": [],
   "min_display": {
     "width": 0,

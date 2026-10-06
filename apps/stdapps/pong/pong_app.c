@@ -66,8 +66,7 @@ static const app_ui_key_def_t pong_keys[] = {
     {0, NULL, NULL},
 };
 
-APP_HELPER(pong_app, "pong", .version = "1.0.0", .author = "ArdubotOS",
-           .description = "Pong - Up/Down paddle, Select restarts", .type = APP_TYPE_GAME,
+APP_HELPER(pong_app, "pong", .type = APP_TYPE_GAME,
            .icon = &pong_app_icon, .fps = 30, .game = true, .live = true, .keys = pong_keys,
            .state = &g_pong, .state_size = sizeof(g_pong),
            .on_ready = on_ready, .on_tick = on_tick, .on_draw = on_draw)

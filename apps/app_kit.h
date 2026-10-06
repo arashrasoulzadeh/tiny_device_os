@@ -1,5 +1,6 @@
 #pragma once
 
+#include "app_manifest.h"
 #include "app_types.h"
 #include "icons.h"
 #include "ardubot_keys.h"
@@ -115,9 +116,9 @@ const app_icon_t* app_kit_get_icon(const char* name);
     static void symbol##_register(void) {                                                  \
         symbol##_desc = (app_desc_t){                                                      \
             .name = (install_name),                                                        \
-            .version = "1.0.0",                                                            \
-            .author = "ArdubotOS",                                                         \
-            .description = (install_name),                                                 \
+            .version = app_manifest_version(install_name),                                 \
+            .author = app_manifest_author(install_name),                                   \
+            .description = app_manifest_description(install_name),                         \
             .type = APP_TYPE_USER,                                                         \
             .fps = 30,                                                                     \
             .stack_size = APP_STACK_SMALL,                                                 \

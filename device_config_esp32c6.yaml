@@ -74,14 +74,13 @@ app_kit:
 #   unix: 1700000000
 #   tz_offset_min: 210
 
-# Sensors the service registers at boot. Read one with
-# app_helper_sensor("temp", &value). refresh_ms is how long a sample
-# stays cached. path defaults to /dev/adc0. type today is adc.
-# sensors:
-#   - key: temp
-#     type: adc
-#     path: /dev/adc0
-#     refresh_ms: 1000
+# On-chip temperature. The sensors app lists every entry here.
+# type temp is decidegrees Celsius (25.3 C is stored as 253).
+# Add an adc entry with path: /dev/adcN when a pin is wired.
+sensors:
+  - key: temp
+    type: temp
+    refresh_ms: 1000
 
 inputs:
   buttons:

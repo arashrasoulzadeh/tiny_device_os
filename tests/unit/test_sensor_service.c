@@ -46,6 +46,18 @@ void test_unknown_or_duplicate_keys_are_rejected(void) {
     TEST_ASSERT_EQUAL(-1, sensor_service_add("temp", SENSOR_TYPE_ADC, NULL, 500));
 }
 
+void test_chip_temperature_is_a_cached_sensor(void) {
+    int32_t value = 0;
+    TEST_ASSERT_EQUAL(0, sensor_service_add("temp", SENSOR_TYPE_TEMP, NULL, 1000));
+    TEST_ASSERT_EQUAL(1, sensor_service_count());
+    TEST_ASSERT_EQUAL_STRING("temp", sensor_service_key(0));
+    TEST_ASSERT_EQUAL(SENSOR_TYPE_TEMP, sensor_service_type(0));
+    TEST_ASSERT_EQUAL(0, sensor_get_at("temp", 0, &value));
+    TEST_ASSERT_EQUAL_INT(250, value);
+    TEST_ASSERT_EQUAL(0, sensor_get_at("temp", 500, &value));
+    TEST_ASSERT_EQUAL_UINT32(1, sensor_service_samples());
+}
+
 void test_builtin_list_is_empty_without_a_device_config(void) {
     TEST_ASSERT_EQUAL(0, sensor_service_load_builtin());
 }
@@ -56,6 +68,7 @@ int main(void) {
     RUN_TEST(test_refresh_ms_keeps_the_cached_sample);
     RUN_TEST(test_zero_refresh_samples_every_read);
     RUN_TEST(test_unknown_or_duplicate_keys_are_rejected);
+    RUN_TEST(test_chip_temperature_is_a_cached_sensor);
     RUN_TEST(test_builtin_list_is_empty_without_a_device_config);
     return UNITY_END();
 }

@@ -2,6 +2,6 @@
   "name": "pong",
   "version": "1.0.0",
   "author": "ArdubotOS",
-  "description": "Classic pong",
+  "description": "Pong - Up/Down paddle, Select restarts",
   "depends": []
 }

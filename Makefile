@@ -15,7 +15,7 @@
 #   make usb DEVICE=nodemcu # Non-interactive USB flash for NodeMCU
 #   make monitor            # Open a serial monitor on the configured device
 #   make create-app NAME=x  # Scaffold a new stdapp at apps/stdapps/x
-#   make install-app SRC=.. # Install a package.json app from a local dir
+#   make install-app SRC=.. # Install an app.json app from a local dir
 #   make list-apps          # List installed stdapps and their metadata
 #   make docs                # Build Doxygen API reference + mkdocs site
 #
@@ -73,7 +73,7 @@ endif
 
 # For real hardware (not sim), compile in only the stdapps that fit this
 # device's profile - explicit device_config.yaml `apps:` list, or an
-# auto-fit against each app's package.json "min_display" otherwise. Sim
+# auto-fit against each app's app.json "min_display" otherwise. Sim
 # always gets everything, since it's the dev-iteration target.
 ifneq ($(ARCH),sim)
   ifneq (,$(wildcard $(DEVICE_CONFIG)))
@@ -217,7 +217,7 @@ create-app:
 	@test -n "$(NAME)" || (echo "usage: make create-app NAME=<app_name>"; exit 1)
 	@python3 scripts/ardubot.py create-app $(NAME)
 
-# Install a package.json-described app: make install-app SRC=../mygame
+# Install an app.json-described app: make install-app SRC=../mygame
 install-app:
 	@test -n "$(SRC)" || (echo "usage: make install-app SRC=<path to package dir>"; exit 1)
 	@python3 scripts/ardubot.py install $(SRC) $(if $(FORCE),--force,)

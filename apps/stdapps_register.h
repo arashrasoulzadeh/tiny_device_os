@@ -10,8 +10,8 @@ extern "C" {
  * or already installed. */
 int stdapps_install(void);
 
-/* App app_start() should launch after stdapps_install(). Pomodoro when
- * that app is in the image, otherwise the launcher. */
+/* App app_start() should launch after stdapps_install(). Sensors when
+ * that app is in the image, otherwise info, clock, pomodoro, or the launcher. */
 const char* stdapps_start_name(void);
 
 #ifdef __cplusplus

@@ -190,9 +190,8 @@ static void on_cleanup(app_helper_t* app) {
     APP_INFO("Stopwatch workers stopped");
 }
 
-APP_HELPER(stopwatch_app, "stopwatch", .version = "1.0.0", .author = "ArdubotOS",
-           .title = "STOPWATCH", .help = "Up:start/stop Sel:reset Bk:back",
-           .description = "Multithread stopwatch (sec/min/hour tasks)", .type = APP_TYPE_TOOL,
+APP_HELPER(stopwatch_app, "stopwatch", .title = "STOPWATCH",
+           .help = "Up:start/stop Sel:reset Bk:back", .type = APP_TYPE_TOOL,
            .icon = &stopwatch_app_icon, .fps = 30, .state = &g_sw, .state_size = sizeof(g_sw),
            .on_event = on_event, .on_ready = on_ready,
            .on_draw = on_draw, .on_cleanup = on_cleanup)

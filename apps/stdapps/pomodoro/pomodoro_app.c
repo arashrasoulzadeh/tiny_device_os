@@ -155,8 +155,8 @@ static void on_cleanup(app_helper_t* app) {
     }
 }
 
-APP_HELPER(pomodoro_app, "pomodoro", .version = "1.0.0", .author = "ArdubotOS", .title = "POMODORO",
-           .help = "Up:start/pause Sel:reset", .description = "Pomodoro countdown timer",
+APP_HELPER(pomodoro_app, "pomodoro", .title = "POMODORO",
+           .help = "Up:start/pause Sel:reset",
            .type = APP_TYPE_TOOL, .icon = &pomodoro_app_icon, .fps = 30, .state = &g_st,
            .state_size = sizeof(g_st), .on_event = on_event,
            .on_ready = on_ready, .on_draw = on_draw, .on_cleanup = on_cleanup)

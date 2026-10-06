@@ -14,8 +14,9 @@ Implemented and exercised by host tests:
   clock is `kernel/os_clock.h`. `apps/clock_service.c` stores it in
   `/flash/clock.dat` through the VFS and restores it when the board clock
   is unset. `apps/sensor_service.c` registers sensors from the device
-  config (`key`, `type`, `refresh_ms`) and `app_helper_sensor()` reads
-  one by key.
+  config (`key`, `type` `temp` or `adc`, `refresh_ms`) and
+  `app_helper_sensor()` reads one by key. `apps/stdapps/sensors/` lists
+  every registered sensor.
 - HAL interfaces in `hal/include/hal_*.h` with a working **sim** backend in
   `hal/arch/sim/` plus SDL/device models in `sim/`.
 - Board backends under `hal/arch/{esp32,esp8266,avr}/` exist as per-arch files;
@@ -25,7 +26,8 @@ Implemented and exercised by host tests:
   `catalog`, `icons`, `status`, `display`). Guides: `docs/appkit.md`, `docs/apps.md`.
 - Built-in apps under `apps/stdapps/<name>/`: `counter`, `info`, `launcher`,
   `stopwatch` (three worker tasks: sec/min/hour), `pong` (Up/Down paddle),
-  `settings`, `fileman` (file manager over the VFS), `shell`, `demo`.
+  `settings`, `fileman` (file manager over the VFS), `shell`, `demo`,
+  `clock`, `sensors`.
 - VFS (`fs/vfs.c`) with LittleFS/FatFS backends (`fs/littlefs/`, `fs/fatfs/`),
   config KV store (`fs/config_store.c`), and OTA with A/B partitions + ed25519
   signature verification (`fs/ota.c`, `fs/ed25519.c`).
@@ -182,6 +184,8 @@ lower-level path when those fields are not enough.
    `app_helper_number`, `app_helper_bar`, or `app_helper_panel`.
 3. End the file with
    `APP_HELPER(my_app, "my_app", .title = "...", .on_event = ..., .on_draw = ...)`.
+   Put name, version, author, and description in `app.json`; the compile
+   reads that file into the manifest.
 4. Add `<name>/<name>_app.c` and its include dir to `apps/stdapps/CMakeLists.txt`.
 5. Install/start via `app_install_manifest(my_app_manifest, "my_app")` and
    `app_start("my_app")` (see `sim/sim_main.c`).

@@ -67,6 +67,22 @@ else()
          "#define ARDUBOT_WIFI_PASSWORD \"\"\n")
 endif()
 
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(ARDUBOT_APP_MANIFEST_INC "${CMAKE_BINARY_DIR}/generated/app_manifests.inc")
+file(GLOB ARDUBOT_APP_JSONS "${CMAKE_SOURCE_DIR}/apps/stdapps/*/app.json")
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/app_manifest.py" gen
+            --stdapps "${CMAKE_SOURCE_DIR}/apps/stdapps" -o "${ARDUBOT_APP_MANIFEST_INC}"
+    RESULT_VARIABLE _ardubot_manifest_rc
+    ERROR_VARIABLE _ardubot_manifest_err
+)
+if(NOT _ardubot_manifest_rc EQUAL 0)
+    message(FATAL_ERROR "app.json manifest generation failed:\n${_ardubot_manifest_err}")
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${ARDUBOT_APP_JSONS})
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+             "${CMAKE_SOURCE_DIR}/scripts/app_manifest.py")
+
 add_subdirectory(kernel)
 add_subdirectory(hal)
 add_subdirectory(fs)

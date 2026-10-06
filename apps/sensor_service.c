@@ -7,6 +7,7 @@
 #include <string.h>
 
 #if defined(ARDUBOT_TARGET_ESP32)
+#include "driver/temperature_sensor.h"
 #include "esp_adc/adc_oneshot.h"
 #else
 #include "hal_adc.h"
@@ -33,6 +34,35 @@ typedef struct {
 
 static sensor_slot_t g_slots[SENSOR_SERVICE_MAX];
 static uint32_t g_samples;
+
+#if defined(ARDUBOT_TARGET_ESP32)
+static temperature_sensor_handle_t g_temp;
+static int g_temp_ready;
+#endif
+
+static int sample_temp(int32_t* value) {
+#if defined(ARDUBOT_TARGET_ESP32)
+    float celsius = 0.0f;
+    if (!g_temp_ready) {
+        temperature_sensor_config_t cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
+        if (temperature_sensor_install(&cfg, &g_temp) != ESP_OK) {
+            return -1;
+        }
+        if (temperature_sensor_enable(g_temp) != ESP_OK) {
+            return -1;
+        }
+        g_temp_ready = 1;
+    }
+    if (temperature_sensor_get_celsius(g_temp, &celsius) != ESP_OK) {
+        return -1;
+    }
+    *value = (int32_t)(celsius * 10.0f);
+#else
+    *value = 250;
+#endif
+    g_samples++;
+    return 0;
+}
 
 #if defined(ARDUBOT_TARGET_ESP32)
 static adc_oneshot_unit_handle_t g_adc;
@@ -62,8 +92,11 @@ static int sample_hw(sensor_slot_t* slot, int32_t* value) {
         .bitwidth = ADC_BITWIDTH_DEFAULT,
     };
     int raw = 0;
-    int channel = channel_from_path(slot->path);
-    (void)slot;
+    int channel;
+    if (slot->type == SENSOR_TYPE_TEMP) {
+        return sample_temp(value);
+    }
+    channel = channel_from_path(slot->path);
     if (!g_adc_ready) {
         adc_oneshot_unit_init_cfg_t cfg = {
             .unit_id = ADC_UNIT_1,
@@ -87,7 +120,11 @@ static int sample_hw(sensor_slot_t* slot, int32_t* value) {
 #else
 static int sample_hw(sensor_slot_t* slot, int32_t* value) {
     uint16_t raw = 0;
-    hal_adc_t* adc = (hal_adc_t*)slot->hw;
+    hal_adc_t* adc;
+    if (slot->type == SENSOR_TYPE_TEMP) {
+        return sample_temp(value);
+    }
+    adc = (hal_adc_t*)slot->hw;
     if (!adc) {
         adc = hal_adc_open(slot->path[0] ? slot->path : "/dev/adc0");
         if (!adc || hal_adc_init(adc) != 0) {
@@ -139,7 +176,7 @@ int sensor_service_add(const char* key, sensor_type_t type, const char* path, ui
     if (!key || !key[0] || strlen(key) >= SENSOR_KEY_MAX) {
         return -1;
     }
-    if (type != SENSOR_TYPE_ADC) {
+    if (type != SENSOR_TYPE_ADC && type != SENSOR_TYPE_TEMP) {
         return -1;
     }
     if (find_slot(key)) {
@@ -213,6 +250,45 @@ int sensor_service_load_builtin(void) {
     }
 #endif
     return n;
+}
+
+static sensor_slot_t* slot_at(int index) {
+    int i;
+    int n = 0;
+    if (index < 0) {
+        return NULL;
+    }
+    for (i = 0; i < SENSOR_SERVICE_MAX; i++) {
+        if (!g_slots[i].used) {
+            continue;
+        }
+        if (n == index) {
+            return &g_slots[i];
+        }
+        n++;
+    }
+    return NULL;
+}
+
+int sensor_service_count(void) {
+    int i;
+    int n = 0;
+    for (i = 0; i < SENSOR_SERVICE_MAX; i++) {
+        if (g_slots[i].used) {
+            n++;
+        }
+    }
+    return n;
+}
+
+const char* sensor_service_key(int index) {
+    sensor_slot_t* slot = slot_at(index);
+    return slot ? slot->key : NULL;
+}
+
+sensor_type_t sensor_service_type(int index) {
+    sensor_slot_t* slot = slot_at(index);
+    return slot ? slot->type : (sensor_type_t)0;
 }
 
 uint32_t sensor_service_samples(void) {

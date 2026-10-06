@@ -35,7 +35,6 @@ static void on_draw(app_helper_t* app) {
                    fill_color);
 }
 
-APP_HELPER(counter_app, "counter", .version = "2.0.0", .title = "COUNTER",
-         .help = "Up:+  Sel:-  hold:back",
-         .description = "Dynamic counter with sign-colored gauge", .icon = &counter_app_icon,
+APP_HELPER(counter_app, "counter", .title = "COUNTER",
+         .help = "Up:+  Sel:-  hold:back", .icon = &counter_app_icon,
          .state = &g_count, .state_size = sizeof(g_count), .on_event = on_event, .on_draw = on_draw)
