@@ -8,9 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
-/* Flat RGB565 colors for the card-style icon-strip launcher — see
- * boards/esp32-c6-lcd/src/main.cpp's draw_launcher() for the Arduino-side
- * sibling this was ported from (same 320x172 canvas, same layout math).
+/* Flat RGB565 colors for the card-style icon-strip launcher (320x172
+ * canvas).
  * Only meaningful where the display backend actually renders color (the
  * sim's ssd1306_model color overlay) — a plain mono panel just never gets
  * a non-zero rgb565 value looked at.
@@ -173,10 +172,8 @@ static void menu_icon_set_pixel(int px, int py, bool on, void* user) {
     app_pixel(app, px, py, true);
 }
 
-/* Card-style icon-strip launcher — ported from
- * boards/esp32-c6-lcd/src/main.cpp's draw_launcher() (same 320x172 canvas,
- * same row layout), but generic over whatever's in the catalog instead of
- * 4 hardcoded apps, and using the shared 1-bit app_icon_t bitmaps (tinted
+/* Card-style icon-strip launcher for a 320x172 canvas. Generic over
+ * whatever's in the catalog, using the shared 1-bit app_icon_t bitmaps (tinted
  * per selection state) rather than hand-authored per-app vector icons,
  * since this code has no way to know what each catalog app "should" look
  * like beyond its bitmap.

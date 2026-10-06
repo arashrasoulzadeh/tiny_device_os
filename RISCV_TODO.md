@@ -7,19 +7,14 @@ re-derivation (small token budget per phase).
 
 ## Problem statement
 
-Two things both call themselves ArdubotOS today and share no code:
+The simulator and the ESP32-C6 firmware both run the apps under
+`apps/stdapps/`. Board images install that set through
+`apps/stdapps_register.c`. There is no second copy of launcher, counter,
+pomodoro, or the other builtins in `boards/`.
 
-1. **The simulator** (`make run ARCH=sim`) — the real kernel (`kernel/`),
-   the real app framework (`apps/`, `apps/stdapps/`), built via CMake,
-   running on the host.
-2. **The ESP32-C6 board's firmware** (`boards/esp32-c6-lcd/src/main.cpp`) —
-   a standalone Arduino/PlatformIO sketch that reimplements the same ideas
-   (launcher, counter, info, stopwatch, pong, task manager, pomodoro)
-   independently.
-
-The physical device only runs (2). This PRD's goal: make the physical
-device run (1) — the real kernel + `apps/stdapps/*` — with **one firmware
-file**, no separate reimplementation.
+This PRD's goal: the physical device runs the real kernel + `apps/stdapps/*`
+with **one firmware file**. `[env:esp32-c6]` is that image
+(`boards/esp32-c6-lcd/src_kernel/kernel_boot.cpp`).
 
 ## Goal / success criteria
 
@@ -30,9 +25,8 @@ file**, no separate reimplementation.
   render and respond to input identically in spirit to their simulator
   behavior (allowing for the real ST7789 panel vs. the simulator's
   `ssd1306_model`).
-- `boards/esp32-c6-lcd/src/main.cpp` (the Arduino sketch) is left
-  untouched and still flashable throughout, as a fallback, until the new
-  path is proven on real hardware end-to-end.
+- The standalone `boards/esp32-c6-lcd/src/main.cpp` sketch has been
+  removed. Do not add another app implementation under `boards/`.
 - Every phase below ends in a state that builds and passes its own tests
   before moving to the next phase, and is pushed to `origin/main` before
   starting the next phase (see "Push discipline").
@@ -557,10 +551,9 @@ board.
    `ARDUBOT_ALL_STDAPPS` list, adapted for PlatformIO's `build_src_filter`
    syntax as already done for the `nodemcu`/`esp32-c6` envs).
 2. Wire the board's real button GPIOs to `sim_gpio`/`SIM_KEY_*` input
-   (reuse the pin mapping already in `boards/esp32-c6-lcd/src/main.cpp`'s
-   `poll_buttons()` for reference — do not duplicate its logic, adapt it
-   into the kernel/HAL input path if one doesn't already exist for real
-   hardware).
+   (GPIO18 = UP, GPIO19 = SELECT, long-press SELECT = back, same wiring as
+   `device_config_esp32c6.yaml`. The mapping lives in
+   `boards/esp32-c6-lcd/src_kernel/kernel_boot.cpp`).
 3. Bring up one app at a time, in this order (simplest first):
    `counter` → `pomodoro` → `taskmgr` → `pong` → `launcher` (launcher last
    since it's the most complex UI and others validate the pipeline
@@ -578,23 +571,17 @@ closely as the hardware allows.
 
 ---
 
-## Phase 6 — cutover decision (not a default outcome)
+## Phase 6 — cutover
 
-Once Phase 5 is proven solid (ran reliably across multiple
-flash/power-cycle sessions), decide whether to:
-(a) keep `main.cpp` as a permanent parallel fallback env, or
-(b) retire it now that the kernel path is proven.
-
-This decision should be made explicitly with the user at that time, not
-assumed — do not delete or stop maintaining `main.cpp` as part of any
-earlier phase.
+Done. `[env:esp32-c6]` boots `apps/stdapps/` through
+`boards/esp32-c6-lcd/src_kernel/kernel_boot.cpp`. The standalone
+`boards/esp32-c6-lcd/src/main.cpp` sketch is gone. Do not put app
+draw/update logic back under `boards/`.
 
 ---
 
 ## What stays as-is throughout phases 0-5
 
-`boards/esp32-c6-lcd/src/main.cpp` (the Arduino sketch) and the existing
-`[env:esp32-c6]` PlatformIO env are the only things that have ever
-actually run on this physical board. Leave them alone and keep them
-flashable throughout — every phase above adds a new, separate
-`esp32-c6-kernel`-style env rather than modifying the existing one.
+Historical note: phases 0-5 added `[env:esp32-c6-kernel]` beside the
+sketch. That split is over. `[env:esp32-c6-kernel]` now extends
+`[env:esp32-c6]`, and both build the same `apps/stdapps` image.

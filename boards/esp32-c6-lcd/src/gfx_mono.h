@@ -3,12 +3,11 @@
  * backed by Arduino_GFX driving this board's ST7789 SPI color panel instead
  * of an I2C monochrome OLED — landscape orientation, real RGB565 color.
  *
- * Keeps the same call surface (begin/clear/set_pixel/draw_text/display) so
- * boards/nodemcu/src/main.cpp's launcher/app code runs against it with no
- * changes, but adds set_fg_color()/set_bg_color() on top: callers can pick
- * a color before each draw call to build a colored UI instead of plain
- * monochrome white-on-black (see boards/esp32-c6-lcd/src/main.cpp's
- * draw_launcher() for the accent-on-selected-icon usage). Pixels are drawn
+ * Keeps the same call surface (begin/clear/set_pixel/draw_text/display)
+ * as boards/nodemcu/src/ssd1306_mini.h, and adds set_fg_color()/set_bg_color()
+ * so a caller can pick a color before each draw. Apps do not use this
+ * header: device apps are apps/stdapps/, drawn through hal_display.
+ * Pixels are drawn
  * immediately (no 1bpp framebuffer) so each set_pixel() can use whatever
  * fg/bg color was most recently set. The logical WxH canvas is centered on
  * the physical panel, landscape 320x172.

@@ -1,5 +1,6 @@
 #include "app_framework.h"
 #include "app_kit.h"
+#include "icons.h"
 #include "theme.h"
 
 #include <stdbool.h>

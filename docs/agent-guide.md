@@ -112,8 +112,10 @@ python3 tests/unit/test_device_config.py
 python3 tests/unit/test_device_secrets.py
 ```
 
-Files: `platformio.ini`, `boards/nodemcu/src/main.cpp` (ArdubotOS launcher +
-builtins on SSD1306; local `ssd1306_mini.h`, no Adafruit `lib_deps`). Wiring:
+Files: `platformio.ini`. Builtin apps are only `apps/stdapps/`; board
+entry points install them through `apps/stdapps_register.c`. The ESP32-C6
+image (`[env:esp32-c6]`) boots that set. The NodeMCU image does not host
+the app framework yet, so it does not draw its own launcher. Wiring:
 NodeMCU SSD1306 128×32 I2C (SCL=D1, SDA=D2), **UP** on D5, **SELECT** on D6
 (other side GND; long-press SELECT = back to launcher).
 

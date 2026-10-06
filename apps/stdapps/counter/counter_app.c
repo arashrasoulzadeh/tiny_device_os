@@ -40,10 +40,8 @@ static void on_init(void* app) {
 
 /* Dynamic UI: the number's text scale is recomputed from how many digits
  * currently need to fit the content width, so it stays as large as
- * possible instead of a fixed size — ported from the equivalent logic in
- * boards/esp32-c6-lcd/src/main.cpp's draw_counter(). Color and a
- * center-anchored gauge bar both react to the value's sign too, not just
- * the number itself. */
+ * possible instead of a fixed size. Color and a center-anchored gauge bar
+ * both react to the value's sign too, not just the number itself. */
 static void on_frame(void* app) {
     (void)app;
     char buf[16];
