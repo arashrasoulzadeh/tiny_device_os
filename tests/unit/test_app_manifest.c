@@ -11,6 +11,8 @@ void test_counter_identity_comes_from_app_json(void) {
                              app_manifest_description("counter"));
     TEST_ASSERT_EQUAL_STRING("COUNTER", app_manifest_title("counter"));
     TEST_ASSERT_EQUAL_STRING("Up:+  Sel:-  hold:back", app_manifest_help("counter"));
+    TEST_ASSERT_EQUAL_STRING("SENSORS", app_manifest_title("sensors"));
+    TEST_ASSERT_EQUAL_STRING("Bk:Back", app_manifest_help("sensors"));
 }
 
 void test_unknown_name_uses_the_builtin_defaults(void) {

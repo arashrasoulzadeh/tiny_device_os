@@ -3,7 +3,7 @@
 
     ardubot flash               build + flash the current device_config.yaml target
     ardubot monitor             open a serial monitor on the device's port
-    ardubot create-app <name>   scaffold a new stdapp from the app_ui kit template
+    ardubot create-app <name>   scaffold a new stdapp from the app framework
     ardubot install <path>      install an app.json-described app from a local dir
     ardubot list                list installed stdapps and their package metadata
 
@@ -167,9 +167,12 @@ def cmd_create_app(args: argparse.Namespace) -> int:
     print(f"Created apps/stdapps/{name}/ ({name}_app.c, {name}_icon.c, app.json) "
           f"and registered it in apps/stdapps/CMakeLists.txt.")
     print()
-    print("To actually install it, add to sim/sim_main.c:")
-    print(f'  extern app_manifest_t* {name}_app_manifest;')
-    print(f'  app_install_manifest({name}_app_manifest, "{name}");')
+    print("To show it in the launcher, add this inside stdapps_install() in")
+    print("apps/stdapps_register.c, next to the other apps:")
+    print(f"  #ifdef ARDUBOT_APP_{name.upper()}_ENABLED")
+    print(f'    extern app_manifest_t* {name}_app_manifest;')
+    print(f'    install_manifest({name}_app_manifest, "{name}");')
+    print("  #endif")
     return 0
 
 

@@ -24,10 +24,13 @@ Implemented and exercised by host tests:
 - App runtime: manifests, **`app_kit`** (`APP_DEFINE`, focus, key bind, open/exit),
   plus UI components under `apps/ui/components/` (`canvas`, `screen`, `menu`,
   `catalog`, `icons`, `status`, `display`). Guides: `docs/appkit.md`, `docs/apps.md`.
-- Built-in apps under `apps/stdapps/<name>/`: `counter`, `info`, `launcher`,
+- Built-in apps under `apps/stdapps/<name>/`: `launcher`, `counter`, `info`,
   `stopwatch` (three worker tasks: sec/min/hour), `pong` (Up/Down paddle),
-  `settings`, `fileman` (file manager over the VFS), `shell`, `demo`,
-  `clock`, `sensors`.
+  `widgets`, `pomodoro`, `taskmgr`, `clock`, `sensors`, plus `settings`,
+  `fileman`, `shell`, and `demo`. The last four are compiled into the
+  simulator and are not installed, so the launcher does not list them.
+  `stdapps_install()` is the only install list. `stdapps_start_name()` boots
+  sensors, then info, clock, pomodoro, or the launcher.
 - VFS (`fs/vfs.c`) with LittleFS/FatFS backends (`fs/littlefs/`, `fs/fatfs/`),
   config KV store (`fs/config_store.c`), and OTA with A/B partitions + ed25519
   signature verification (`fs/ota.c`, `fs/ed25519.c`).
@@ -49,8 +52,9 @@ Implemented and exercised by host tests:
   (`sim/sim_main.c`, `sim/sim_args.c`). The sim main loop advances
   **one scheduler tick per wall-clock millisecond** (catch-up when a frame
   takes longer than 1 ms), so `task_sleep(1000)` is ~1 real second.
-  Interactive sim uses the **same 128×32 panel and Up/Select(/long=back)**
-  controls as the NodeMCU profile in `device_config.yaml`.
+  Interactive sim uses a **320×172** panel (the ESP32-C6 LCD). The NodeMCU
+  profile in `device_config.yaml` stays **128×32** with Up/Select (long
+  Select = back).
 
 Still roadmap (do not assume these work, and do not invent them while fixing
 something else): game engine, Lua/WASM, dynamic `.ardmod` loading as a product,
@@ -62,7 +66,7 @@ at the same time alias the same underlying bytes. See the comment at the
 top of that file before extending it - there's no per-file state to extend,
 it needs replacing when a real SD card (PlatformIO FatFs) lands.
 
-All 45 tests in `ctest --test-dir build` currently pass; the build is
+All host tests in `ctest --test-dir build` are the suite. The build is
 warning-clean (`-Wall -Wextra -Wpedantic -Werror`). If you hit a failure or
 warning that looks unrelated to your change, it is a regression - root-cause
 it rather than assuming it is "pre-existing."
@@ -187,9 +191,10 @@ lower-level path when those fields are not enough.
    Put name, version, author, description, title, and help in `app.json`;
    the compile reads that file into the manifest. The icon is `my_app_icon`.
    Leave `.type` and `.fps` off unless the app is not a tool at 30 fps.
-4. Add `<name>/<name>_app.c` and its include dir to `apps/stdapps/CMakeLists.txt`.
-5. Install/start via `app_install_manifest(my_app_manifest, "my_app")` and
-   `app_start("my_app")` (see `sim/sim_main.c`).
+4. Add the directory to `apps/stdapps/CMakeLists.txt` (`create-app` does this).
+   To install it, add an `ARDUBOT_APP_<NAME>_ENABLED` block inside
+   `stdapps_install()` in `apps/stdapps_register.c`. Boot calls
+   `stdapps_start_name()`, not a name hardcoded in `sim/sim_main.c`.
 
 Lower-level helpers remain in `apps/app_framework.h` if you need them.
 

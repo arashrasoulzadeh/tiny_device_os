@@ -16,15 +16,14 @@ iteration, or fake enough of the platform that "works in the simulator"
 stops meaning anything. ArdubotOS's answer is a HAL boundary strict enough
 that `sim/` and `hal/arch/esp32/` are interchangeable at build time — the
 cooperative scheduler, the VFS, the driver framework, and every stdapp run
-unmodified against both. Current real hardware target: a NodeMCU (ESP8266)
-with a 128×32 SSD1306 OLED.
+unmodified against both. The day-to-day board is the Waveshare ESP32-C6-LCD
+(320×172). The NodeMCU (ESP8266) profile is still a 128×32 SSD1306.
 
 ## At a glance
 
 | | |
 |---|---|
-| **Tests** | 45/45 passing (`ctest --test-dir build`) |
-| **Coverage** | 55.0% line / 59.9% function across 59 host-buildable source files |
+| **Tests** | `make test` (every `tests/unit/test_*.c` binary) |
 | **Build** | Warning-clean (`-Wall -Wextra -Wpedantic -Werror`) |
 | **Targets** | sim (SDL2) · ESP32 · ESP8266 · AVR (Mega2560) |
 | **Language** | C11, CMake |
@@ -46,8 +45,8 @@ real versus still roadmap.
   FatFS (`/sd`), a config KV store, and A/B OTA with signature verification.
 - **Driver framework** — `probe/open/read/write/ioctl`, a device registry
   with I2C/SPI hotplug scan, and a dynamic `.ardmod` module loader.
-- **App runtime** — `app_kit`, focus/key-bind model, a built-in launcher and
-  eight stdapps (shell, file manager, settings, pong, stopwatch, ...).
+- **App runtime** — `app_framework.h` and `APP_HELPER`, identity in `app.json`,
+  a launcher, and 14 stdapps. A full image boots the sensors app.
 
 ## Get started
 
@@ -69,8 +68,8 @@ scaffold, state, a background task, installing it, and a test — in
 |---|---|
 | [Architecture](architecture.md) | The layer stack, the scheduler's boot/switch sequence, and the TLSF allocator — with diagrams |
 | [Agent guide](agent-guide.md) | What's real vs. roadmap, build/test commands, the TDD gate, where to add things |
-| [App kit](appkit.md) | The full `app_kit`/`app_ui` API reference |
-| [Apps](apps.md) | The built-in stdapps and how the launcher boots |
+| [App kit](appkit.md) | `app_framework.h`, `APP_HELPER`, and the lower-level `app_kit` components |
+| [Apps](apps.md) | How a stdapp is written, and which app boots |
 | [Writing an app — tutorial](tutorials/writing-an-app.md) | Build one app from nothing, hands-on |
 
 Locked architecture decisions and the full phased roadmap live in

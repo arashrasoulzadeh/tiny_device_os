@@ -1,14 +1,19 @@
 # App Kit reference
 
-New screens start with **`#include "app_helper.h"`** and `APP_HELPER()`. Up, Down,
+New screens start with **`#include "app_framework.h"`** and `APP_HELPER()`. Up, Down,
 Left, Right, Select, and Escape are already bound. Pass `.keys`, `.live`,
 `.game`, `.on_tick`, `.on_ready`, or `.state` / `.state_size` when a screen needs
 a different map, a frame every tick, no chrome, a per-frame step, setup after
 the UI exists, or a session restored on start and resume and stored on quit.
+Title and help come from `app.json`. The launcher icon is `<symbol>_icon`.
+`.type` defaults to `APP_TYPE_TOOL` and `.fps` defaults to 30.
 The short example is in [`docs/apps.md`](apps.md).
 
 **`#include "app_kit.h"`** is the lower-level umbrella (`APP_DEFINE`, open/exit)
 plus the UI components under [`apps/ui/components/`](../apps/ui/components/).
+`fw/events.h` wraps the kernel bus (`os_event_subscribe` / `os_event_publish`).
+A screen that calls those links `kernel/event.c`. Key presses do not publish
+on that bus.
 
 Short how-to for adding a builtin: [`docs/apps.md`](apps.md).
 
@@ -44,8 +49,10 @@ flowchart TB
 
 ## Lifecycle
 
-1. Install manifests, then once: `app_kit_catalog_build("launcher")`.
-2. `app_start("launcher")` (or another home name).
+1. Install manifests with `stdapps_install()`, which also builds the launcher
+   catalog once.
+2. `app_start(stdapps_start_name())`. On a full image that name is `sensors`.
+   Escape from any other app resumes the launcher.
 3. Kit runs `on_init` → loop `on_frame` + sleep → `on_cleanup` on hard exit.
 4. Only the **foreground** app receives keys and may flush the display.
 5. `app_open(from, name)` starts or resumes the child and suspends the caller.
@@ -56,7 +63,7 @@ flowchart TB
 
 ```c
 APP_DEFINE(symbol, "install_name",
-    .type = APP_TYPE_USER,   /* or SYSTEM / GAME / TOOL */
+    .type = APP_TYPE_USER,   /* 0 means "keep the default", which is USER */
     .icon = &my_app_icon,    /* optional 16×16 launcher bitmap (app-owned) */
     .fps = 30,
     .on_init = on_init,
@@ -65,7 +72,7 @@ APP_DEFINE(symbol, "install_name",
 );
 ```
 
-Name, version, author, description, title, and help come from the app's `app.json` at compile time. `APP_HELPER` reads the title and help from that file and registers `<symbol>_icon` as the launcher icon. Pass `.type` or `.fps` only when the app is not a tool at 30 fps. Pass name, version, author, or description in `APP_DEFINE` only to override the file.
+Name, version, author, and description come from the app's `app.json` at compile time. Pass them in `APP_DEFINE` only to override that file. `APP_HELPER` is the screen path: it reads title and help from the same file, registers `<symbol>_icon`, and uses `APP_TYPE_TOOL` when `.type` is left out.
 
 Apps own their icons (`const app_icon_t` in a `*_icon.c`). `APP_DEFINE` registers
 `.icon` via `app_kit_set_icon`; the catalog/launcher never hardcodes glyphs by name.
@@ -86,8 +93,8 @@ Apps own their icons (`const app_icon_t` in a `*_icon.c`). `APP_DEFINE` register
 ### Display — `display.h`
 
 Compile-time panel size. CMake sets `APP_DISPLAY_WIDTH` / `APP_DISPLAY_HEIGHT`
-from `ARDUBOT_DISPLAY_WIDTH` / `ARDUBOT_DISPLAY_HEIGHT` (default **128×32**, matching
-`device_config.yaml` / NodeMCU SSD1306).
+from `ARDUBOT_DISPLAY_WIDTH` / `ARDUBOT_DISPLAY_HEIGHT`. The NodeMCU profile is
+**128×32**. A simulator build (`ARDUBOT_BUILD_SIM`) forces **320×172**.
 
 ### Canvas — `canvas.h`
 
@@ -191,12 +198,19 @@ APP_DEFINE(demo_app, "demo", .on_init = on_init, .on_frame = on_frame);
 
 | Binary | Covers |
 |--------|--------|
+| `test_app_helper` | chrome from `app.json`, keys, frames, layout math |
+| `test_app_manifest` | name, version, author, description, title, help |
 | `test_app_kit` | manifest, bind, back, exit, foreground |
+| `test_app_ui` | rows, bars, key tables |
+| `test_stdapps_register` | install set and the sensors boot name |
+| `test_event_bus` | kernel bus and `os_event_publish` |
 | `test_components_canvas` | dirty / draw safety |
 | `test_components_screen` | begin/end |
 | `test_components_menu` | move, nav bind, display macros |
 | `test_components_catalog` | boot catalog |
 | `test_status` | battery clamp + blit pixels |
+| `test_sensors_app` / `test_sensor_service` | sensor lines and the config registry |
+| `test_clock` / `test_clock_service` | wall clock and `/flash/clock.dat` |
 
 ## Logging
 

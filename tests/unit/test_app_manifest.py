@@ -34,6 +34,8 @@ class AppManifestTests(unittest.TestCase):
             '{ "ping", "1.0.0", "ArdubotOS", "say \\"hi\\"", "ping", "" },', text
         )
         self.assertIn('{ "pong", "3", "Ada", "ball", "PONG", "hit" },', text)
+        blank = render_inc([("ping", {"title": "", "help": ""})])
+        self.assertIn('{ "ping", "1.0.0", "ArdubotOS", "ping", "ping", "" },', blank)
 
     def test_load_apps_reads_app_json_by_directory_name(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -201,6 +201,15 @@ void test_omitted_title_and_help_come_from_app_json(void) {
     app_helper_stop(&app);
 }
 
+void test_explicit_title_and_help_override_app_json(void) {
+    app_helper_desc_t desc = {.name = "counter", .title = "LOCAL", .help = "local help"};
+    app_helper_t app;
+    TEST_ASSERT_EQUAL(0, app_helper_start(&app, NULL, &desc));
+    TEST_ASSERT_EQUAL_STRING("LOCAL", app.ui.ui.title);
+    TEST_ASSERT_EQUAL_STRING("local help", app.ui.ui.help_text);
+    app_helper_stop(&app);
+}
+
 void test_start_rejects_a_missing_app_or_description(void) {
     app_helper_desc_t desc = {.title = "TEST"};
     app_helper_t app;
@@ -223,6 +232,7 @@ int main(void) {
     RUN_TEST(test_tick_can_request_another_draw);
     RUN_TEST(test_center_text_ignores_a_missing_app_or_text);
     RUN_TEST(test_omitted_title_and_help_come_from_app_json);
+    RUN_TEST(test_explicit_title_and_help_override_app_json);
     RUN_TEST(test_start_rejects_a_missing_app_or_description);
     return UNITY_END();
 }

@@ -117,11 +117,17 @@ Reference: `apps/stdapps/counter/counter_app.c`.
 
 ## What `APP_DEFINE` does
 
-1. Fills an `app_desc_t` with defaults (version `1.0.0`, type user, 30 FPS,
-   small stack/heap), then applies your overrides.
+`APP_HELPER` is the path above. `APP_DEFINE` is the lower-level registration it expands to.
+
+1. Fills an `app_desc_t` with defaults (type user, 30 FPS, small stack/heap).
+   Version, author, and description come from `app.json` unless an override sets them.
 2. Generates `<symbol>_entry` → `app_kit_run`.
-3. Exports `app_manifest_t* <symbol>_manifest` via a constructor for
-   `app_install_manifest(...)`.
+3. Exports `app_manifest_t* <symbol>_manifest` via a constructor. `stdapps_install()`
+   passes that pointer to `app_install_manifest(...)`.
+
+`APP_HELPER` then changes two of those defaults: an omitted `.type` becomes
+`APP_TYPE_TOOL`, and the launcher icon is `<symbol>_icon`. An omitted `.fps`
+stays 30.
 
 ## Screen helpers
 
@@ -146,21 +152,17 @@ UI drawing lives in [`apps/ui/components/`](../apps/ui/components/)
 | `app_type_tag` | `"[SYS]"` / `"[USR]"` / … | `catalog.h` |
 
 Panel size is compile-time: `APP_DISPLAY_WIDTH` / `APP_DISPLAY_HEIGHT`
-([`display.h`](../apps/ui/components/display.h)), set by CMake
-(`ARDUBOT_DISPLAY_WIDTH` / `ARDUBOT_DISPLAY_HEIGHT`, default **128×32** — same as
-`device_config.yaml`).
+([`display.h`](../apps/ui/components/display.h)). The NodeMCU profile in
+`device_config.yaml` is **128×32**. A simulator build forces **320×172**,
+the ESP32-C6 LCD panel. Override either with `-DARDUBOT_DISPLAY_WIDTH` /
+`-DARDUBOT_DISPLAY_HEIGHT`.
 
 ## App catalog (boot)
 
-After installing builtins, call once (`catalog.h`):
-
-```c
-app_kit_catalog_build("launcher");  /* excludes home app */
-app_start("launcher");
-```
-
-The launcher loads that snapshot with `app_menu_load_catalog` — it does **not**
-re-query `app_list` on every focus/Esc.
+After `stdapps_install()` the catalog is already built. Boot then calls
+`app_start(stdapps_start_name())`, which is **sensors** on a full image.
+The launcher loads that snapshot with `app_menu_load_catalog` — it does not
+re-query `app_list` on every focus.
 
 ## Input
 
@@ -182,42 +184,40 @@ uses `app_open` on Enter (resumes if the app was suspended).
 
 ## Adding a builtin to the build
 
-1. Create `apps/stdapps/my_app/my_app.c` with `APP_DEFINE(my_app, "my_app", ...)`.
-2. Add `my_app/my_app.c` (and its include dir) to `apps/stdapps/CMakeLists.txt`.
-3. Install it in `sim/sim_main.c` with `app_install_manifest(my_app_manifest, "my_app")`.
+`python3 scripts/ardubot.py create-app my_app` writes
+`apps/stdapps/my_app/{my_app_app.c, my_app_icon.c, app.json}` and adds `my_app`
+to `apps/stdapps/CMakeLists.txt`. That compiles it. To install it, add an
+`ARDUBOT_APP_MY_APP_ENABLED` block inside `stdapps_install()` in
+`apps/stdapps_register.c`, the same way `counter` is installed. Boot does not
+read `sim/sim_main.c` for the app list: `stdapps_install()` installs the
+compiled-in set, then `stdapps_start_name()` picks the home app.
 
-## Which app starts (main / home app)
+## Which app starts
 
-The simulator picks the startup app in [`sim/sim_main.c`](../sim/sim_main.c):
+After install, [`sim/sim_main.c`](../sim/sim_main.c) starts whatever
+`stdapps_start_name()` returns:
 
-```c
-app_install_manifest(counter_app_manifest, "counter");
-app_install_manifest(info_app_manifest, "info");
-app_install_manifest(stopwatch_app_manifest, "stopwatch");
-app_install_manifest(pong_app_manifest, "pong");
-app_install_manifest(settings_app_manifest, "settings");
-app_install_manifest(fileman_app_manifest, "fileman");
-app_install_manifest(shell_app_manifest, "shell");
-app_install_manifest(demo_app_manifest, "demo");
-app_install_manifest(launcher_app_manifest, "launcher");
-app_kit_catalog_build("launcher");  /* launch list, once */
-app_start("launcher");              /* <-- main app */
-```
+1. **sensors**, when that app is compiled in
+2. otherwise **info**
+3. otherwise **clock**
+4. otherwise **pomodoro**
+5. otherwise the **launcher**
 
-Change the string passed to `app_start(...)` to boot a different app (e.g.
-`app_start("counter")`). Install every builtin you want listed in the launcher
-before `app_kit_catalog_build`, then start the home app.
+Escape from a non-home app resumes the launcher (`APP_KIT_HOME_NAME`). The
+launcher catalog is built once inside `stdapps_install()` and excludes the
+launcher itself. `settings`, `fileman`, `shell`, and `demo` are compiled on
+the simulator but are not installed, so they do not appear in that list.
 
 The **stopwatch** app (`apps/stdapps/stopwatch/stopwatch_app.c`) demos cooperative
 multithreading: one worker task per time unit (`sw_sec` sleeps 1s and ticks
-seconds; `sw_min` / `sw_hour` self-suspend and resume on wrap). Keys: `1`
-start/stop, `2` reset, Esc back.
+seconds; `sw_min` / `sw_hour` self-suspend and resume on wrap). Up starts and
+stops, Select resets, Escape goes back.
 
 ## Lower-level APIs
 
-`app_framework.h` still exposes display/button/timer/config helpers if you need
-to go below the kit. Prefer the kit for new code.
+`app_framework.h` is the include for a new screen. `app_kit.h` remains when a
+screen cannot be expressed with `APP_HELPER`.
 
 ## Logging
 
-`APP_INFO`, `APP_WARN`, `APP_ERROR`, `APP_DEBUG` — available via `app_kit.h`.
+`APP_INFO`, `APP_WARN`, `APP_ERROR`, `APP_DEBUG` — from `app_framework.h`.

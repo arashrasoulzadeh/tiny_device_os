@@ -4,7 +4,8 @@ A multi-architecture embedded OS (AVR / ESP8266 / ESP32) built simulator-first:
 an SDL2 host emulator runs the exact same app runtime that ships to a real
 board, so apps are written and iterated on without hardware in the loop.
 
-Current real hardware target: NodeMCU (ESP8266) with an SSD1306 128×32 OLED.
+Current boards: a Waveshare ESP32-C6-LCD (320×172) and a NodeMCU (ESP8266)
+with an SSD1306 128×32 OLED. The simulator uses the 320×172 panel.
 See [`PLAN.md`](PLAN.md) for the full architecture and roadmap, and
 [`docs/agent-guide.md`](docs/agent-guide.md) for an honest map of what's
 implemented versus still planned.
@@ -46,26 +47,28 @@ walks through building one small app end to end (scaffold, state, a
 background task, installing it, and a test) before you need the full
 reference below.
 
-Apps live under `apps/stdapps/<name>/` and are built on the `app_ui` kit
-(`apps/app_ui.h`) - row-based text (`app_ui_line`/`app_ui_linef`, always
-scale-correct, no hand-computed pixel math) and table-based key binding
-(`app_ui_bind_keys`). Scaffold one instead of copying an existing app by hand:
+Apps live under `apps/stdapps/<name>/`. A new screen is
+`#include "app_framework.h"` and `APP_HELPER`. Scaffold one instead of copying
+an existing app by hand:
 
 ```bash
 make create-app NAME=mygame
 ```
 
-This writes `apps/stdapps/mygame/{mygame_app.c, mygame_icon.c, app.json}`,
-registers it in `apps/stdapps/CMakeLists.txt`, and prints the two lines to add
-to `sim/sim_main.c` to actually install it (install is a separate, explicit
-step on purpose - see `sim/sim_main.c`'s comments on why only four of the
-nine built-in apps are installed today).
+This writes `apps/stdapps/mygame/{mygame_app.c, mygame_icon.c, app.json}`
+and registers it in `apps/stdapps/CMakeLists.txt`. Compiling it is not the
+same as installing it: add a block inside `stdapps_install()` in
+`apps/stdapps_register.c` before it shows up in the launcher. The simulator
+starts `stdapps_start_name()` (sensors on a full image). Escape returns to
+the launcher.
 
 ### Package manager
 
-Every stdapp carries an `app.json` (name/version/author/depends/
-min_display). The compile copies name, version, author, and description
-into the app manifest, so those fields are not repeated in `APP_HELPER`.
+Every stdapp carries an `app.json` (name, version, author, description,
+title, help, depends, min_display). The compile copies those fields into
+the manifest, so `APP_HELPER` does not repeat them. The icon symbol is
+`<name>_app_icon` in `<name>_icon.c`. `.type` defaults to tool and `.fps`
+defaults to 30.
 There's no hosted registry yet, so `ardubot install` only
 resolves a local directory:
 
