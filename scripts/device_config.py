@@ -12,6 +12,7 @@ import glob
 import json
 import os
 import re
+import time
 import sys
 from pathlib import Path
 from typing import Any
@@ -313,7 +314,41 @@ def pin_conflict_warnings(cfg: dict[str, Any]) -> list[str]:
     return warnings
 
 
-def generate_header(cfg: dict[str, Any]) -> str:
+def local_tz_offset_min(when: float | None = None) -> int:
+    """Minutes east of UTC for this machine, including DST."""
+    when = time.time() if when is None else when
+    local = time.localtime(when)
+    if local.tm_isdst and time.daylight:
+        return -time.altzone // 60
+    return -time.timezone // 60
+
+
+def resolve_clock(
+    cfg: dict[str, Any], *, now: int | None = None, tz_offset_min: int | None = None
+) -> tuple[int, int]:
+    """Unix time and TZ offset to bake in.
+
+    `clock.unix` / `clock.tz_offset_min` in the device config win. When
+    unix is missing or 0, the stamp is the build machine's clock.
+    """
+    clock = cfg.get("clock") or {}
+    raw = clock.get("unix")
+    if raw is None or int(raw) == 0:
+        unix = int(time.time() if now is None else now)
+    else:
+        unix = int(raw)
+    if clock.get("tz_offset_min") is not None:
+        offset = int(clock["tz_offset_min"])
+    elif tz_offset_min is not None:
+        offset = int(tz_offset_min)
+    else:
+        offset = local_tz_offset_min(unix)
+    return unix, offset
+
+
+def generate_header(
+    cfg: dict[str, Any], *, now: int | None = None, tz_offset_min: int | None = None
+) -> str:
     device = cfg.get("device") or {}
     lcd = cfg.get("lcd") or {}
     board = str(device.get("board", "nodemcu"))
@@ -383,6 +418,34 @@ def generate_header(cfg: dict[str, Any]) -> str:
             f"{1 if enc_push.get('active_low', True) else 0}"
         )
 
+    sensors = cfg.get("sensors") or []
+    sensor_n = 0
+    lines.append("")
+    for item in sensors:
+        if sensor_n >= 8 or not isinstance(item, dict):
+            continue
+        key = str(item.get("key", "")).strip()
+        kind = str(item.get("type", "")).strip().lower()
+        if not re.fullmatch(r"[A-Za-z0-9_]+", key) or kind != "adc":
+            continue
+        path = str(item.get("path") or "/dev/adc0")
+        if not re.fullmatch(r"(?:/dev/)?adc\d+", path):
+            continue
+        refresh = item.get("refresh_ms", 1000)
+        refresh_ms = int(refresh) if refresh is not None else 1000
+        if refresh_ms < 0:
+            refresh_ms = 0
+        lines.append(f'#define ARDUBOT_SENSOR_{sensor_n}_KEY "{key}"')
+        lines.append(f"#define ARDUBOT_SENSOR_{sensor_n}_TYPE SENSOR_TYPE_ADC")
+        lines.append(f'#define ARDUBOT_SENSOR_{sensor_n}_PATH "{path}"')
+        lines.append(f"#define ARDUBOT_SENSOR_{sensor_n}_REFRESH_MS {refresh_ms}")
+        sensor_n += 1
+    lines.append(f"#define ARDUBOT_SENSOR_COUNT {sensor_n}")
+
+    unix, offset = resolve_clock(cfg, now=now, tz_offset_min=tz_offset_min)
+    lines.append("")
+    lines.append(f"#define ARDUBOT_CLOCK_UNIX {unix}")
+    lines.append(f"#define ARDUBOT_CLOCK_TZ_OFFSET_MIN {offset}")
     lines.append("")
     return "\n".join(lines)
 

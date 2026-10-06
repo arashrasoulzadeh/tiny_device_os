@@ -10,7 +10,12 @@ Implemented and exercised by host tests:
 
 - Cooperative scheduler (`kernel/scheduler.c`): up to 16 tasks, priority ready
   lists, `task_sleep`, host fibers via `kernel/host_stack.c`.
-- Time and a bump allocator (`kernel/os_time.c`, `kernel/alloc.c`).
+- Time and a bump allocator (`kernel/os_time.c`, `kernel/alloc.c`). Wall
+  clock is `kernel/os_clock.h`. `apps/clock_service.c` stores it in
+  `/flash/clock.dat` through the VFS and restores it when the board clock
+  is unset. `apps/sensor_service.c` registers sensors from the device
+  config (`key`, `type`, `refresh_ms`) and `app_helper_sensor()` reads
+  one by key.
 - HAL interfaces in `hal/include/hal_*.h` with a working **sim** backend in
   `hal/arch/sim/` plus SDL/device models in `sim/`.
 - Board backends under `hal/arch/{esp32,esp8266,avr}/` exist as per-arch files;

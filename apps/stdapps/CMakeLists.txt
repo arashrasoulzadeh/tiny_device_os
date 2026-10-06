@@ -13,6 +13,7 @@ set(ARDUBOT_ALL_STDAPPS
     widgets
     pomodoro
     taskmgr
+    clock
 )
 
 # A device profile can restrict what actually gets compiled in, via

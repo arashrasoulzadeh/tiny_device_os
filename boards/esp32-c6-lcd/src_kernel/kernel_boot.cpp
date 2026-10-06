@@ -5,6 +5,12 @@
 // apps/stdapps/, and app_start() runs one of them. The scheduler is
 // kernel/scheduler_esp32.c (FreeRTOS tasks), not the sim fiber scheduler.
 #include <Arduino.h>
+#include <stdlib.h>
+#include <time.h>
+
+#if __has_include("device_config.h")
+#include "device_config.h"
+#endif
 
 extern "C" {
 #include "scheduler.h"
@@ -16,6 +22,45 @@ extern "C" {
 #include "sim_gpio.h"
 #include "ardubot_keys.h"
 #include "stdapps_register.h"
+#include "os_clock.h"
+#include "clock_service.h"
+#include "sensor_service.h"
+#include "hal_storage.h"
+#include "littlefs_vfs.h"
+}
+
+static void install_board_clock(void) {
+    char tz[16];
+    int offset_min = 0;
+    time_t compiled = 0;
+#ifdef ARDUBOT_CLOCK_TZ_OFFSET_MIN
+    offset_min = ARDUBOT_CLOCK_TZ_OFFSET_MIN;
+#endif
+#ifdef ARDUBOT_CLOCK_UNIX
+    compiled = (time_t)ARDUBOT_CLOCK_UNIX;
+#endif
+    if (os_clock_tz_string(offset_min, tz, sizeof(tz)) == 0) {
+        setenv("TZ", tz, 1);
+        tzset();
+    }
+
+    hal_storage_t* flash = hal_storage_open("/dev/flash0", HAL_STORAGE_TYPE_FLASH);
+    if (flash && hal_storage_init(flash) == 0) {
+        hal_storage_info_t info;
+        uint32_t bytes = 256 * 1024;
+        if (hal_storage_get_info(flash, &info) == 0 && info.total_bytes >= 4096) {
+            bytes = info.total_bytes - (info.total_bytes % 4096);
+        }
+        if (littlefs_mount(flash, 0, bytes, 4096, "/flash") != 0) {
+            Serial.println("[kernel_boot] /flash mount failed");
+        }
+    } else {
+        Serial.println("[kernel_boot] flash storage unavailable");
+    }
+
+    if (clock_service_start(time(NULL), compiled) != 0) {
+        Serial.println("[kernel_boot] clock service failed");
+    }
 }
 
 // Bridges the board's two real buttons (GPIO18/19, same wiring as
@@ -77,6 +122,8 @@ void setup() {
     Serial.begin(115200);
     delay(500);
     Serial.println("[kernel_boot] ArdubotOS real kernel starting (Phase 2 skeleton)");
+    install_board_clock();
+    sensor_service_load_builtin();
 
     pinMode(KERNEL_BOOT_BTN_UP_GPIO, INPUT_PULLUP);
     pinMode(KERNEL_BOOT_BTN_SELECT_GPIO, INPUT_PULLUP);

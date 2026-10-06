@@ -5,8 +5,11 @@
 #include <esp_partition.h>
 #include <esp_vfs_fat.h>
 #include <sdmmc_cmd.h>
-#include <driver/sdmmc_host.h>
 #include <driver/sdspi_host.h>
+#include <soc/soc_caps.h>
+#if SOC_SDMMC_HOST_SUPPORTED
+#include <driver/sdmmc_host.h>
+#endif
 #include <driver/spi_common.h>
 #include <string.h>
 #include <stdlib.h>
@@ -55,34 +58,24 @@ int hal_storage_init(hal_storage_t* storage) {
     esp_err_t err = ESP_OK;
     
     if (storage->type == HAL_STORAGE_TYPE_FLASH) {
-        // Mount LittleFS on flash partition
+        /* Raw partition. The portable LittleFS (littlefs_mount) owns the
+         * bytes through hal_storage_read/write/erase. */
         const esp_partition_t* partition = esp_partition_find_first(
             ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_DATA_SPIFFS, LITTLEFS_PARTITION);
         if (!partition) {
             partition = esp_partition_find_first(
                 ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, "storage");
         }
-        
+
         if (!partition) {
             ESP_LOGE(TAG, "Storage partition not found");
             return -1;
         }
-        
+
         storage->partition = (esp_partition_t*)partition;
-        
-        esp_vfs_littlefs_conf_t conf = {
-            .base_path = storage->mount_point,
-            .partition_label = partition->label,
-            .format_if_mount_failed = true,
-            .dont_mount = false,
-        };
-        
-        err = esp_vfs_littlefs_register(&conf);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to mount LittleFS: %s", esp_err_to_name(err));
-            return -1;
-        }
-        
+        storage->initialized = true;
+        return 0;
+
     } else if (storage->type == HAL_STORAGE_TYPE_SD_SPI) {
         // SD card over SPI
         sdmmc_host_t host = SDSPI_HOST_DEFAULT();
@@ -112,9 +105,9 @@ int hal_storage_init(hal_storage_t* storage) {
         }
         
     } else if (storage->type == HAL_STORAGE_TYPE_SD_SDIO) {
-        // SD card over SDIO
+#if SOC_SDMMC_HOST_SUPPORTED
         sdmmc_host_t host = SDMMC_HOST_DEFAULT();
-        
+
         sdmmc_slot_config_t slot_config = SDMMC_SLOT_CONFIG_DEFAULT();
         slot_config.width = 4;
         slot_config.clk = GPIO_NUM_14;
@@ -123,10 +116,14 @@ int hal_storage_init(hal_storage_t* storage) {
         slot_config.d1 = GPIO_NUM_4;
         slot_config.d2 = GPIO_NUM_12;
         slot_config.d3 = GPIO_NUM_13;
-        
-        err = esp_vfs_fat_sdmmc_mount(storage->mount_point, &host, &slot_config, 
-                                      NULL, &storage->card);
+
+        err = esp_vfs_fat_sdmmc_mount(storage->mount_point, &host, &slot_config, NULL,
+                                      &storage->card);
         if (err != ESP_OK) return -1;
+#else
+        (void)err;
+        return -1;
+#endif
     }
     
     if (err == ESP_OK) {
@@ -140,7 +137,8 @@ int hal_storage_deinit(hal_storage_t* storage) {
     if (!storage || !storage->initialized) return -1;
     
     if (storage->type == HAL_STORAGE_TYPE_FLASH) {
-        esp_vfs_littlefs_unregister(NULL);
+        storage->initialized = false;
+        return 0;
     } else {
         esp_vfs_fat_sdcard_unmount(storage->mount_point, storage->card);
         if (storage->type == HAL_STORAGE_TYPE_SD_SPI) {
@@ -154,20 +152,20 @@ int hal_storage_deinit(hal_storage_t* storage) {
 
 int hal_storage_read(hal_storage_t* storage, uint32_t offset, void* buffer, size_t size) {
     if (!storage || !storage->initialized || !buffer) return -1;
-    
-    // For file-based access, we need a file path
-    // This is a simplified implementation - real implementation would use file handles
-    return -1;
+    if (storage->type != HAL_STORAGE_TYPE_FLASH || !storage->partition) return -1;
+    return esp_partition_read(storage->partition, offset, buffer, size) == ESP_OK ? 0 : -1;
 }
 
 int hal_storage_write(hal_storage_t* storage, uint32_t offset, const void* buffer, size_t size) {
     if (!storage || !storage->initialized || !buffer) return -1;
-    return -1;
+    if (storage->type != HAL_STORAGE_TYPE_FLASH || !storage->partition) return -1;
+    return esp_partition_write(storage->partition, offset, buffer, size) == ESP_OK ? 0 : -1;
 }
 
 int hal_storage_erase(hal_storage_t* storage, uint32_t offset, size_t size) {
     if (!storage || !storage->initialized) return -1;
-    return -1;
+    if (storage->type != HAL_STORAGE_TYPE_FLASH || !storage->partition) return -1;
+    return esp_partition_erase_range(storage->partition, offset, size) == ESP_OK ? 0 : -1;
 }
 
 int hal_storage_sync(hal_storage_t* storage) {

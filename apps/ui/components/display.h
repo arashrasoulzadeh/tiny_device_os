@@ -16,15 +16,19 @@
 #endif
 
 /**
- * apps/app_ui.h's app_ui_config_ui() content margin and default app
- * frame rate - see device_config_esp32c6.yaml's app_kit: block for the
- * authoritative values on that board (manually mirrored into
- * platformio.ini's [env:esp32-c6-kernel] build_flags, same as
- * APP_DISPLAY_WIDTH/HEIGHT above - this header isn't wired into the
- * yaml->generated-header pipeline yet).
+ * Inset of every standard app's content box, on all four sides: left and
+ * right of the panel, below the title bar, and above the help bar.
+ * app_ui_config_ui() applies it. Panels taller than 64px default to 16 so
+ * a board does not have to opt in. Override with -DARDUBOT_UI_PADDING=N
+ * (device_config_esp32c6.yaml app_kit.ui_padding, mirrored in
+ * platformio.ini). Games use app_ui_config_game() and stay full-bleed.
  */
 #ifndef ARDUBOT_UI_PADDING
+#if APP_DISPLAY_HEIGHT > 64
+#define ARDUBOT_UI_PADDING 16
+#else
 #define ARDUBOT_UI_PADDING 0
+#endif
 #endif
 
 #ifndef ARDUBOT_DEFAULT_FPS

@@ -48,6 +48,8 @@
 #include "status.h"
 #include "littlefs_vfs.h"
 #include "config_store.h"
+#include "clock_service.h"
+#include "sensor_service.h"
 #include "ardubot_enabled_apps.h"
 #include "input.h"
 
@@ -288,6 +290,8 @@ int main(int argc, char** argv) {
                 app_config_init(cfg_store);
             }
         }
+        clock_service_start(time(NULL), 0);
+        sensor_service_load_builtin();
     }
 
     /* Builtin apps are installed only from apps/stdapps_register.c.

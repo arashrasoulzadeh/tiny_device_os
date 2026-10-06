@@ -11,6 +11,8 @@ add_library(apps STATIC
     app_ui.c
     app_helper.c
     app_runtime.c
+    clock_service.c
+    sensor_service.c
     stdapps_register.c
     ui/components/canvas.c
     ui/components/menu.c

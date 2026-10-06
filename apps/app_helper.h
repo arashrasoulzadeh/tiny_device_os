@@ -119,6 +119,9 @@ void app_helper_bar(app_helper_t* app, int y, int h, int fill_w, uint16_t fill);
 void app_helper_gauge(app_helper_t* app, int y, int h, int fill_px_signed, uint16_t fill);
 void app_helper_panel(app_helper_t* app, int x, int y, int w, int h, const char* label, uint16_t bg);
 
+/* Latest sample for a sensor key from the device config. Same as sensor_get(). */
+int app_helper_sensor(const char* key, int32_t* value);
+
 #define APP_HELPER(symbol, install_name, ...)                                                    \
     static app_helper_t symbol##_helper;                                                           \
     static const app_helper_desc_t symbol##_helper_desc = {                                        \

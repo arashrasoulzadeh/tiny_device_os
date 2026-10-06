@@ -2,6 +2,7 @@ add_library(kernel STATIC
     scheduler.c
     host_stack.c
     os_time.c
+    os_clock.c
     alloc.c
     event.c
     power.c

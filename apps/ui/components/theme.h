@@ -47,8 +47,8 @@ extern "C" {
 
 /* ---------------------------------------------------------------------
  * Spacing - raw pixel gaps between elements, independent of
- * app_ui_config_t's own content_x/content_y margin (ARDUBOT_UI_PADDING,
- * apps/ui/components/display.h) which is about the screen edge, not
+ * app_ui_config_t's content inset (ARDUBOT_UI_PADDING on all four sides,
+ * apps/ui/components/display.h), which is the screen edge, not
  * spacing between elements within the content area.
  * ------------------------------------------------------------------- */
 #define ARDUBOT_SPACE_XS 2

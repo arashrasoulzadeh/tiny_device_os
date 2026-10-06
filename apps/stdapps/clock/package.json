@@ -1,0 +1,7 @@
+{
+  "name": "clock",
+  "version": "1.0.0",
+  "author": "ArdubotOS",
+  "description": "Analog and digital clock",
+  "depends": []
+}

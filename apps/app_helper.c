@@ -1,5 +1,6 @@
 #include "app_framework.h"
 #include "app_helper.h"
+#include "sensor_service.h"
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -301,6 +302,10 @@ void app_helper_gauge(app_helper_t* app, int y, int h, int fill_px_signed, uint1
         return;
     }
     app_ui_bar_centered(&app->ui, y, h, fill_px_signed, ARDUBOT_COLOR_TRACK, fill, ARDUBOT_COLOR_TEXT);
+}
+
+int app_helper_sensor(const char* key, int32_t* value) {
+    return sensor_get(key, value);
 }
 
 void app_helper_panel(app_helper_t* app, int x, int y, int w, int h, const char* label, uint16_t bg) {

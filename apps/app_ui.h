@@ -41,24 +41,17 @@ static inline void app_ui_config_ui(app_ui_config_t* cfg, const char* title, con
     cfg->show_top_bar = true;
     cfg->show_help_bar = true;
     cfg->text_scale = (APP_DISPLAY_HEIGHT > 64) ? 2 : 1;
-    /* Left/right content margin, device-configurable (see
-     * apps/ui/components/display.h's ARDUBOT_UI_PADDING /
-     * device_config_esp32c6.yaml's app_kit.ui_padding) - content_x/
-     * content_w were hardcoded 0/full-width (no margin at all),
-     * invisible on the sim's SDL window but visibly flush-left on a
-     * real physical panel (confirmed on hardware, RISCV_TODO.md
-     * Phase 4). */
-    cfg->content_x = ARDUBOT_UI_PADDING;
-    /* content_y must clear the top bar's own height (8*text_scale, same
-     * formula app_ui_begin_frame() uses for bar_h) - content_y was left at
-     * 0 when the top bar was re-enabled, which put every app's row 0
-     * directly under/behind the title bar instead of below it. */
-    cfg->content_y = 8 * cfg->text_scale;
-    cfg->content_w = APP_DISPLAY_WIDTH - 2 * cfg->content_x;
-    /* Must match app_ui_end_frame()'s help_y = HEIGHT - 8*text_scale, or
-     * the last content row overlaps the help bar it draws over - and now
-     * also subtract the top bar's height reserved via content_y above. */
-    cfg->content_h = APP_DISPLAY_HEIGHT - 8 * cfg->text_scale - cfg->content_y;
+    /* ARDUBOT_UI_PADDING insets the content box on every side. content_h
+     * is the exclusive bottom y (draw helpers test draw_y < content_h),
+     * so it stops `padding` pixels above the help bar. */
+    {
+        int bar_h = 8 * cfg->text_scale;
+        int pad = ARDUBOT_UI_PADDING;
+        cfg->content_x = pad;
+        cfg->content_y = bar_h + pad;
+        cfg->content_w = APP_DISPLAY_WIDTH - 2 * pad;
+        cfg->content_h = APP_DISPLAY_HEIGHT - bar_h - pad;
+    }
 }
 
 static inline void app_ui_config_game(app_ui_config_t* cfg) {

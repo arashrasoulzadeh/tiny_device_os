@@ -40,6 +40,28 @@ Up and the `1` key increment. Down, Left, and Right are bound the same way. Sele
 
 Point `.state` at a plain struct and set `.state_size`. The helper loads that struct when the app starts and when it resumes, and stores it when the app quits (leaves for the launcher, or the task stops). `app_set_state()` / `app_get_state()` are the same store if you need to update it from a worker. The copy stays in RAM. A later storage backend can sit behind those two calls.
 
+## Clock and padding
+
+The image boots **info** when that app is compiled in, otherwise clock, otherwise pomodoro, otherwise the launcher. The clock reads the wall clock (`os_clock_now`), not uptime. Up adds an hour and Select adds a minute.
+
+Every standard app's content box is inset by `ARDUBOT_UI_PADDING` on all four sides (16px when the panel is taller than 64). Games stay full-bleed.
+
+A board with no battery RTC gets its clock from the clock service. `make usb` writes `ARDUBOT_CLOCK_UNIX` and `ARDUBOT_CLOCK_TZ_OFFSET_MIN` from your computer unless `device_config`'s `clock.unix` is set. On boot the service reads `/flash/clock.dat` (LittleFS on the chip, through `vfs`). A saved time wins. If the file is missing, the compile-time stamp is written there and used. Up and Select change the clock and save it; the service also rewrites the file about once a minute so a power cut keeps the last minute. Time spent fully off is not counted.
+
+## Sensors
+
+List them in the device config. Each entry is a map with `key`, `type` (`adc`), optional `path` (default `/dev/adc0`), and `refresh_ms` (default 1000):
+
+```yaml
+sensors:
+  - key: temp
+    type: adc
+    path: /dev/adc0
+    refresh_ms: 1000
+```
+
+`make usb` writes that list into `device_config.h`. Boot calls `sensor_service_load_builtin()`. An app reads a key with `app_helper_sensor("temp", &value)` (same as `sensor_get`). The service samples the hardware once per `refresh_ms` and returns the cached value until that interval has passed.
+
 ## Lower-level app
 
 ```c

@@ -56,16 +56,32 @@ lcd:
 # build_flags mirror them manually (same pattern it already uses for
 # APP_DISPLAY_WIDTH/HEIGHT below) - change both together.
 app_kit:
-  # Left/right content margin in pixels (apps/app_ui.h's
-  # app_ui_config_ui() content_x/content_w). 0 means text/shapes start
-  # flush against the panel edge - fine in the sim's SDL window, visibly
-  # cramped on a real physical bezel.
-  ui_padding: 8
+  # Content inset in pixels on every side of a standard app: left, right,
+  # under the title bar, and above the help bar (app_ui_config_ui).
+  # Panels taller than 64px already default to 16; this line is the board
+  # override, mirrored by -DARDUBOT_UI_PADDING in platformio.ini.
+  ui_padding: 16
   # Default app frame rate (Hz) for any app whose own manifest doesn't
   # set .fps (apps/app_kit.c's app_kit_run) - an app can always ask for
   # a higher (or lower) rate itself via APP_DEFINE's .fps field, which
   # always wins over this default.
   default_fps: 10
+
+# Wall clock installed at boot when the board's clock is unset.
+# Leave this out and `make usb` stamps your computer's time and timezone.
+# Set unix (seconds since 1970) to pin a time instead:
+# clock:
+#   unix: 1700000000
+#   tz_offset_min: 210
+
+# Sensors the service registers at boot. Read one with
+# app_helper_sensor("temp", &value). refresh_ms is how long a sample
+# stays cached. path defaults to /dev/adc0. type today is adc.
+# sensors:
+#   - key: temp
+#     type: adc
+#     path: /dev/adc0
+#     refresh_ms: 1000
 
 inputs:
   buttons:

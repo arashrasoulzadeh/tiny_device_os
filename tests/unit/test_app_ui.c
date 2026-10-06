@@ -10,6 +10,20 @@ void setUp(void) {
 
 void tearDown(void) {}
 
+void test_ui_content_box_is_inset_by_default_padding(void) {
+    app_ui_config_t cfg;
+    int bar;
+
+    app_ui_config_ui(&cfg, "TEST", "help");
+    bar = 8 * cfg.text_scale;
+    TEST_ASSERT_EQUAL(ARDUBOT_UI_PADDING, cfg.content_x);
+    TEST_ASSERT_EQUAL(bar + ARDUBOT_UI_PADDING, cfg.content_y);
+    TEST_ASSERT_EQUAL(APP_DISPLAY_WIDTH - 2 * ARDUBOT_UI_PADDING, cfg.content_w);
+    TEST_ASSERT_EQUAL(APP_DISPLAY_HEIGHT - bar - ARDUBOT_UI_PADDING, cfg.content_h);
+    TEST_ASSERT_TRUE(cfg.content_h > cfg.content_y);
+    TEST_ASSERT_TRUE(cfg.content_w > 0);
+}
+
 void test_app_ui_init_links_desc_from_real_app(void) {
     app_desc_t desc = {0};
     desc.name = "launcher";
@@ -161,6 +175,7 @@ void test_bind_gesture_forwarding_device_reaches_callback(void) {
 
 int main(void) {
     UNITY_BEGIN();
+    RUN_TEST(test_ui_content_box_is_inset_by_default_padding);
     RUN_TEST(test_app_ui_init_links_desc_from_real_app);
     RUN_TEST(test_app_ui_init_tolerates_null_real_app);
     RUN_TEST(test_bind_gesture_creates_recognizer_and_registers);

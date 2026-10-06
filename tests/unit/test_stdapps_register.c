@@ -20,12 +20,13 @@ void test_stdapps_install_registers_only_apps_folder_builtins(void) {
     TEST_ASSERT_NOT_NULL(app_find("widgets"));
     TEST_ASSERT_NOT_NULL(app_find("pomodoro"));
     TEST_ASSERT_NOT_NULL(app_find("taskmgr"));
+    TEST_ASSERT_NOT_NULL(app_find("clock"));
     /* Linked sources that are not part of the builtin catalog. */
     TEST_ASSERT_NULL(app_find("settings"));
     TEST_ASSERT_NULL(app_find("fileman"));
     TEST_ASSERT_NULL(app_find("shell"));
     TEST_ASSERT_NULL(app_find("demo"));
-    TEST_ASSERT_EQUAL_STRING("pomodoro", stdapps_start_name());
+    TEST_ASSERT_EQUAL_STRING("info", stdapps_start_name());
 }
 
 void test_stdapps_install_rejects_a_second_pass(void) {

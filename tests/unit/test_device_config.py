@@ -17,6 +17,7 @@ from device_config import (  # noqa: E402
     load_device_config,
     parse_simple_yaml,
     pin_conflict_warnings,
+    resolve_clock,
     resolve_pin,
 )
 from usb_flash import pio_env_for_target  # noqa: E402
@@ -93,6 +94,44 @@ class TestDeviceConfig(unittest.TestCase):
         self.assertIn("#define ARDUBOT_BTN_SELECT_GPIO 12", header)
         self.assertIn("#define ARDUBOT_BUTTON_COUNT 2", header)
 
+    def test_header_stamps_the_user_clock_when_unset(self):
+        cfg = parse_simple_yaml(SAMPLE)
+        unix, offset = resolve_clock(cfg, now=1_700_000_000, tz_offset_min=210)
+        self.assertEqual(unix, 1_700_000_000)
+        self.assertEqual(offset, 210)
+        header = generate_header(cfg, now=1_700_000_000, tz_offset_min=210)
+        self.assertIn("#define ARDUBOT_CLOCK_UNIX 1700000000", header)
+        self.assertIn("#define ARDUBOT_CLOCK_TZ_OFFSET_MIN 210", header)
+
+    def test_header_keeps_a_clock_set_at_compile(self):
+        cfg = parse_simple_yaml(SAMPLE + "\nclock:\n  unix: 1600000100\n  tz_offset_min: -60\n")
+        header = generate_header(cfg, now=1_700_000_000, tz_offset_min=210)
+        self.assertIn("#define ARDUBOT_CLOCK_UNIX 1600000100", header)
+        self.assertIn("#define ARDUBOT_CLOCK_TZ_OFFSET_MIN -60", header)
+
+    def test_header_registers_sensors_from_the_config_map(self):
+        text = SAMPLE + (
+            "\nsensors:\n"
+            "  - key: temp\n"
+            "    type: adc\n"
+            "    path: /dev/adc0\n"
+            "    refresh_ms: 250\n"
+            "  - key: light\n"
+            "    type: adc\n"
+            "  - key: bad\n"
+            "    type: lidar\n"
+        )
+        header = generate_header(parse_simple_yaml(text), now=1_700_000_000, tz_offset_min=0)
+        self.assertIn("#define ARDUBOT_SENSOR_COUNT 2", header)
+        self.assertIn('#define ARDUBOT_SENSOR_0_KEY "temp"', header)
+        self.assertIn("#define ARDUBOT_SENSOR_0_TYPE SENSOR_TYPE_ADC", header)
+        self.assertIn('#define ARDUBOT_SENSOR_0_PATH "/dev/adc0"', header)
+        self.assertIn("#define ARDUBOT_SENSOR_0_REFRESH_MS 250", header)
+        self.assertIn('#define ARDUBOT_SENSOR_1_KEY "light"', header)
+        self.assertIn('#define ARDUBOT_SENSOR_1_PATH "/dev/adc0"', header)
+        self.assertIn("#define ARDUBOT_SENSOR_1_REFRESH_MS 1000", header)
+        self.assertNotIn("lidar", header)
+
     def test_button_on_lcd_scl_warns(self):
         bad = SAMPLE.replace("pin: D5", "pin: D1")
         cfg = parse_simple_yaml(bad)
@@ -110,8 +149,9 @@ class TestDeviceConfig(unittest.TestCase):
         ini = (ROOT / "platformio.ini").read_text(encoding="utf-8")
         self.assertIn("[env:nodemcu]", ini)
         self.assertIn("espressif8266", ini)
-        self.assertNotIn("\nlib_deps", ini)
-        self.assertNotIn("\n\tlib_deps", ini)
+        nodemcu = ini.split("[env:esp32dev]", 1)[0]
+        self.assertNotIn("\nlib_deps", nodemcu)
+        self.assertNotIn("\n\tlib_deps", nodemcu)
         self.assertTrue((ROOT / "boards/nodemcu/src/main.cpp").is_file())
         self.assertTrue((ROOT / "boards/nodemcu/src/ssd1306_mini.h").is_file())
         self.assertIn("icons.c", ini)
