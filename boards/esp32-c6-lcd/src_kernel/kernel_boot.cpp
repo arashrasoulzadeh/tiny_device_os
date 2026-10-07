@@ -28,9 +28,8 @@ extern "C" {
 #include "ardubot_keys.h"
 #include "stdapps_register.h"
 #include "os_clock.h"
-#include "clock_service.h"
+#include "os_boot.h"
 #include "sensor_service.h"
-#include "notify_service.h"
 #if defined(ARDUBOT_LINK_FORWARD) && ARDUBOT_LINK_FORWARD && defined(ARDUBOT_LINK_HAS_KEY) && \
     ARDUBOT_LINK_HAS_KEY
 #include "link_bridge.h"
@@ -41,40 +40,15 @@ extern "C" {
 #include "littlefs_vfs.h"
 }
 
-static void install_board_clock(void) {
+static void install_board_tz(void) {
     char tz[16];
     int offset_min = 0;
-    time_t compiled = 0;
 #ifdef ARDUBOT_CLOCK_TZ_OFFSET_MIN
     offset_min = ARDUBOT_CLOCK_TZ_OFFSET_MIN;
-#endif
-#ifdef ARDUBOT_CLOCK_UNIX
-    compiled = (time_t)ARDUBOT_CLOCK_UNIX;
 #endif
     if (os_clock_tz_string(offset_min, tz, sizeof(tz)) == 0) {
         setenv("TZ", tz, 1);
         tzset();
-    }
-
-    hal_storage_t* flash = hal_storage_open("/dev/flash0", HAL_STORAGE_TYPE_FLASH);
-    if (flash && hal_storage_init(flash) == 0) {
-        hal_storage_info_t info;
-        uint32_t bytes = 256 * 1024;
-        if (hal_storage_get_info(flash, &info) == 0 && info.total_bytes >= 4096) {
-            bytes = info.total_bytes - (info.total_bytes % 4096);
-        }
-        if (littlefs_mount(flash, 0, bytes, 4096, "/flash") != 0) {
-            Serial.println("[kernel_boot] /flash mount failed");
-        }
-    } else {
-        Serial.println("[kernel_boot] flash storage unavailable");
-    }
-
-    if (clock_service_start(time(NULL), compiled) != 0) {
-        Serial.println("[kernel_boot] clock service failed");
-    }
-    if (notify_service_start() != 0) {
-        Serial.println("[kernel_boot] notification service failed");
     }
 }
 
@@ -123,6 +97,24 @@ static void poll_real_buttons(void) {
 static hal_power_t* g_board_power;
 
 extern "C" {
+
+static int board_mount_storage(void) {
+    hal_storage_t* flash = hal_storage_open("/dev/flash0", HAL_STORAGE_TYPE_FLASH);
+    if (!flash || hal_storage_init(flash) != 0) {
+        Serial.println("[kernel_boot] flash storage unavailable");
+        return -1;
+    }
+    hal_storage_info_t info;
+    uint32_t bytes = 256 * 1024;
+    if (hal_storage_get_info(flash, &info) == 0 && info.total_bytes >= 4096) {
+        bytes = info.total_bytes - (info.total_bytes % 4096);
+    }
+    if (littlefs_mount(flash, 0, bytes, 4096, "/flash") != 0) {
+        Serial.println("[kernel_boot] /flash mount failed");
+        return -1;
+    }
+    return 0;
+}
 
 static int board_set_freq(uint32_t mhz) {
     int rc = -1;
@@ -189,8 +181,7 @@ void setup() {
     Serial.begin(115200);
     delay(500);
     Serial.println("[kernel_boot] ArdubotOS real kernel starting (Phase 2 skeleton)");
-    install_board_clock();
-    sensor_service_load_builtin();
+    install_board_tz();
 
     pinMode(KERNEL_BOOT_BTN_UP_GPIO, INPUT_PULLUP);
     pinMode(KERNEL_BOOT_BTN_SELECT_GPIO, INPUT_PULLUP);
@@ -216,9 +207,24 @@ void setup() {
     Serial.println("[kernel_boot] scheduler started - boot banner printed");
 
     // Every builtin comes from apps/stdapps via stdapps_install().
+    // os_boot_load then mounts /flash, starts services, and runs on_load.
     if (app_init() != 0 || stdapps_install() != 0) {
         Serial.println("[kernel_boot] stdapps_install failed");
         return;
+    }
+    {
+        os_boot_args_t args;
+        time_t compiled = 0;
+#ifdef ARDUBOT_CLOCK_UNIX
+        compiled = (time_t)ARDUBOT_CLOCK_UNIX;
+#endif
+        args.mount_storage = board_mount_storage;
+        args.clock_now = time(NULL);
+        args.clock_compiled = compiled;
+        if (os_boot_load(&args) != 0) {
+            Serial.println("[kernel_boot] os load failed");
+            return;
+        }
     }
     const char* start = stdapps_start_name();
     if (app_start(start) != 0) {

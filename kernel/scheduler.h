@@ -102,6 +102,7 @@ void task_yield(void);
 void task_sleep(uint32_t ticks);
 void task_suspend(task_tcb_t* task);
 void task_resume(task_tcb_t* task);
+void task_wake(task_tcb_t* task);
 
 task_tcb_t* task_get_current(void);
 const char* task_get_name(task_tcb_t* task);

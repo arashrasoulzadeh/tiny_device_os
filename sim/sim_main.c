@@ -33,7 +33,6 @@
 #include "app_kit.h"
 #include "ardubot_enabled_apps.h"
 #include "bmp280_model.h"
-#include "clock_service.h"
 #include "config_store.h"
 #include "fw/io.h"
 #include "hal_audio.h"
@@ -42,11 +41,10 @@
 #include "hal_storage.h"
 #include "input.h"
 #include "littlefs_vfs.h"
-#include "notify_service.h"
+#include "os_boot.h"
 #include "os_time.h"
 #include "power.h"
 #include "scheduler.h"
-#include "sensor_service.h"
 #include "sim_audio.h"
 #include "sim_gpio.h"
 #include "sim_storage.h"
@@ -163,6 +161,24 @@ void signal_handler(int sig) {
 }
 
 static void sim_tty_reboot(void) { g_running = false; }
+
+/* /flash plus the config store. The splash names this step "storage". */
+static int sim_mount_storage(void) {
+  hal_storage_t *flash_storage =
+      hal_storage_open("/dev/flash0", HAL_STORAGE_TYPE_FLASH);
+  if (!flash_storage || hal_storage_init(flash_storage) != 0 ||
+      littlefs_mount(flash_storage, 0, 4 * 1024 * 1024, 4096, "/flash") != 0) {
+    fprintf(stderr, "Failed to mount /flash\n");
+    return -1;
+  }
+  config_store_t *cfg_store = config_store_open("/flash/config.dat");
+  if (!cfg_store || config_store_init(cfg_store) != 0) {
+    fprintf(stderr, "Failed to open config store\n");
+    return -1;
+  }
+  app_config_init(cfg_store);
+  return 0;
+}
 
 static void sim_quit_cb(void *arg) {
   (void)arg;
@@ -284,38 +300,26 @@ int main(int argc, char **argv) {
   /* Simulated pack level (USB host ≈ full). */
   app_status_set_battery_percent(92);
 
-  /* Mount /flash and open the config store the Settings app (and anything
-   * else using vfs_open()/app_config_*) reads and writes through - without
-   * this nothing persisted even within a single run, since app_config_*
-   * silently no-ops with no store set and /flash didn't exist as a VFS
-   * mount point at all. */
-  {
-    hal_storage_t *flash_storage =
-        hal_storage_open("/dev/flash0", HAL_STORAGE_TYPE_FLASH);
-    if (!flash_storage || hal_storage_init(flash_storage) != 0 ||
-        littlefs_mount(flash_storage, 0, 4 * 1024 * 1024, 4096, "/flash") !=
-            0) {
-      fprintf(stderr, "Failed to mount /flash\n");
-    } else {
-      config_store_t *cfg_store = config_store_open("/flash/config.dat");
-      if (!cfg_store || config_store_init(cfg_store) != 0) {
-        fprintf(stderr, "Failed to open config store\n");
-      } else {
-        app_config_init(cfg_store);
-      }
-    }
-    clock_service_start(time(NULL), 0);
-    sensor_service_load_builtin();
-    notify_service_start();
-    tty_service_set_reboot(sim_tty_reboot);
-  }
+  tty_service_set_reboot(sim_tty_reboot);
 
   /* Builtin apps are installed only from apps/stdapps_register.c.
    * ESC from the start app still returns to the launcher
-   * (app_request_exit() re-focuses APP_KIT_HOME_NAME="launcher"). */
+   * (app_request_exit() re-focuses APP_KIT_HOME_NAME="launcher").
+   * os_boot_load mounts /flash, starts services, and runs each app's
+   * on_load while the splash is on screen. */
   if (stdapps_install() != 0) {
     fprintf(stderr, "Failed to install builtin apps\n");
     return 1;
+  }
+  {
+    os_boot_args_t boot_args;
+    memset(&boot_args, 0, sizeof(boot_args));
+    boot_args.mount_storage = sim_mount_storage;
+    boot_args.clock_now = time(NULL);
+    if (os_boot_load(&boot_args) != 0) {
+      fprintf(stderr, "Failed to load OS\n");
+      return 1;
+    }
   }
   {
     const char *start = stdapps_start_name();

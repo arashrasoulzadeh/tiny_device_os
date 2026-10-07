@@ -93,7 +93,7 @@ CMAKE_CACHE = $(BUILD_DIR)/CMakeCache.txt
 # ============================================================================
 # Main targets
 # ============================================================================
-.PHONY: all configure build run test clean clean-all config help compile compile-clean compile-info usb usb-ports device-config monitor create-app install-app list-apps docs docs-doxygen docs-site coverage
+.PHONY: all configure build run test clean clean-all config help compile compile-clean compile-info usb usb-ports device-config monitor tty tty-run create-app install-app list-apps docs docs-doxygen docs-site coverage
 
 all: build
 
@@ -206,6 +206,22 @@ device-config:
 	  -o build/generated/device_config.h
 	@python3 scripts/device_secrets.py gen-header \
 	  -o build/generated/device_secrets.h
+
+# Encrypted shell on a board that is already flashed. Does not upload.
+tty:
+	@python3 scripts/link_monitor.py --config $(DEVICE_CONFIG) \
+	  $(if $(PORT),--port $(PORT),)
+
+# One shell command, then exit: make tty-run sensors
+ifeq (tty-run,$(firstword $(MAKECMDGOALS)))
+  TTY_RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+  $(eval $(TTY_RUN_ARGS):;@:)
+endif
+tty-run:
+	@test -n "$(TTY_RUN_ARGS)" || (echo "usage: make tty-run <command> [args...]"; exit 2)
+	@python3 scripts/link_monitor.py --config $(DEVICE_CONFIG) \
+	  $(if $(PORT),--port $(PORT),) \
+	  --run $(TTY_RUN_ARGS)
 
 # Serial monitor on the configured (or DEVICE=/PORT=) target
 monitor:
@@ -467,6 +483,8 @@ help:
 	@echo "  rebuild       - Clean and rebuild"
 	@echo "  install       - Flash to hardware (requires tool)"
 	@echo "  usb           - Ask target, PlatformIO build + flash (https://platformio.org/)"
+	@echo "  tty           - Reconnect the device shell without flashing"
+	@echo "  tty-run       - Run one shell command and exit (make tty-run sensors)"
 	@echo "  usb-ports     - List detected USB serial ports"
 	@echo "  device-config - Show device_config.yaml and generate device_config.h"
 	@echo "  coverage      - Generate HTML coverage report"

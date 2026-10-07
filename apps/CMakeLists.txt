@@ -26,6 +26,8 @@ add_library(apps STATIC
     ui/components/status.c
     header_app.c
     fw/ui.c
+    boot_splash.c
+    os_boot.c
 )
 
 # Panel size for the active device (override with -DARDUBOT_DISPLAY_WIDTH/HEIGHT).

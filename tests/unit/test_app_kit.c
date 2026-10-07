@@ -1,4 +1,5 @@
 #include "app_kit.h"
+#include "header_app.h"
 #include "power.h"
 #include "scheduler.h"
 #include "unity.h"
@@ -16,7 +17,7 @@ void setUp(void) {
   power_init();
 }
 
-void tearDown(void) {}
+void tearDown(void) { header_app_set_visible(false); }
 
 void test_app_kit_make_manifest_fills_fields(void) {
   app_desc_t desc = {
@@ -175,6 +176,40 @@ void test_every_ms_is_the_tool_sleep(void) {
   TEST_ASSERT_EQUAL(500, app_kit_next_sleep_ms(&ctx));
 }
 
+void test_visible_header_wakes_a_tool_within_a_second(void) {
+  app_desc_t desc = {.fps = 30};
+  app_ctx_t ctx;
+  if (app_header_height() <= 0) {
+    TEST_IGNORE_MESSAGE("panel is too small for the header band");
+    return;
+  }
+  memset(&ctx, 0, sizeof(ctx));
+  ctx.desc = &desc;
+  ctx.ui.mode = APP_UI_MODE_UI;
+  header_app_set_visible(true);
+  TEST_ASSERT_LESS_OR_EQUAL(1000, app_kit_next_sleep_ms(&ctx));
+  header_app_set_visible(false);
+  TEST_ASSERT_GREATER_THAN(1000, app_kit_next_sleep_ms(&ctx));
+}
+
+static int g_load_calls;
+
+static void counting_load(void) { g_load_calls++; }
+
+void test_app_kit_load_runs_hook_once(void) {
+  g_load_calls = 0;
+  app_kit_set_load("load_once_app", counting_load);
+  TEST_ASSERT_EQUAL(0, app_kit_load("load_once_app"));
+  TEST_ASSERT_EQUAL(1, g_load_calls);
+  TEST_ASSERT_EQUAL(0, app_kit_load("load_once_app"));
+  TEST_ASSERT_EQUAL(1, g_load_calls);
+}
+
+void test_app_kit_load_missing_hook_succeeds(void) {
+  TEST_ASSERT_EQUAL(0, app_kit_load("load_missing_app"));
+  TEST_ASSERT_EQUAL(-1, app_kit_load(NULL));
+}
+
 void test_app_bind_back_registers_escape(void) {
   app_ctx_t ctx;
   memset(&ctx, 0, sizeof(ctx));
@@ -195,6 +230,9 @@ int main(void) {
   RUN_TEST(test_unpaced_app_without_a_timer_sleeps_instead_of_polling);
   RUN_TEST(test_paced_app_uses_its_frame_clock);
   RUN_TEST(test_every_ms_is_the_tool_sleep);
+  RUN_TEST(test_visible_header_wakes_a_tool_within_a_second);
+  RUN_TEST(test_app_kit_load_runs_hook_once);
+  RUN_TEST(test_app_kit_load_missing_hook_succeeds);
   RUN_TEST(test_app_bind_back_registers_escape);
   return UNITY_END();
 }

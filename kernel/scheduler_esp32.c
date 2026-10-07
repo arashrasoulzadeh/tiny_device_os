@@ -162,6 +162,15 @@ void task_suspend(task_tcb_t* task) {
     vTaskSuspend((TaskHandle_t)task->host_fiber);
 }
 
+void task_wake(task_tcb_t* task) {
+    if (!task || !task->host_fiber) {
+        return;
+    }
+    /* vTaskDelay does not honor wake_time. Abort it so a retiring app
+     * leaves the loop instead of drawing again when the delay ends. */
+    (void)xTaskAbortDelay((TaskHandle_t)task->host_fiber);
+}
+
 void task_resume(task_tcb_t* task) {
     if (!task || !task->host_fiber) {
         return;

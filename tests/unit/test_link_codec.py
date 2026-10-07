@@ -24,7 +24,13 @@ from link_codec import (  # noqa: E402
     crc16,
     decode_frame,
 )
-from link_monitor import tty_local_action  # noqa: E402
+from link_monitor import (  # noqa: E402
+    session_target,
+    tty_command_result,
+    tty_display,
+    tty_local_action,
+    tty_present,
+)
 
 
 class CodecTests(unittest.TestCase):
@@ -58,6 +64,40 @@ class CodecTests(unittest.TestCase):
         self.assertEqual(tty_local_action(0x1D), "exit")
         self.assertEqual(tty_local_action(0x03), "send")
         self.assertEqual(tty_local_action(0x1A), "send")
+        self.assertEqual(tty_display(b"apps\nardubot$ "), b"apps\r\nardubot$ ")
+        self.assertEqual(tty_display(b"already\r\n"), b"already\r\n")
+        shown, hangup = tty_present(b"bye\n\x04")
+        self.assertEqual(shown, b"bye\r\n")
+        self.assertTrue(hangup)
+        shown, hangup = tty_present(b"ardubot$ ")
+        self.assertFalse(hangup)
+
+    def test_reconnect_uses_the_configured_port_and_key(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cfg = root / "device.yaml"
+            secrets = root / "secrets.yaml"
+            cfg.write_text("device:\n  port: /dev/cu.usbmodem2101\n", encoding="utf-8")
+            secrets.write_text(
+                "link:\n  key_id: 1\n  key: \"00112233445566778899aabbccddeeff\"\n",
+                encoding="utf-8",
+            )
+            port, key_id, key = session_target(str(cfg), str(secrets))
+            self.assertEqual(port, "/dev/cu.usbmodem2101")
+            self.assertEqual(key_id, 1)
+            self.assertEqual(key, bytes.fromhex("00112233445566778899aabbccddeeff"))
+            self.assertEqual(
+                tty_command_result(b"sensors\ncpu 10\nardubot$ ", "sensors"),
+                b"cpu 10\n",
+            )
+            self.assertEqual(
+                tty_command_result(b"date set 1\ndate 1\nardubot$ ", "date set 1"),
+                b"date 1\n",
+            )
+            with self.assertRaises(SystemExit):
+                session_target(str(cfg), str(root / "missing.yaml"))
 
     def test_prompt_survives_hello_and_other_channels_are_dropped(self):
         key = bytes(range(16))
@@ -75,6 +115,31 @@ class CodecTests(unittest.TestCase):
         host = Link(Session(key, 1, DIR_HOST), lambda _data: None, read, fd=None)
         host._handshake("host")
         self.assertEqual(host.take_tty(), b"hi")
+
+    def test_handshake_retries_until_the_board_answers(self):
+        key = bytes(range(16))
+        device = Session(key, 1, DIR_DEVICE)
+        reply = bytearray()
+
+        def write(data: bytes) -> None:
+            hello = decode_frame(data)
+            assert hello is not None
+            device.accept_hello(hello, session_id=1)
+            reply[:] = device.encode_hello(1, 2)
+
+        reads = {"n": 0}
+
+        def read(_n: int) -> bytes:
+            reads["n"] += 1
+            if reads["n"] < 3:
+                return b""
+            return bytes(reply)
+
+        host = Link(Session(key, 1, DIR_HOST), write, read, fd=None)
+        host.port = "/dev/cu.usbmodem2101"
+        host._handshake("host")
+        self.assertTrue(host.session.open)
+        self.assertGreaterEqual(reads["n"], 3)
 
     def test_tcp_session_roundtrip(self):
         host_sock, device_sock = socket.socketpair()

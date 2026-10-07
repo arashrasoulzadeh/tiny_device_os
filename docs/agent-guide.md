@@ -36,7 +36,11 @@ Implemented and exercised by host tests:
   (`Link.open_usb`, `Link.open_tcp`, `Link.call`, `Link.send_tty`). When
   `notifications.forward_from_host` is set, `make usb` stays up after a
   successful flash as a raw terminal (`scripts/link_monitor.py`) until
-  Ctrl+]. Ctrl+Z and Ctrl+C go to the shell. The 16-byte key is `link.key`
+  `exit`, `close`, or Ctrl+]. `make tty` opens that terminal again without
+  flashing. Opening the port can reset the chip, so the host keeps sending
+  Hello for a few seconds until the board answers. `make tty-run <command>
+  [args...]` runs one line and exits.
+  Ctrl+Z and Ctrl+C go to the shell. The 16-byte key is `link.key`
   in `device_secrets.yaml`, not the device config.
 - HAL interfaces in `hal/include/hal_*.h` with a working **sim** backend in
   `hal/arch/sim/` plus SDL/device models in `sim/`.
@@ -206,14 +210,15 @@ Warnings are errors (`-Wall -Wextra -Wpedantic -Werror`). Unused parameters need
 
 Use **`app_framework.h`** and `APP_HELPER` for a new screen — see [`docs/apps.md`](apps.md)
 and `apps/stdapps/counter/counter_app.c`. Pass `.on_view` for a scene,
-`.every_ms` for a timer, `.keys` for a custom map, `.on_ready` to start a
+`.every_ms` for a timer, `.keys` for a custom map, `.on_load` for RAM-heavy
+setup that runs once during the boot splash, `.on_ready` to start a
 worker, `.live` when the screen must repaint every tick, and `.state` /
 `.state_size` for the session restored on start and resume and stored on quit.
 `app_kit.h` / `APP_DEFINE` is the lower-level path when those fields are not enough.
 Files and pins are `fw/io.h`.
 
 1. Create `apps/stdapps/<name>/` and implement `on_event` / `on_view` (and
-   optional `on_ready`, `on_tick`, `on_cleanup`) in `<name>_app.c`. Use
+   optional `on_load`, `on_ready`, `on_tick`, `on_cleanup`) in `<name>_app.c`. Use
    `on_draw` when the screen places its own pixels.
 2. Fill the scene with `app_scene_row`, `app_scene_hero`, `app_scene_clock`,
    `app_scene_bar`, `app_scene_gauge`, or `app_scene_panel`.

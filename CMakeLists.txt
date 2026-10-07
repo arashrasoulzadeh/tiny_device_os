@@ -71,6 +71,19 @@ else()
 endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(ARDUBOT_BUILD_INFO_HEADER "${CMAKE_BINARY_DIR}/generated/build_info.h")
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/gen_build_info.py"
+            --repo "${CMAKE_SOURCE_DIR}" -o "${ARDUBOT_BUILD_INFO_HEADER}"
+    RESULT_VARIABLE _ardubot_build_info_rc
+    ERROR_VARIABLE _ardubot_build_info_err
+)
+if(NOT _ardubot_build_info_rc EQUAL 0)
+    message(FATAL_ERROR "build_info.h generation failed:\n${_ardubot_build_info_err}")
+endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+             "${CMAKE_SOURCE_DIR}/scripts/gen_build_info.py")
+
 set(ARDUBOT_APP_MANIFEST_INC "${CMAKE_BINARY_DIR}/generated/app_manifests.inc")
 file(GLOB ARDUBOT_APP_JSONS "${CMAKE_SOURCE_DIR}/apps/stdapps/*/app.json")
 execute_process(

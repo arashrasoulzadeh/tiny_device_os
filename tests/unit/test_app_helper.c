@@ -1,5 +1,6 @@
 #include "app_helper.h"
 #include "app_kit.h"
+#include "header.h"
 #include "power.h"
 #include "scheduler.h"
 #include "theme.h"
@@ -336,11 +337,45 @@ void test_scene_bar_fill_uses_the_value(void) {
   TEST_ASSERT_EQUAL_STRING("three", app.scene.rows[2]);
 }
 
+void test_a_retired_app_does_not_paint(void) {
+  app_helper_desc_t desc = {.title = "OLD", .on_draw = on_draw};
+  app_helper_t app;
+  g_draws = 0;
+  TEST_ASSERT_EQUAL(0, app_helper_start(&app, NULL, &desc));
+  app.ui.ctx->retired = true;
+  app_helper_frame(&app);
+  TEST_ASSERT_EQUAL(0, g_draws);
+  app_helper_stop(&app);
+}
+
 void test_start_rejects_a_missing_app_or_description(void) {
   app_helper_desc_t desc = {.title = "TEST"};
   app_helper_t app;
   TEST_ASSERT_EQUAL(-1, app_helper_start(NULL, NULL, &desc));
   TEST_ASSERT_EQUAL(-1, app_helper_start(&app, NULL, NULL));
+}
+
+/* The header clock moves every second. The body has to be painted in
+ * that same frame, or the app sits still under a ticking band. */
+void test_header_second_redraws_the_app_body(void) {
+  app_helper_desc_t desc = {.title = "T", .on_draw = on_draw};
+  app_helper_t app;
+  int i;
+  if (app_header_height() <= 0) {
+    TEST_IGNORE_MESSAGE("panel is too small for the header band");
+    return;
+  }
+  g_draws = 0;
+  TEST_ASSERT_EQUAL(0, app_helper_start(&app, NULL, &desc));
+  app_helper_frame(&app);
+  app_helper_frame(&app);
+  TEST_ASSERT_EQUAL(1, g_draws);
+  for (i = 0; i < 1000; i++) {
+    scheduler_tick();
+  }
+  app_helper_frame(&app);
+  TEST_ASSERT_EQUAL(2, g_draws);
+  app_helper_stop(&app);
 }
 
 int main(void) {
@@ -365,6 +400,8 @@ int main(void) {
   RUN_TEST(test_scene_hero_scale_fits_beside_a_panel);
   RUN_TEST(test_scene_bar_fill_uses_the_value);
   RUN_TEST(test_every_ms_ticks_on_that_interval_and_skips_a_clean_draw);
+  RUN_TEST(test_a_retired_app_does_not_paint);
   RUN_TEST(test_start_rejects_a_missing_app_or_description);
+  RUN_TEST(test_header_second_redraws_the_app_body);
   return UNITY_END();
 }

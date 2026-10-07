@@ -2,6 +2,7 @@
 #include "app_framework.h"
 #include "fw/ui.h"
 #include "notify_service.h"
+#include "scheduler.h"
 #include "sensor_service.h"
 
 #include <stdarg.h>
@@ -215,6 +216,8 @@ int app_helper_start(app_helper_t *app, void *real_app,
     ctx->every_ms = desc->every_ms;
   }
   app->saw_frame = false;
+  app->painted_s = 0;
+  app->last_tick_ms = 0;
   if (desc->on_ready) {
     desc->on_ready(app);
   }
@@ -275,14 +278,40 @@ void app_helper_frame(app_helper_t *app) {
   if (!app) {
     return;
   }
+  /* A retiring app, or one that is no longer in front, must not clear
+   * the shared framebuffer and flush the picture it used to show. */
+  if (app->ui.ctx && app->ui.ctx->retired) {
+    return;
+  }
+  if (app->ui.ctx && app_kit_foreground_name() &&
+      !app_kit_is_foreground(app->ui.ctx)) {
+    return;
+  }
   /* The opening frame paints the current picture. A timed tool runs
-   * on_tick only after .every_ms has elapsed, so a countdown does not
-   * drop a second the moment it opens. */
-  if (app->desc && app->desc->on_tick &&
-      (app->desc->every_ms == 0 || app->saw_frame)) {
-    app->desc->on_tick(app);
+   * on_tick only after .every_ms of scheduler time, so a countdown does
+   * not drop a second the moment it opens and does not drop one on every
+   * wake the header uses to refresh. */
+  if (app->desc && app->desc->on_tick) {
+    if (app->desc->every_ms == 0) {
+      app->desc->on_tick(app);
+    } else if (app->saw_frame) {
+      uint32_t now = scheduler_get_tick_count();
+      if ((uint32_t)(now - app->last_tick_ms) >= app->desc->every_ms) {
+        app->last_tick_ms = now;
+        app->desc->on_tick(app);
+      }
+    } else {
+      app->last_tick_ms = scheduler_get_tick_count();
+    }
   }
   app->saw_frame = true;
+  /* Header digits come from the clock at flush time. Repaint the body
+   * on that same second, or the band moves and the app stays put. */
+  if (app->ui.ctx && app->ui.ctx->ui.mode == APP_UI_MODE_UI &&
+      app_header_height() > 0 &&
+      (scheduler_get_tick_count() / 1000u) != app->painted_s) {
+    app->needs_draw = true;
+  }
   if (!app->needs_draw && !(app->desc && app->desc->live) &&
       !notify_service_needs_present()) {
     return;
@@ -297,6 +326,7 @@ void app_helper_frame(app_helper_t *app) {
     app->desc->on_draw(app);
   }
   app_ui_end_frame(&app->ui);
+  app->painted_s = scheduler_get_tick_count() / 1000u;
 }
 
 void app_helper_text(app_helper_t *app, int x, int y, const char *text,

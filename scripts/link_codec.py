@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import select
 import socket
+import time
 from typing import Callable
 
 MAGIC = 0xAB07
@@ -509,6 +510,31 @@ def describe(plain: dict) -> str:
     return f"channel {channel}"
 
 
+def _release_modem_lines(fd: int) -> None:
+    """Release reset (RTS) and mark the CDC port open (DTR).
+
+    Opening /dev/cu.usbmodem* lets macOS assert RTS, which holds the
+    ESP32-C6 USB-JTAG controller in reset for as long as the port is open.
+    """
+    import fcntl
+    import struct
+    import termios
+
+    dtr = getattr(termios, "TIOCM_DTR", 0)
+    rts = getattr(termios, "TIOCM_RTS", 0)
+    set_bits = getattr(termios, "TIOCMBIS", None)
+    clear_bits = getattr(termios, "TIOCMBIC", None)
+    if set_bits is None or clear_bits is None:
+        return
+    try:
+        if rts:
+            fcntl.ioctl(fd, clear_bits, struct.pack("I", rts))
+        if dtr:
+            fcntl.ioctl(fd, set_bits, struct.pack("I", dtr))
+    except OSError:
+        return
+
+
 class Link:
     """Host or device session over a byte pipe."""
 
@@ -567,19 +593,25 @@ class Link:
         attrs[6][termios.VMIN] = 0
         attrs[6][termios.VTIME] = 0
         termios.tcsetattr(fd, termios.TCSANOW, attrs)
+        _release_modem_lines(fd)
         termios.tcflush(fd, termios.TCIOFLUSH)
 
         def write(data: bytes) -> None:
             os.write(fd, data)
 
         def read(n: int) -> bytes:
-            ready, _, _ = select.select([fd], [], [], 2.0)
+            ready, _, _ = select.select([fd], [], [], 0.4)
             if not ready:
                 return b""
             return os.read(fd, n)
 
         link = cls(Session(key, key_id, DIR_HOST), write, read, fd, own_fd=True)
-        link._handshake("host")
+        link.port = port
+        try:
+            link._handshake("host")
+        except Exception:
+            link.close()
+            raise
         return link
 
     def close(self) -> None:
@@ -591,14 +623,26 @@ class Link:
         self.fd = None
 
     def _handshake(self, role: str) -> None:
-        if role == "host":
-            self._write(self.session.encode_hello(0, 1))
+        if role != "host":
             frame = self._next_frame()
+            self.session.accept_hello(frame, session_id=1)
+            self._write(self.session.encode_hello(self.session.session, 2))
+            return
+        # Opening the USB port can reset the chip. Keep offering Hello until
+        # the firmware is up and answers, instead of one two-second wait.
+        deadline = time.monotonic() + 8.0
+        while time.monotonic() < deadline:
+            self._write(self.session.encode_hello(0, 1))
+            try:
+                frame = self._next_frame()
+            except TimeoutError:
+                continue
+            if frame.get("channel") != CH_HELLO:
+                continue
             self.session.accept_hello(frame)
             return
-        frame = self._next_frame()
-        self.session.accept_hello(frame, session_id=1)
-        self._write(self.session.encode_hello(self.session.session, 2))
+        where = getattr(self, "port", None) or "the board"
+        raise TimeoutError(f"no reply from {where}")
 
     def _take_ready(self, frames: list[dict]) -> dict | None:
         if not frames:

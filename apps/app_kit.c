@@ -3,6 +3,7 @@
 #include "app_ui.h"
 #include "fw/io.h"
 #include "fw/ui.h"
+#include "header_app.h"
 #include "icons.h"
 #include "notify_service.h"
 
@@ -279,6 +280,43 @@ int app_kit_switch(const char *name) {
   return 0;
 }
 
+static void app_kit_return_home(const char *leaving);
+
+int app_kit_request_stop(const char *name) {
+  app_ctx_t *ctx;
+  app_t *app;
+  int was_fg;
+  if (!name || name[0] == '\0') {
+    return -1;
+  }
+  ctx = app_kit_find_ctx(name);
+  app = app_find(name);
+  if (!ctx || !app) {
+    return -1;
+  }
+  if (app->state != APP_STATE_RUNNING && app->state != APP_STATE_SUSPENDED) {
+    return -1;
+  }
+  was_fg = (g_fg == ctx);
+  ctx->retired = true;
+  ctx->running = false;
+  if (g_fg == ctx) {
+    if (ctx->demand_task) {
+      (void)power_set_demand(ctx->demand_task, POWER_DEMAND_NORMAL);
+    }
+    g_fg = NULL;
+    power_governor_set_foreground_demand(POWER_DEMAND_NORMAL);
+  }
+  if (was_fg) {
+    app_kit_return_home(name);
+  }
+  if (app->state == APP_STATE_SUSPENDED) {
+    (void)app_resume(name);
+  }
+  app_kit_wake(ctx);
+  return 0;
+}
+
 int app_open(app_ctx_t *from, const char *name) {
   if (!from || !from->desc || !from->desc->name || !name) {
     return -1;
@@ -417,6 +455,9 @@ void app_kit_apply_overrides(app_desc_t *dest, const app_desc_t *over) {
   if (over->on_cleanup) {
     dest->on_cleanup = over->on_cleanup;
   }
+  if (over->on_load) {
+    dest->on_load = over->on_load;
+  }
   if (over->icon) {
     dest->icon = over->icon;
   }
@@ -449,6 +490,54 @@ void app_kit_set_icon(const char *name, const app_icon_t *icon) {
   g_icon_count++;
 }
 
+typedef struct {
+  const char *name;
+  app_load_fn_t fn;
+  bool loaded;
+} app_kit_load_slot_t;
+
+static app_kit_load_slot_t g_loads[APP_MAX];
+static int g_load_count = 0;
+
+void app_kit_set_load(const char *name, app_load_fn_t fn) {
+  int i;
+  if (!name || !fn) {
+    return;
+  }
+  for (i = 0; i < g_load_count; i++) {
+    if (g_loads[i].name && strcmp(g_loads[i].name, name) == 0) {
+      if (!g_loads[i].loaded) {
+        g_loads[i].fn = fn;
+      }
+      return;
+    }
+  }
+  if (g_load_count >= APP_MAX) {
+    return;
+  }
+  g_loads[g_load_count].name = name;
+  g_loads[g_load_count].fn = fn;
+  g_loads[g_load_count].loaded = false;
+  g_load_count++;
+}
+
+int app_kit_load(const char *name) {
+  int i;
+  if (!name) {
+    return -1;
+  }
+  for (i = 0; i < g_load_count; i++) {
+    if (g_loads[i].name && strcmp(g_loads[i].name, name) == 0) {
+      if (!g_loads[i].loaded && g_loads[i].fn) {
+        g_loads[i].loaded = true;
+        g_loads[i].fn();
+      }
+      return 0;
+    }
+  }
+  return 0;
+}
+
 const app_icon_t *app_kit_get_icon(const char *name) {
   int i;
   if (!name) {
@@ -478,6 +567,12 @@ uint32_t app_kit_next_sleep_ms(const app_ctx_t *app) {
   } else if (app->every_ms > 0) {
     wait = app->every_ms;
   }
+  /* The header clock is painted from wall time at flush. Wake at least
+   * once a second while that band is up so the body is drawn with it. */
+  if (header_app_visible() && app_header_height() > 0 &&
+      app->ui.mode == APP_UI_MODE_UI && wait > 1000) {
+    wait = 1000;
+  }
   if (notify_service_needs_present() && wait > 16) {
     wait = 16;
   }
@@ -491,13 +586,16 @@ void app_kit_wake(app_ctx_t *app) {
     return;
   }
   task = app->run_task;
-  if (!task || task->state != TASK_STATE_BLOCKED) {
+  if (!task) {
     return;
   }
-  now = scheduler_get_tick_count();
-  if (task->wake_time > now) {
-    task->wake_time = now;
+  if (task->state == TASK_STATE_BLOCKED) {
+    now = scheduler_get_tick_count();
+    if (task->wake_time > now) {
+      task->wake_time = now;
+    }
   }
+  task_wake(task);
 }
 
 void app_kit_wake_foreground(void) { app_kit_wake(g_fg); }
@@ -546,7 +644,7 @@ void app_kit_run(const app_desc_t *desc) {
     app_kit_remap_keys((void *)&ctx);
   }
 
-  while (ctx.running) {
+  while (ctx.running && !ctx.retired) {
     /* Re-take focus after resume from background. */
     if (app_kit_find_ctx(desc->name) == &ctx && g_fg != &ctx) {
       app_t *self = desc->name ? app_find(desc->name) : NULL;
@@ -557,6 +655,9 @@ void app_kit_run(const app_desc_t *desc) {
     notify_service_pump();
     if (notify_service_needs_present()) {
       ctx.dirty = true;
+    }
+    if (ctx.retired || !ctx.running) {
+      break;
     }
     if (desc->on_frame) {
       desc->on_frame((void *)&ctx);

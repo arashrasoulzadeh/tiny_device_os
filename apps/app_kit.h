@@ -25,6 +25,8 @@ extern "C" {
 
 typedef void (*app_fn_t)(void *app);
 typedef void (*app_key_fn_t)(void *app, void *user);
+/* Boot preload. No app context: the task and UI do not exist yet. */
+typedef void (*app_load_fn_t)(void);
 
 typedef struct {
   const char *name;
@@ -39,6 +41,7 @@ typedef struct {
   app_fn_t on_init;
   app_fn_t on_frame;
   app_fn_t on_cleanup;
+  app_load_fn_t on_load;
 } app_desc_t;
 
 typedef struct {
@@ -72,6 +75,9 @@ struct app_ctx {
   bool paced;
   uint32_t every_ms;
   task_tcb_t *run_task;
+  /* Set when the app is leaving. Frames must not paint after this, or the
+   * old picture is flushed over whatever is now in front. */
+  bool retired;
 };
 
 int app_bind_key(app_ctx_t *app, sim_key_t key, app_key_fn_t fn, void *user);
@@ -88,6 +94,12 @@ const char *app_kit_foreground_name(void);
  * The caller does not have to be an app.
  */
 int app_kit_switch(const char *name);
+
+/**
+ * Ask a running app to leave its loop. If it was in front, the launcher is
+ * started. The task is not deleted here; it drops the panel on the way out.
+ */
+int app_kit_request_stop(const char *name);
 
 void app_request_exit(app_ctx_t *app);
 
@@ -132,6 +144,12 @@ void app_kit_apply_overrides(app_desc_t *dest, const app_desc_t *over);
 void app_kit_set_icon(const char *name, const app_icon_t *icon);
 const app_icon_t *app_kit_get_icon(const char *name);
 
+/* Register the boot preload for `name`. `app_kit_load` calls it once. */
+void app_kit_set_load(const char *name, app_load_fn_t fn);
+
+/* Run the preload hook once. A missing hook still succeeds. */
+int app_kit_load(const char *name);
+
 #include "canvas.h"
 #include "catalog.h"
 #include "menu.h"
@@ -163,6 +181,9 @@ const app_icon_t *app_kit_get_icon(const char *name);
     }                                                                          \
     if (symbol##_desc.icon) {                                                  \
       app_kit_set_icon(install_name, symbol##_desc.icon);                      \
+    }                                                                          \
+    if (symbol##_desc.on_load) {                                               \
+      app_kit_set_load(install_name, symbol##_desc.on_load);                   \
     }                                                                          \
     symbol##_manifest = app_kit_make_manifest(&symbol##_desc, symbol##_entry); \
   }

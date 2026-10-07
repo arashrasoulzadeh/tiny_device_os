@@ -2,10 +2,12 @@
 
 New screens start with **`#include "app_framework.h"`** and `APP_HELPER()`. Up, Down,
 Left, Right, Select, and Escape are already bound. A tool fills `.on_view`
-and sleeps until a key or `.every_ms`. Pass `.keys`, `.live`,
-`.game` or `.fullscreen`, `.on_tick`, `.on_ready`, `.on_draw`, or `.state` / `.state_size` when a screen needs
-a different map, a frame every tick, no chrome, a timed step, setup after
-the UI exists, a canvas instead of a scene, or a session restored on start and resume and stored on quit.
+and sleeps until a key or `.every_ms`. While the header band is showing,
+that sleep is at most one second and the body is redrawn with the clock.
+Pass `.keys`, `.live`,
+`.game` or `.fullscreen`, `.on_tick`, `.on_load`, `.on_ready`, `.on_draw`, or `.state` / `.state_size` when a screen needs
+a different map, a frame every tick, no chrome, a timed step, RAM-heavy setup at boot,
+setup after the UI exists, a canvas instead of a scene, or a session restored on start and resume and stored on quit.
 Pixels are `fw/ui.h`. Files and pins are `fw/io.h`. Include those only when the screen uses them.
 Title and help come from `app.json`. The launcher icon is `<symbol>_icon`.
 `.type` defaults to `APP_TYPE_TOOL`. `.fps` applies only with `.live` or `.game`, and then it defaults to 30.
@@ -53,13 +55,22 @@ flowchart TB
 
 1. Install manifests with `stdapps_install()`, which also builds the launcher
    catalog once.
-2. `app_start(stdapps_start_name())`. On a full image that name is `sensors`.
+2. `os_boot_load()` paints the splash (ArdubotOS, the last 8 characters of the
+   git commit, a progress bar, and the step name). It mounts storage, starts
+   clock, notify, and sensors, then calls each installed app's `on_load` once.
+3. `app_start(stdapps_start_name())`. On a full image that name is `sensors`.
    Escape from any other app resumes the launcher.
-3. Kit runs `on_init` → loop `on_frame` + sleep → `on_cleanup` on hard exit.
-4. Only the **foreground** app receives keys and may flush the display.
-5. `app_open(from, name)` starts or resumes the child and suspends the caller.
-6. `app_request_exit` / `app_bind_back` soft-leaves a non-home app (suspends it,
+4. Kit runs `on_init` → loop `on_frame` + sleep → `on_cleanup` on hard exit.
+5. Only the **foreground** app receives keys and may flush the display.
+6. `app_open(from, name)` starts or resumes the child and suspends the caller.
+7. `app_request_exit` / `app_bind_back` soft-leaves a non-home app (suspends it,
    keeps workers/state) and resumes launcher.
+
+`on_load` is `void (*)(void)`. It runs once during the splash, before the app
+task and UI exist. Put tables, caches, and other RAM-heavy setup there.
+`on_ready` still runs later, when the app actually starts and the UI exists.
+A second `app_kit_load` does not call the hook again. An app with no hook is
+still named on the splash.
 
 ## `APP_DEFINE`
 
@@ -139,7 +150,9 @@ The status band (battery, uptime clock, separator). Every standard app gets
 it on a panel at least 280×150, including the launcher. `app_display_flush`
 reads the paint from `header_app.c` after the app draws, so the band does
 not scroll with content. `.game` and `.fullscreen` skip it.
-`app_header_height()` is 25 on those panels and 0 on a smaller one.
+`app_header_height()` is 25 on those panels and 0 on a smaller one. The
+focused app wakes at least once a second while the band is up and redraws
+its body in that same frame, so the clock is not the only thing moving.
 
 ### Status — `status.h`
 

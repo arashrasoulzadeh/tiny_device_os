@@ -6,8 +6,10 @@
  * drawn after an event, app_helper_invalidate(), or when .live is set.
  *
  * Pass .keys to replace that map (a file-scope array, one handler per
- * entry). .on_ready runs after the UI and keys exist. .on_view fills a
- * scene; .on_draw is the canvas path. .every_ms wakes .on_tick. A tool
+ * entry). .on_load runs once at boot, before the app task exists, and is
+ * where RAM-heavy setup goes. .on_ready runs after the UI and keys exist.
+ * .on_view fills a scene; .on_draw is the canvas path. .every_ms wakes
+ * .on_tick. A tool
  * sleeps until a key, a notification, or that interval. .live and .game
  * keep the frame clock. .game and .fullscreen drop the header_app band and
  * the title and help bars. Two handlers on one key still go in .keys;
@@ -92,6 +94,8 @@ typedef struct {
   app_helper_event_fn on_event;
   app_helper_fn on_tick;
   app_helper_fn on_ready;
+  /* Once, at boot, before this app's task exists. No UI. */
+  void (*on_load)(void);
   app_helper_fn on_view;
   app_helper_fn on_draw;
   app_helper_fn on_cleanup;
@@ -106,6 +110,10 @@ struct app_helper {
   bool needs_draw;
   bool state_loaded;
   bool saw_frame;
+  /* Scheduler second of the last paint, and the tick the last on_tick
+   * was due. The header clock and the body share that second. */
+  uint32_t painted_s;
+  uint32_t last_tick_ms;
   app_scene_t scene;
 };
 
@@ -204,6 +212,7 @@ int app_helper_sensor(const char *key, int32_t *value);
       .type = symbol##_helper_desc.type != 0 ? symbol##_helper_desc.type       \
                                              : APP_TYPE_TOOL,                  \
       .icon = &symbol##_icon, .fps = symbol##_helper_desc.fps,                 \
+      .on_load = symbol##_helper_desc.on_load,                                 \
       .on_init = symbol##_helper_init, .on_frame = symbol##_helper_frame_fn,   \
       .on_cleanup = symbol##_helper_cleanup_fn)
 

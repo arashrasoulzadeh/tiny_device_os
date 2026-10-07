@@ -435,6 +435,8 @@ void task_suspend(task_tcb_t* task) {
     scheduler_unlock();
 }
 
+void task_wake(task_tcb_t* task) { (void)task; }
+
 void task_resume(task_tcb_t* task) {
     scheduler_lock();
 
