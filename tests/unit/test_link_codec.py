@@ -59,6 +59,23 @@ class CodecTests(unittest.TestCase):
         self.assertEqual(tty_local_action(0x03), "send")
         self.assertEqual(tty_local_action(0x1A), "send")
 
+    def test_prompt_survives_hello_and_other_channels_are_dropped(self):
+        key = bytes(range(16))
+        device = Session(key, 1, DIR_DEVICE)
+        opener = Session(key, 1, DIR_HOST)
+        hello = decode_frame(opener.encode_hello(0, 1))
+        assert hello is not None
+        device.accept_hello(hello, session_id=1)
+        blob = device.encode_hello(1, 2) + device.seal(CH_TTY, 3, b"hi") + device.seal(2, 4, b"ok")
+        chunks = [blob]
+
+        def read(_n: int) -> bytes:
+            return chunks.pop(0) if chunks else b""
+
+        host = Link(Session(key, 1, DIR_HOST), lambda _data: None, read, fd=None)
+        host._handshake("host")
+        self.assertEqual(host.take_tty(), b"hi")
+
     def test_tcp_session_roundtrip(self):
         host_sock, device_sock = socket.socketpair()
         key = bytes(range(16))

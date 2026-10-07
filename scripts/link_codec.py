@@ -526,6 +526,7 @@ class Link:
         self.fd = fd
         self._own_fd = own_fd
         self._stream = FrameStream()
+        self._ready: list[dict] = []
         self._msg = 10
         self.notes: list[str] = []
 
@@ -599,17 +600,25 @@ class Link:
         self.session.accept_hello(frame, session_id=1)
         self._write(self.session.encode_hello(self.session.session, 2))
 
+    def _take_ready(self, frames: list[dict]) -> dict | None:
+        if not frames:
+            return None
+        self._ready.extend(frames[1:])
+        return frames[0]
+
     def _next_frame(self) -> dict:
+        if self._ready:
+            return self._ready.pop(0)
         for _ in range(50):
-            got = self._stream.push(b"")
-            if got:
-                return got[0]
+            found = self._take_ready(self._stream.push(b""))
+            if found is not None:
+                return found
             chunk = self._read(64)
             if not chunk:
                 break
-            got = self._stream.push(chunk)
-            if got:
-                return got[0]
+            found = self._take_ready(self._stream.push(chunk))
+            if found is not None:
+                return found
         raise TimeoutError("no link frame")
 
     def call(self, name: str, **fields: object) -> str:
@@ -625,10 +634,12 @@ class Link:
             self.notes.append(text)
 
     def send_tty(self, data: bytes) -> None:
-        if not data:
-            return
-        self._msg += 1
-        self._write(self.session.seal(CH_TTY, self._msg, data))
+        view = data
+        while view:
+            chunk = view[:200]
+            view = view[200:]
+            self._msg += 1
+            self._write(self.session.seal(CH_TTY, self._msg, chunk))
 
     def take_tty(self) -> bytes:
         """Decrypt any buffered TTY payloads. Other channels are consumed and dropped."""
@@ -645,6 +656,9 @@ class Link:
                 if plain["channel"] == CH_TTY:
                     out.extend(plain["payload"])
 
+        queued = self._ready
+        self._ready = []
+        absorb(queued)
         absorb(self._stream.push(b""))
         if self.fd is None:
             return bytes(out)
