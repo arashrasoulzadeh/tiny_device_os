@@ -511,10 +511,11 @@ def describe(plain: dict) -> str:
 
 
 def _release_modem_lines(fd: int) -> None:
-    """Release reset (RTS) and mark the CDC port open (DTR).
+    """Boot the app. Opening the port asserts DTR and RTS.
 
-    Opening /dev/cu.usbmodem* lets macOS assert RTS, which holds the
-    ESP32-C6 USB-JTAG controller in reset for as long as the port is open.
+    On the ESP32-C6 USB-JTAG port, RTS is reset and DTR is the boot pin.
+    Leaving DTR asserted while releasing RTS stays in the ROM, which never
+    answers Hello. Pulse RTS with DTR low so the chip starts the app.
     """
     import fcntl
     import struct
@@ -524,13 +525,13 @@ def _release_modem_lines(fd: int) -> None:
     rts = getattr(termios, "TIOCM_RTS", 0)
     set_bits = getattr(termios, "TIOCMBIS", None)
     clear_bits = getattr(termios, "TIOCMBIC", None)
-    if set_bits is None or clear_bits is None:
+    if not dtr or not rts or set_bits is None or clear_bits is None:
         return
     try:
-        if rts:
-            fcntl.ioctl(fd, clear_bits, struct.pack("I", rts))
-        if dtr:
-            fcntl.ioctl(fd, set_bits, struct.pack("I", dtr))
+        fcntl.ioctl(fd, clear_bits, struct.pack("I", dtr))
+        fcntl.ioctl(fd, set_bits, struct.pack("I", rts))
+        time.sleep(0.1)
+        fcntl.ioctl(fd, clear_bits, struct.pack("I", dtr | rts))
     except OSError:
         return
 
