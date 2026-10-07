@@ -31,7 +31,10 @@ database plus PlatformIO envs `esp32-c6`, `esp32-c6-kernel`, and `nodemcu`). `.c
 `.vscode/settings.json` both point at that file. Reload the window after the first generate
 if symbols still won't resolve. The file is gitignored because the paths in it are absolute.
 
-Host dependencies: SDL2, PortAudio.
+Host dependencies: SDL2, PortAudio. `scripts/install_deps.sh` installs them
+(plus CMake, lcov, a `.venv-pio` with PlatformIO and pyserial, and the
+littlefs submodule). Pass `--proxy URL` or export `https_proxy` on a
+proxied network. `make install-deps PROXY=URL` is the same script.
 - macOS: `brew install sdl2 portaudio`
 - Linux: `apt-get install libsdl2-dev portaudio19-dev`
 - Windows CI: vcpkg (`sdl2`, `portaudio`) + `CMAKE_TOOLCHAIN_FILE` — see `.github/workflows/sim.yml`.

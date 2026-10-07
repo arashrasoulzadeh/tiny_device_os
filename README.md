@@ -17,6 +17,15 @@ make run    # build (Debug, sim) and open the SDL2 emulator
 make test   # build and run the headless test suite
 ```
 
+On a new machine, install the simulator and flash tools first. `--proxy`
+is optional; `http_proxy` / `https_proxy` are picked up when it is omitted.
+
+```bash
+./scripts/install_deps.sh
+./scripts/install_deps.sh --proxy http://proxy.example:8080
+make install-deps PROXY=http://proxy.example:8080
+```
+
 Panel controls match the board: Up/Down move, Select launches, hold
 Select/Escape to go back.
 

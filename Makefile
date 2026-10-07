@@ -199,6 +199,11 @@ usb:
 usb-ports:
 	@python3 scripts/device_config.py --config $(DEVICE_CONFIG) ports
 
+# New machine: SDL2, PortAudio, CMake, PlatformIO venv, littlefs submodule.
+# PROXY is optional (http://host:port). https_proxy is used when PROXY is empty.
+install-deps:
+	@./scripts/install_deps.sh $(if $(PROXY),--proxy $(PROXY),)
+
 device-config:
 	@python3 scripts/device_config.py --config $(DEVICE_CONFIG) show
 	@python3 scripts/device_secrets.py check
@@ -486,6 +491,7 @@ help:
 	@echo "  tty           - Reconnect the device shell without flashing"
 	@echo "  tty-run       - Run one shell command and exit (make tty-run sensors)"
 	@echo "  usb-ports     - List detected USB serial ports"
+	@echo "  install-deps  - Install sim + flash deps (PROXY=http://host:port)"
 	@echo "  device-config - Show device_config.yaml and generate device_config.h"
 	@echo "  coverage      - Generate HTML coverage report"
 	@echo "  compile-commands - Merge sim + device compile_commands.json for the IDE"
