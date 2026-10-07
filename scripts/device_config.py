@@ -456,6 +456,11 @@ def generate_header(
     lines.append("")
     lines.append(f"#define ARDUBOT_CLOCK_UNIX {unix}")
     lines.append(f"#define ARDUBOT_CLOCK_TZ_OFFSET_MIN {offset}")
+    notes = cfg.get("notifications") or {}
+    forward = False
+    if isinstance(notes, dict):
+        forward = bool(notes.get("forward_from_host"))
+    lines.append(f"#define ARDUBOT_LINK_FORWARD {1 if forward else 0}")
     lines.append("")
     return "\n".join(lines)
 

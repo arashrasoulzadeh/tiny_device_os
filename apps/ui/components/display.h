@@ -21,7 +21,9 @@
  * app_ui_config_ui() applies it. Panels taller than 64px default to 16 so
  * a board does not have to opt in. Override with -DARDUBOT_UI_PADDING=N
  * (device_config_esp32c6.yaml app_kit.ui_padding, mirrored in
- * platformio.ini). Games use app_ui_config_game() and stay full-bleed.
+ * platformio.ini). The status band (header_app.c) is reserved above that
+ * box when the panel is large enough. Games and fullscreen apps use
+ * app_ui_config_game() and stay full-bleed.
  */
 #ifndef ARDUBOT_UI_PADDING
 #if APP_DISPLAY_HEIGHT > 64

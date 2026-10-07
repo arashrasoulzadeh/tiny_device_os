@@ -47,6 +47,7 @@ APPS_SOURCES = [
     "ardubot_keys.c", "device_info.c", "stdlog.c", "app_ui.c",
     "ui/components/canvas.c", "ui/components/menu.c", "ui/components/catalog.c",
     "ui/components/screen.c", "ui/components/icons.c", "ui/components/status.c",
+    "header_app.c",
 ]
 
 HAL_ARCH_SOURCES = {

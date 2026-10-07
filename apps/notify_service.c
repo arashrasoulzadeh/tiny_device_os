@@ -1,5 +1,6 @@
 #include "notify_service.h"
 
+#include "app_kit.h"
 #include "fw/ui.h"
 #include "os_time.h"
 
@@ -161,6 +162,7 @@ int notify_post(const notify_spec_t *spec) {
     slot->show_at = notify_now();
   }
   g_count++;
+  app_kit_wake_foreground();
   return 0;
 }
 

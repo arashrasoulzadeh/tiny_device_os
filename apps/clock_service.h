@@ -24,6 +24,9 @@ int clock_service_start(time_t rtc_now, time_t compiled_unix);
 /** Shift the clock and write the new time to storage. */
 int clock_service_shift(int32_t delta_s);
 
+/** Set the civil clock and write that time to storage. */
+int clock_service_set(time_t unix_time);
+
 /** Rewrite storage when the clock is at least a minute ahead of the last save. */
 int clock_service_checkpoint(void);
 

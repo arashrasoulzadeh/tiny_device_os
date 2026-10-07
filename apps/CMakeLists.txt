@@ -15,6 +15,8 @@ add_library(apps STATIC
     clock_service.c
     sensor_service.c
     notify_service.c
+    link_bridge.c
+    tty_service.c
     stdapps_register.c
     ui/components/canvas.c
     ui/components/menu.c
@@ -22,6 +24,8 @@ add_library(apps STATIC
     ui/components/screen.c
     ui/components/icons.c
     ui/components/status.c
+    header_app.c
+    fw/ui.c
 )
 
 # Panel size for the active device (override with -DARDUBOT_DISPLAY_WIDTH/HEIGHT).
@@ -51,12 +55,12 @@ target_include_directories(apps PUBLIC
     ${CMAKE_BINARY_DIR}/generated
 )
 
-target_link_libraries(apps PUBLIC kernel drivers fs)
+target_link_libraries(apps PUBLIC kernel drivers fs link)
 
 if(ARDUBOT_BUILD_SIM)
-    # apps/app_framework.h's inline helpers and apps/app_ui.c call
-    # sim_gpio_*/ssd1306_model_* directly (apps/app_framework.h already
-    # includes sim/'s headers above, just never declared the matching
+    # apps/fw/ui.c and apps/app_ui.c call
+    # sim_gpio_*/ssd1306_model_* directly (the target already
+    # includes sim/'s headers above, and never declared the matching
     # library dependency) - sim/CMakeLists.txt links `apps` PUBLIC the
     # other way round (for the built-in app manifests), so this is a
     # genuine circular static-library dependency, not a mistake to

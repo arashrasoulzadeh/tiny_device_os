@@ -223,8 +223,15 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Generated {header_path.relative_to(ROOT)}")
 
     secrets_header = ROOT / "build" / "generated" / "device_secrets.h"
+    notes = cfg.get("notifications") or {}
+    forward = isinstance(notes, dict) and bool(notes.get("forward_from_host"))
     try:
-        write_secrets_header(ROOT / "device_secrets.yaml", secrets_header, require=(arch != "sim"))
+        write_secrets_header(
+            ROOT / "device_secrets.yaml",
+            secrets_header,
+            require=(arch != "sim"),
+            require_link=forward and arch != "sim",
+        )
     except SecretsError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -289,7 +296,17 @@ def main(argv: list[str] | None = None) -> int:
             "Note: this CH340 cannot use Arduino auto-reset (DTR kills the port). "
             "Uploader will ask you to hold FLASH + tap RST."
         )
-    return run_platformio(platformio, env_name, port, upload=True, jobs=args.jobs)
+    rc = run_platformio(platformio, env_name, port, upload=True, jobs=args.jobs)
+    if rc != 0 or not forward:
+        return rc
+    from device_secrets import load_link_secrets
+    from link_monitor import run_monitor
+
+    key_id, key = load_link_secrets(ROOT / "device_secrets.yaml")
+    if not key:
+        print("error: link key missing after flash", file=sys.stderr)
+        return 1
+    return run_monitor(port, key, key_id)
 
 
 if __name__ == "__main__":

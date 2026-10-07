@@ -1,12 +1,14 @@
 # App Kit reference
 
 New screens start with **`#include "app_framework.h"`** and `APP_HELPER()`. Up, Down,
-Left, Right, Select, and Escape are already bound. Pass `.keys`, `.live`,
-`.game`, `.on_tick`, `.on_ready`, or `.state` / `.state_size` when a screen needs
-a different map, a frame every tick, no chrome, a per-frame step, setup after
-the UI exists, or a session restored on start and resume and stored on quit.
+Left, Right, Select, and Escape are already bound. A tool fills `.on_view`
+and sleeps until a key or `.every_ms`. Pass `.keys`, `.live`,
+`.game` or `.fullscreen`, `.on_tick`, `.on_ready`, `.on_draw`, or `.state` / `.state_size` when a screen needs
+a different map, a frame every tick, no chrome, a timed step, setup after
+the UI exists, a canvas instead of a scene, or a session restored on start and resume and stored on quit.
+Pixels are `fw/ui.h`. Files and pins are `fw/io.h`. Include those only when the screen uses them.
 Title and help come from `app.json`. The launcher icon is `<symbol>_icon`.
-`.type` defaults to `APP_TYPE_TOOL` and `.fps` defaults to 30.
+`.type` defaults to `APP_TYPE_TOOL`. `.fps` applies only with `.live` or `.game`, and then it defaults to 30.
 The short example is in [`docs/apps.md`](apps.md).
 
 **`#include "app_kit.h"`** is the lower-level umbrella (`APP_DEFINE`, open/exit)
@@ -130,6 +132,14 @@ static void on_frame(app_ctx_t* app) {
 | `app_menu_bind_nav(app, menu)` | Bind Up/Down for you |
 | `app_menu_selected` | Current item |
 | `app_menu_draw(app, menu, title, help)` | Full redraw |
+
+### Header — `header_app.c`
+
+The status band (battery, uptime clock, separator). Every standard app gets
+it on a panel at least 280×150, including the launcher. `app_display_flush`
+reads the paint from `header_app.c` after the app draws, so the band does
+not scroll with content. `.game` and `.fullscreen` skip it.
+`app_header_height()` is 25 on those panels and 0 on a smaller one.
 
 ### Status — `status.h`
 

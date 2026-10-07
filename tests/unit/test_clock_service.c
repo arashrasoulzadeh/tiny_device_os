@@ -74,6 +74,13 @@ void test_shift_and_checkpoint_rewrite_storage(void) {
     TEST_ASSERT_INT_WITHIN(2, 1700000090, (int)os_clock_now());
 }
 
+void test_set_rewrites_storage(void) {
+    TEST_ASSERT_EQUAL(0, clock_service_start(0, 1700000000));
+    TEST_ASSERT_EQUAL(0, clock_service_set(1700003333));
+    TEST_ASSERT_EQUAL_INT(1700003333, (int)read_file());
+    TEST_ASSERT_INT_WITHIN(2, 1700003333, (int)os_clock_now());
+}
+
 void test_a_running_clock_is_left_in_place_and_stored(void) {
     time_t before;
     os_clock_reset();
@@ -88,6 +95,7 @@ int main(void) {
     RUN_TEST(test_empty_storage_saves_the_compile_time);
     RUN_TEST(test_saved_time_wins_over_the_compile_stamp);
     RUN_TEST(test_shift_and_checkpoint_rewrite_storage);
+    RUN_TEST(test_set_rewrites_storage);
     RUN_TEST(test_a_running_clock_is_left_in_place_and_stored);
     return UNITY_END();
 }

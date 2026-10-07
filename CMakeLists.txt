@@ -64,7 +64,10 @@ else()
          "#pragma once\n"
          "#define ARDUBOT_WIFI_HAS_CREDS 0\n"
          "#define ARDUBOT_WIFI_SSID \"\"\n"
-         "#define ARDUBOT_WIFI_PASSWORD \"\"\n")
+         "#define ARDUBOT_WIFI_PASSWORD \"\"\n"
+         "#define ARDUBOT_LINK_HAS_KEY 0\n"
+         "#define ARDUBOT_LINK_KEY_ID 0\n"
+         "#define ARDUBOT_LINK_KEY {0}\n")
 endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
@@ -89,6 +92,7 @@ add_subdirectory(fs)
 add_subdirectory(drivers)
 add_subdirectory(modules)
 add_subdirectory(game)
+add_subdirectory(link)
 add_subdirectory(apps)
 add_subdirectory(sim)
 add_subdirectory(tools)

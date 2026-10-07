@@ -43,6 +43,8 @@ endif()
         ${CMAKE_SOURCE_DIR}/kernel
         ${CMAKE_SOURCE_DIR}/hal/include
         ${CMAKE_SOURCE_DIR}/game
+        ${CMAKE_SOURCE_DIR}/link
+        ${CMAKE_SOURCE_DIR}/apps
     )
     
     add_test(NAME ${test_name} COMMAND ${test_name})

@@ -16,7 +16,9 @@ from device_secrets import (  # noqa: E402
     c_escape,
     credentials_error,
     generate_secrets_header,
+    link_key_error,
     load_wifi_secrets,
+    parse_link_key,
     wifi_from_config,
     write_secrets_header,
 )
@@ -84,6 +86,33 @@ class TestDeviceSecrets(unittest.TestCase):
             self.assertIn("#define ARDUBOT_WIFI_HAS_CREDS 1", baked)
             self.assertIn('"lab"', baked)
             self.assertIn('"secret"', baked)
+
+    def test_link_key_is_sixteen_bytes_and_zero_is_allowed(self):
+        self.assertIsNone(link_key_error(1, "00" * 16))
+        self.assertIsNotNone(link_key_error(1, "0011"))
+        self.assertIsNotNone(link_key_error(1, ""))
+        self.assertEqual(parse_link_key("00" * 16), bytes(16))
+        header = generate_secrets_header("lab", "secret", 1, bytes(range(16)))
+        self.assertIn("#define ARDUBOT_LINK_HAS_KEY 1", header)
+        self.assertIn("#define ARDUBOT_LINK_KEY_ID 1", header)
+        self.assertIn("0x00, 0x01, 0x02", header)
+        blank = generate_secrets_header("lab", "secret")
+        self.assertIn("#define ARDUBOT_LINK_HAS_KEY 0", blank)
+
+    def test_require_link_rejects_a_missing_key(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "device_secrets.yaml"
+            out = Path(tmp) / "device_secrets.h"
+            src.write_text('wifi:\n  ssid: "lab"\n  password: "secret"\n', encoding="utf-8")
+            with self.assertRaises(SecretsError):
+                write_secrets_header(src, out, require=True, require_link=True)
+            src.write_text(
+                'wifi:\n  ssid: "lab"\n  password: "secret"\n'
+                "link:\n  key_id: 1\n  key: \"00112233445566778899aabbccddeeff\"\n",
+                encoding="utf-8",
+            )
+            write_secrets_header(src, out, require=True, require_link=True)
+            self.assertIn("#define ARDUBOT_LINK_HAS_KEY 1", out.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

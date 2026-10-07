@@ -31,10 +31,11 @@ not the same as installing the app. Section 4 does that.
 `app.json` holds the name, version, author, description, title, and help.
 The compile copies them into the manifest. `APP_HELPER` does not repeat
 them, and it uses `blink_app_icon` from `blink_icon.c` on its own. `.type`
-defaults to tool and `.fps` defaults to 30.
+defaults to tool. A tool sleeps until a key or `.every_ms`. `.fps` applies
+only when `.live` or `.game` is set, and then it defaults to 30.
 
-Open `blink_app.c`. The scaffold is a draw callback and one `APP_HELPER`
-line. That is the whole contract for a screen.
+Open `blink_app.c`. The scaffold is one `APP_HELPER` line. A tool fills
+`.on_view` (rows, a hero, a bar). `.on_draw` is the canvas path.
 
 ## 2. Toggle a message
 
@@ -52,11 +53,11 @@ static void on_event(app_helper_t* app, app_helper_event_t ev) {
     }
 }
 
-static void on_draw(app_helper_t* app) {
-    app_helper_label(app, 0, g_message_visible ? "Hello!" : "----");
+static void on_view(app_helper_t* app) {
+    app_scene_row(app, 0, "%s", g_message_visible ? "Hello!" : "----");
 }
 
-APP_HELPER(blink_app, "blink", .on_event = on_event, .on_draw = on_draw)
+APP_HELPER(blink_app, "blink", .on_event = on_event, .on_view = on_view)
 ```
 
 A few things that trip people up:
@@ -69,9 +70,11 @@ A few things that trip people up:
 - **The first `APP_HELPER` argument is a C symbol** (`blink_app` →
   `blink_app_manifest` and `blink_app_icon`). **The second is the runtime
   name** (`"blink"`, the `app.json` `"name"`, and the key `app_start` uses).
-- **Rows, not pixel y.** `app_helper_label(app, 0, ...)` is the first content
+- **Rows, not pixel y.** `app_scene_row(app, 0, ...)` is the first content
   line. The simulator panel is 320×172. The NodeMCU profile is 128×32, so a
   long list that fits the simulator can clip on that board.
+- **A tool does not poll.** Pass `.every_ms` when the picture changes on a
+  timer. `.on_draw` stays for a game or an editor that places its own pixels.
 
 Put the top-bar title and the bottom-bar help in `app.json` (`"title"` and
 `"help"`). The scaffold already wrote `BLINK` and `Bk:back`.
@@ -105,9 +108,9 @@ static void on_ready(app_helper_t* app) {
     task_create("blink", blink_worker, NULL, TASK_PRIO_NORMAL, 0, NULL);
 }
 
-static void on_draw(app_helper_t* app) {
-    app_helper_labelf(app, 0, "Blinks: %ld", (long)g_blink_count);
-    app_helper_label(app, 2, g_message_visible ? "Hello!" : "----");
+static void on_view(app_helper_t* app) {
+    app_scene_row(app, 0, "Blinks: %ld", (long)g_blink_count);
+    app_scene_row(app, 2, "%s", g_message_visible ? "Hello!" : "----");
 }
 
 static void on_cleanup(app_helper_t* app) {
@@ -117,10 +120,12 @@ static void on_cleanup(app_helper_t* app) {
 
 APP_HELPER(blink_app, "blink",
            .on_event = on_event, .on_ready = on_ready,
-           .on_draw = on_draw, .on_cleanup = on_cleanup)
+           .on_view = on_view, .on_cleanup = on_cleanup)
 ```
 
-`task_create` is not tied to the screen. The worker keeps running after
+A one-second refresh that only updates this screen is `.every_ms = 1000`
+and `.on_tick`, with no task. `task_create` is for work that must keep
+running after Escape suspends the app. The worker keeps running after
 Escape suspends the app, which is how stopwatch keeps ticking in the
 background. `.on_cleanup` runs on a hard stop. Set `g_alive` false there so
 the loop can finish. Decide whether a task should keep running before you

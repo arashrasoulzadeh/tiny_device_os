@@ -22,13 +22,32 @@ Implemented and exercised by host tests:
   slides over the focused app, either full-screen or as a top band. A
   button press dismisses it; otherwise it leaves three seconds after the
   show animation. Covered by `tests/unit/test_notify_service.c`.
+  `link/` is the host/device session (frame, AES-128-GCM, four calls, plus
+  channel `LINK_CH_TTY`). `apps/link_bridge.c` delivers the calls on the
+  device: `notify.post` to `notify_post()`, `app.message` into a queue
+  (`link_message_take`), `app.event` onto `app.<name>.<event>`,
+  `input.key` through `sim_gpio_handle_key()`. `apps/tty_service.c` is the
+  USB shell, started when Hello succeeds. It is not the panel app in
+  `apps/stdapps/shell/`. Sensor samples are not pushed; `sensors` and
+  `sensor <key>` read them. `apps`, `switch`, `fg`, `run`, `kill`, and
+  `key` control installed apps. `run` uses a text hook when one is
+  registered (`tty_cli_register`); otherwise it focuses the app and
+  attaches the keyboard. The Python SDK is `scripts/link_codec.py`
+  (`Link.open_usb`, `Link.open_tcp`, `Link.call`, `Link.send_tty`). When
+  `notifications.forward_from_host` is set, `make usb` stays up after a
+  successful flash as a raw terminal (`scripts/link_monitor.py`) until
+  Ctrl+]. Ctrl+Z and Ctrl+C go to the shell. The 16-byte key is `link.key`
+  in `device_secrets.yaml`, not the device config.
 - HAL interfaces in `hal/include/hal_*.h` with a working **sim** backend in
   `hal/arch/sim/` plus SDL/device models in `sim/`.
 - Board backends under `hal/arch/{esp32,esp8266,avr}/` exist as per-arch files;
   they are not the day-to-day development target.
 - App runtime: manifests, **`app_kit`** (`APP_DEFINE`, focus, key bind, open/exit),
   plus UI components under `apps/ui/components/` (`canvas`, `screen`, `menu`,
-  `catalog`, `icons`, `status`, `display`). Guides: `docs/appkit.md`, `docs/apps.md`.
+  `catalog`, `icons`, `status`, `display`). `apps/header_app.c` is the
+  status band (battery and clock) on every standard app, including the
+  launcher. `.game` and `.fullscreen` omit it. Guides: `docs/appkit.md`,
+  `docs/apps.md`.
 - Built-in apps under `apps/stdapps/<name>/`: `launcher`, `counter`, `info`,
   `stopwatch` (three worker tasks: sec/min/hour), `pong` (Up/Down paddle),
   `widgets`, `pomodoro`, `taskmgr`, `clock`, `sensors`, plus `settings`,
@@ -185,22 +204,25 @@ Warnings are errors (`-Wall -Wextra -Wpedantic -Werror`). Unused parameters need
 
 ## Add a built-in app
 
-Use **`app_framework.h`** (UI, IO, layout, events) and `APP_HELPER` for a new screen — see [`docs/apps.md`](apps.md)
-and `apps/stdapps/counter/counter_app.c`. Pass `.keys` for a custom map,
-`.on_ready` to start a worker, `.on_tick` for a per-frame step, `.live`
-when the screen must repaint every tick, and `.state` / `.state_size` for the
-session restored on start and resume and stored on quit. `app_kit.h` / `APP_DEFINE` is the
-lower-level path when those fields are not enough.
+Use **`app_framework.h`** and `APP_HELPER` for a new screen — see [`docs/apps.md`](apps.md)
+and `apps/stdapps/counter/counter_app.c`. Pass `.on_view` for a scene,
+`.every_ms` for a timer, `.keys` for a custom map, `.on_ready` to start a
+worker, `.live` when the screen must repaint every tick, and `.state` /
+`.state_size` for the session restored on start and resume and stored on quit.
+`app_kit.h` / `APP_DEFINE` is the lower-level path when those fields are not enough.
+Files and pins are `fw/io.h`.
 
-1. Create `apps/stdapps/<name>/` and implement `on_event` / `on_draw` (and
-   optional `on_ready`, `on_tick`, `on_cleanup`) in `<name>_app.c`.
-2. Redraw with `app_helper_invalidate`, `app_helper_label` / `app_helper_labelf`,
-   `app_helper_number`, `app_helper_bar`, or `app_helper_panel`.
+1. Create `apps/stdapps/<name>/` and implement `on_event` / `on_view` (and
+   optional `on_ready`, `on_tick`, `on_cleanup`) in `<name>_app.c`. Use
+   `on_draw` when the screen places its own pixels.
+2. Fill the scene with `app_scene_row`, `app_scene_hero`, `app_scene_clock`,
+   `app_scene_bar`, `app_scene_gauge`, or `app_scene_panel`.
 3. End the file with
-   `APP_HELPER(my_app, "my_app", .on_event = ..., .on_draw = ...)`.
+   `APP_HELPER(my_app, "my_app", .on_event = ..., .on_view = ...)`.
    Put name, version, author, description, title, and help in `app.json`;
    the compile reads that file into the manifest. The icon is `my_app_icon`.
-   Leave `.type` and `.fps` off unless the app is not a tool at 30 fps.
+   Leave `.type` off unless the app is not a tool. `.fps` applies only with
+   `.live` or `.game`.
 4. Add the directory to `apps/stdapps/CMakeLists.txt` (`create-app` does this).
    To install it, add an `ARDUBOT_APP_<NAME>_ENABLED` block inside
    `stdapps_install()` in `apps/stdapps_register.c`. Boot calls

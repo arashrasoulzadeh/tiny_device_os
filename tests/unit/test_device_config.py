@@ -170,6 +170,13 @@ class TestDeviceConfig(unittest.TestCase):
         self.assertTrue((ROOT / "boards/nodemcu/src/ssd1306_mini.h").is_file())
         self.assertIn("icons.c", ini)
 
+    def test_forward_from_host_sets_the_link_macro(self):
+        cfg = parse_simple_yaml("notifications:\n  forward_from_host: true\n")
+        header = generate_header(cfg, now=1_700_000_000, tz_offset_min=0)
+        self.assertIn("#define ARDUBOT_LINK_FORWARD 1", header)
+        off = generate_header(parse_simple_yaml("device:\n  name: lab\n"), now=1, tz_offset_min=0)
+        self.assertIn("#define ARDUBOT_LINK_FORWARD 0", off)
+
     def test_load_from_temp_file(self):
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as fh:
             fh.write(SAMPLE)

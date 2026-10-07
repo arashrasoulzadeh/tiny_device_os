@@ -2,7 +2,6 @@
 #include "app_kit.h"
 #include "icons.h"
 #include "status.h"
-#include "os_time.h"
 #include "theme.h"
 
 #include <stdio.h>
@@ -216,14 +215,16 @@ static void app_menu_draw_icons(app_ctx_t* app, app_menu_t* menu, const char* ti
         for (off = -side; off <= side; off++) {
             int idx = menu->selected + off;
             int x;
-            while (idx < 0) idx += menu->count;
-            while (idx >= menu->count) idx -= menu->count;
+            while (idx < 0)
+                idx += menu->count;
+            while (idx >= menu->count)
+                idx -= menu->count;
             x = center_x + off * icon_pitch;
             if (x + icon_size > w - APP_STATUS_WIDTH && off != 0) {
                 continue;
             }
             app_icon_blit(x, icon_y, menu->items[idx].icon, off == 0, menu_icon_set_pixel, app,
-                         app->ui.text_scale);
+                          app->ui.text_scale);
         }
         if (sel && sel->label) {
             int len = (int)strlen(sel->label);
@@ -238,27 +239,9 @@ static void app_menu_draw_icons(app_ctx_t* app, app_menu_t* menu, const char* ti
     }
 
     app_clear(app);
-
-    /* === status bar: y 0..24 === */
-    app_draw_rect_color(app, 6, 5, 26, 14, 2, MENU_COLOR_WHITE);
-    app_fill_rect_color(app, 32, 9, 3, 6, 0, MENU_COLOR_WHITE);
-    {
-        int level = (app_status_battery_percent() * 4) / 100;
-        int i;
-        for (i = 0; i < 4; i++) {
-            app_fill_rect_color(app, 9 + i * 5, 8, 3, 8, 0,
-                               i < level ? MENU_COLOR_WHITE : menu_dim_color(MENU_COLOR_WHITE, 3));
-        }
-    }
-    {
-        char clock_buf[8];
-        uint32_t up_s = (uint32_t)(time_now_ms() / 1000);
-        snprintf(clock_buf, sizeof(clock_buf), "%02u:%02u", (unsigned)((up_s / 60u) % 100u),
-                (unsigned)(up_s % 60u));
-        app_text_color(app, (w - app_text_width(clock_buf, 2)) / 2, 5, clock_buf, 2,
-                      MENU_COLOR_WHITE);
-    }
-    app_hline_color(app, 0, 24, w, menu_dim_color(MENU_COLOR_WHITE, 4));
+    /* The status band is header_app.c, painted when this screen flushes.
+     * y 0..24 stays clear here so that band is the same one every other
+     * standard app gets. */
 
     /* === carousel: y 25..108, 3 cards === */
     {
@@ -289,17 +272,19 @@ static void app_menu_draw_icons(app_ctx_t* app, app_menu_t* menu, const char* ti
             int icon_x, icon_y;
             menu_icon_color_ctx_t icon_ctx;
 
-            while (idx < 0) idx += menu->count;
-            while (idx >= menu->count) idx -= menu->count;
+            while (idx < 0)
+                idx += menu->count;
+            while (idx >= menu->count)
+                idx -= menu->count;
 
             if (is_sel) {
                 app_fill_rect_color(app, tile_x[slot], tile_y[slot], tile_w[slot], tile_h[slot], 10,
-                                   MENU_COLOR_CYAN);
+                                    MENU_COLOR_CYAN);
             } else {
                 app_fill_rect_color(app, tile_x[slot], tile_y[slot], tile_w[slot], tile_h[slot], 10,
-                                   MENU_COLOR_BLACK);
+                                    MENU_COLOR_BLACK);
                 app_draw_rect_color(app, tile_x[slot], tile_y[slot], tile_w[slot], tile_h[slot], 10,
-                                   menu_dim_color(MENU_COLOR_WHITE, 3));
+                                    menu_dim_color(MENU_COLOR_WHITE, 3));
             }
 
             icon_size = is_sel ? 4 : 3;
@@ -308,14 +293,14 @@ static void app_menu_draw_icons(app_ctx_t* app, app_menu_t* menu, const char* ti
             icon_ctx.app = app;
             icon_ctx.color = is_sel ? MENU_COLOR_BLACK : menu_dim_color(MENU_COLOR_WHITE, 2);
             app_icon_blit(icon_x, icon_y, menu->items[idx].icon, false, menu_icon_set_pixel_color,
-                         &icon_ctx, icon_size);
+                          &icon_ctx, icon_size);
         }
 
         if (side_margin > 0) {
             app_text_color(app, side_margin / 2 - 3, row_mid - 3, "<", 2,
-                          menu_dim_color(MENU_COLOR_WHITE, 2));
+                           menu_dim_color(MENU_COLOR_WHITE, 2));
             app_text_color(app, w - side_margin / 2 - 9, row_mid - 3, ">", 2,
-                          menu_dim_color(MENU_COLOR_WHITE, 2));
+                           menu_dim_color(MENU_COLOR_WHITE, 2));
         }
 
         /* === pagination dots: centered under the selected card === */
@@ -327,8 +312,8 @@ static void app_menu_draw_icons(app_ctx_t* app, app_menu_t* menu, const char* ti
             int i;
             for (i = 0; i < menu->count; i++) {
                 app_fill_circle_color(app, dx, bottom + 7, i == menu->selected ? 3 : 2,
-                                     i == menu->selected ? MENU_COLOR_CYAN
-                                                         : menu_dim_color(MENU_COLOR_WHITE, 3));
+                                      i == menu->selected ? MENU_COLOR_CYAN
+                                                          : menu_dim_color(MENU_COLOR_WHITE, 3));
                 dx += dot_pitch;
             }
         }
@@ -337,11 +322,11 @@ static void app_menu_draw_icons(app_ctx_t* app, app_menu_t* menu, const char* ti
     /* === label + tag === */
     if (sel && sel->label) {
         app_text_color(app, (w - app_text_width(sel->label, 2)) / 2, 120, sel->label, 2,
-                      MENU_COLOR_WHITE);
+                       MENU_COLOR_WHITE);
     }
     if (sel && sel->tag) {
         app_text_color(app, (w - app_text_width(sel->tag, 1)) / 2, 142, sel->tag, 1,
-                      menu_dim_color(MENU_COLOR_WHITE, 2));
+                       menu_dim_color(MENU_COLOR_WHITE, 2));
     }
 
     app_hline_color(app, 0, 152, w, menu_dim_color(MENU_COLOR_WHITE, 4));
@@ -396,11 +381,11 @@ void app_menu_draw(app_ctx_t* app, app_menu_t* menu, const char* title, const ch
             app_fill_rect_color(app, 0, y, APP_DISPLAY_WIDTH, menu->row_h, 0, MENU_COLOR_CYAN);
         }
         snprintf(line, sizeof(line), "%c %s", is_sel ? '>' : ' ',
-                menu->items[idx].label ? menu->items[idx].label : "?");
+                 menu->items[idx].label ? menu->items[idx].label : "?");
         app_text_color(app, 0, y, line, 1, is_sel ? MENU_COLOR_BLACK : MENU_COLOR_WHITE);
         if (menu->items[idx].tag) {
             app_text_color(app, 72, y, menu->items[idx].tag, 1,
-                          is_sel ? MENU_COLOR_BLACK : menu_dim_color(MENU_COLOR_WHITE, 2));
+                           is_sel ? MENU_COLOR_BLACK : menu_dim_color(MENU_COLOR_WHITE, 2));
         }
     }
 

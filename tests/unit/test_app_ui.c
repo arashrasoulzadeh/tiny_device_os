@@ -1,61 +1,96 @@
-#include "unity.h"
 #include "app_framework.h"
 #include "app_ui.h"
 #include "scheduler.h"
+#include "unity.h"
 #include <string.h>
 
-void setUp(void) {
-    scheduler_init();
-}
+void setUp(void) { scheduler_init(); }
 
 void tearDown(void) {}
 
-void test_ui_content_box_is_inset_by_default_padding(void) {
-    app_ui_config_t cfg;
-    int bar;
+void test_title_and_help_are_the_caller_pointers(void) {
+  const char title[] = "COUNTER";
+  const char help[] = "hold:back";
+  app_ui_config_t cfg;
 
-    app_ui_config_ui(&cfg, "TEST", "help");
-    bar = 8 * cfg.text_scale;
-    TEST_ASSERT_EQUAL(ARDUBOT_UI_PADDING, cfg.content_x);
-    TEST_ASSERT_EQUAL(bar + ARDUBOT_UI_PADDING, cfg.content_y);
-    TEST_ASSERT_EQUAL(APP_DISPLAY_WIDTH - 2 * ARDUBOT_UI_PADDING, cfg.content_w);
-    TEST_ASSERT_EQUAL(APP_DISPLAY_HEIGHT - bar - ARDUBOT_UI_PADDING, cfg.content_h);
-    TEST_ASSERT_TRUE(cfg.content_h > cfg.content_y);
-    TEST_ASSERT_TRUE(cfg.content_w > 0);
+  app_ui_config_ui(&cfg, title, help);
+  TEST_ASSERT_EQUAL_PTR(title, cfg.title);
+  TEST_ASSERT_EQUAL_PTR(help, cfg.help_text);
+}
+
+void test_app_ui_init_uses_the_kit_context_and_leaves_its_display(void) {
+  app_desc_t desc = {0};
+  app_ctx_t real;
+  app_ui_config_t cfg;
+  app_ui_t ui;
+
+  desc.name = "clock";
+  memset(&real, 0, sizeof(real));
+  real.desc = &desc;
+  real.display.initialized = true;
+  real.display.width = 12345;
+
+  app_ui_config_ui(&cfg, "CLOCK", "help");
+  TEST_ASSERT_EQUAL(0, app_ui_init(&ui, &real, &cfg));
+  TEST_ASSERT_EQUAL_PTR(&real, ui.ctx);
+  TEST_ASSERT_EQUAL_PTR(&desc, ui.ctx->desc);
+  TEST_ASSERT_EQUAL(12345, real.display.width);
+  TEST_ASSERT_TRUE(real.display.initialized);
+  TEST_ASSERT_EQUAL_PTR("CLOCK", ui.ctx->ui.title);
+
+  app_ui_deinit(&ui);
+  TEST_ASSERT_TRUE(real.display.initialized);
+  TEST_ASSERT_EQUAL(12345, real.display.width);
+}
+
+void test_ui_content_box_is_inset_by_default_padding(void) {
+  app_ui_config_t cfg;
+  int bar;
+
+  app_ui_config_ui(&cfg, "TEST", "help");
+  bar = 8 * cfg.text_scale;
+  TEST_ASSERT_EQUAL(ARDUBOT_UI_PADDING, cfg.content_x);
+  TEST_ASSERT_EQUAL(app_header_height() + bar + ARDUBOT_UI_PADDING,
+                    cfg.content_y);
+  TEST_ASSERT_EQUAL(APP_DISPLAY_WIDTH - 2 * ARDUBOT_UI_PADDING, cfg.content_w);
+  TEST_ASSERT_EQUAL(APP_DISPLAY_HEIGHT - bar - ARDUBOT_UI_PADDING,
+                    cfg.content_h);
+  TEST_ASSERT_TRUE(cfg.content_h > cfg.content_y);
+  TEST_ASSERT_TRUE(cfg.content_w > 0);
 }
 
 void test_app_ui_init_links_desc_from_real_app(void) {
-    app_desc_t desc = {0};
-    desc.name = "launcher";
+  app_desc_t desc = {0};
+  desc.name = "launcher";
 
-    app_ctx_t real_ctx;
-    memset(&real_ctx, 0, sizeof(real_ctx));
-    real_ctx.desc = &desc;
+  app_ctx_t real_ctx;
+  memset(&real_ctx, 0, sizeof(real_ctx));
+  real_ctx.desc = &desc;
 
-    app_ui_config_t cfg;
-    app_ui_config_ui(&cfg, "TEST", "help");
+  app_ui_config_t cfg;
+  app_ui_config_ui(&cfg, "TEST", "help");
 
-    app_ui_t ui;
-    TEST_ASSERT_EQUAL(0, app_ui_init(&ui, &real_ctx, &cfg));
+  app_ui_t ui;
+  TEST_ASSERT_EQUAL(0, app_ui_init(&ui, &real_ctx, &cfg));
 
-    /* Regression: without linking desc, app_open()/app_request_exit() on
-     * ui.ctx silently no-op because they bail out on a NULL desc - this is
-     * why Enter did nothing in the launcher despite arrow keys working. */
-    TEST_ASSERT_EQUAL_PTR(&desc, ui.ctx.desc);
-    TEST_ASSERT_EQUAL_STRING("launcher", ui.ctx.desc->name);
+  /* Regression: without linking desc, app_open()/app_request_exit() on
+   * ui.ctx silently no-op because they bail out on a NULL desc - this is
+   * why Enter did nothing in the launcher despite arrow keys working. */
+  TEST_ASSERT_EQUAL_PTR(&desc, ui.ctx->desc);
+  TEST_ASSERT_EQUAL_STRING("launcher", ui.ctx->desc->name);
 
-    app_ui_deinit(&ui);
+  app_ui_deinit(&ui);
 }
 
 void test_app_ui_init_tolerates_null_real_app(void) {
-    app_ui_config_t cfg;
-    app_ui_config_ui(&cfg, "TEST", "help");
+  app_ui_config_t cfg;
+  app_ui_config_ui(&cfg, "TEST", "help");
 
-    app_ui_t ui;
-    TEST_ASSERT_EQUAL(0, app_ui_init(&ui, NULL, &cfg));
-    TEST_ASSERT_NULL(ui.ctx.desc);
+  app_ui_t ui;
+  TEST_ASSERT_EQUAL(0, app_ui_init(&ui, NULL, &cfg));
+  TEST_ASSERT_NULL(ui.ctx->desc);
 
-    app_ui_deinit(&ui);
+  app_ui_deinit(&ui);
 }
 
 /* app_ui_bind_gesture() bridges this app_ui_t to apps/input.c's gesture
@@ -75,45 +110,48 @@ void test_app_ui_init_tolerates_null_real_app(void) {
 static int g_gesture_calls;
 static input_event_type_t g_gesture_last_type;
 
-static void on_gesture(const input_event_t* event, void* arg) {
-    (void)arg;
-    g_gesture_calls++;
-    g_gesture_last_type = event->type;
+static void on_gesture(const input_event_t *event, void *arg) {
+  (void)arg;
+  g_gesture_calls++;
+  g_gesture_last_type = event->type;
 }
 
 void test_bind_gesture_creates_recognizer_and_registers(void) {
-    input_init(NULL);
+  input_init(NULL);
 
-    app_ui_config_t cfg;
-    app_ui_config_ui(&cfg, "TEST", "help");
-    app_ui_t ui;
-    TEST_ASSERT_EQUAL(0, app_ui_init(&ui, NULL, &cfg));
-    TEST_ASSERT_NULL(ui.gestures);
+  app_ui_config_t cfg;
+  app_ui_config_ui(&cfg, "TEST", "help");
+  app_ui_t ui;
+  TEST_ASSERT_EQUAL(0, app_ui_init(&ui, NULL, &cfg));
+  TEST_ASSERT_NULL(ui.gestures);
 
-    TEST_ASSERT_EQUAL(0, app_ui_bind_gesture(&ui, SIM_KEY_ENTER,
-                                              INPUT_EVENT_BUTTON_LONG_TAP, on_gesture, NULL));
-    TEST_ASSERT_NOT_NULL(ui.gestures);
+  TEST_ASSERT_EQUAL(0, app_ui_bind_gesture(&ui, SIM_KEY_ENTER,
+                                           INPUT_EVENT_BUTTON_LONG_TAP,
+                                           on_gesture, NULL));
+  TEST_ASSERT_NOT_NULL(ui.gestures);
 
-    app_ui_deinit(&ui);
-    input_deinit();
+  app_ui_deinit(&ui);
+  input_deinit();
 }
 
 void test_bind_gesture_second_call_reuses_the_same_recognizer(void) {
-    input_init(NULL);
+  input_init(NULL);
 
-    app_ui_config_t cfg;
-    app_ui_config_ui(&cfg, "TEST", "help");
-    app_ui_t ui;
-    app_ui_init(&ui, NULL, &cfg);
+  app_ui_config_t cfg;
+  app_ui_config_ui(&cfg, "TEST", "help");
+  app_ui_t ui;
+  app_ui_init(&ui, NULL, &cfg);
 
-    app_ui_bind_gesture(&ui, SIM_KEY_ENTER, INPUT_EVENT_BUTTON_TAP, on_gesture, NULL);
-    input_recognizer_t* first = ui.gestures;
+  app_ui_bind_gesture(&ui, SIM_KEY_ENTER, INPUT_EVENT_BUTTON_TAP, on_gesture,
+                      NULL);
+  input_recognizer_t *first = ui.gestures;
 
-    app_ui_bind_gesture(&ui, SIM_KEY_ESCAPE, INPUT_EVENT_BUTTON_LONG_TAP, on_gesture, NULL);
-    TEST_ASSERT_EQUAL_PTR(first, ui.gestures);
+  app_ui_bind_gesture(&ui, SIM_KEY_ESCAPE, INPUT_EVENT_BUTTON_LONG_TAP,
+                      on_gesture, NULL);
+  TEST_ASSERT_EQUAL_PTR(first, ui.gestures);
 
-    app_ui_deinit(&ui);
-    input_deinit();
+  app_ui_deinit(&ui);
+  input_deinit();
 }
 
 extern int g_next_pin;
@@ -126,61 +164,69 @@ extern int g_next_pin;
  * (which fires every pin mapped to a key) ran the trampoline twice per
  * physical press, posting and processing the same key event twice. */
 void test_bind_gesture_reuses_gpio_wiring_for_the_same_key(void) {
-    input_init(NULL);
+  input_init(NULL);
 
-    app_ui_config_t cfg;
-    app_ui_config_ui(&cfg, "TEST", "help");
-    app_ui_t ui;
-    app_ui_init(&ui, NULL, &cfg);
+  app_ui_config_t cfg;
+  app_ui_config_ui(&cfg, "TEST", "help");
+  app_ui_t ui;
+  app_ui_init(&ui, NULL, &cfg);
 
-    int before = g_next_pin;
-    app_ui_bind_gesture(&ui, SIM_KEY_ENTER, INPUT_EVENT_BUTTON_TAP, on_gesture, NULL);
-    int after_first = g_next_pin;
-    app_ui_bind_gesture(&ui, SIM_KEY_ENTER, INPUT_EVENT_BUTTON_LONG_TAP, on_gesture, NULL);
-    int after_second = g_next_pin;
+  int before = g_next_pin;
+  app_ui_bind_gesture(&ui, SIM_KEY_ENTER, INPUT_EVENT_BUTTON_TAP, on_gesture,
+                      NULL);
+  int after_first = g_next_pin;
+  app_ui_bind_gesture(&ui, SIM_KEY_ENTER, INPUT_EVENT_BUTTON_LONG_TAP,
+                      on_gesture, NULL);
+  int after_second = g_next_pin;
 
-    TEST_ASSERT_EQUAL(1, after_first - before);   // first call: one new pin
-    TEST_ASSERT_EQUAL(0, after_second - after_first);  // same key again: no new pin
+  TEST_ASSERT_EQUAL(1, after_first - before); // first call: one new pin
+  TEST_ASSERT_EQUAL(0,
+                    after_second - after_first); // same key again: no new pin
 
-    // A genuinely different key still gets its own pin.
-    app_ui_bind_gesture(&ui, SIM_KEY_ESCAPE, INPUT_EVENT_BUTTON_TAP, on_gesture, NULL);
-    TEST_ASSERT_EQUAL(1, g_next_pin - after_second);
+  // A genuinely different key still gets its own pin.
+  app_ui_bind_gesture(&ui, SIM_KEY_ESCAPE, INPUT_EVENT_BUTTON_TAP, on_gesture,
+                      NULL);
+  TEST_ASSERT_EQUAL(1, g_next_pin - after_second);
 
-    app_ui_deinit(&ui);
-    input_deinit();
+  app_ui_deinit(&ui);
+  input_deinit();
 }
 
 void test_bind_gesture_forwarding_device_reaches_callback(void) {
-    input_init(NULL);
+  input_init(NULL);
 
-    app_ui_config_t cfg;
-    app_ui_config_ui(&cfg, "TEST", "help");
-    app_ui_t ui;
-    app_ui_init(&ui, NULL, &cfg);
-    app_ui_bind_gesture(&ui, SIM_KEY_ENTER, INPUT_EVENT_BUTTON_LONG_TAP, on_gesture, NULL);
+  app_ui_config_t cfg;
+  app_ui_config_ui(&cfg, "TEST", "help");
+  app_ui_t ui;
+  app_ui_init(&ui, NULL, &cfg);
+  app_ui_bind_gesture(&ui, SIM_KEY_ENTER, INPUT_EVENT_BUTTON_LONG_TAP,
+                      on_gesture, NULL);
 
-    g_gesture_calls = 0;
-    // Same two calls gesture_key_trampoline makes after reading the pin -
-    // exercises the device-forwarding bridge app_ui_bind_gesture() set up.
-    input_event_t ev = {.type = INPUT_EVENT_BUTTON_LONG_TAP, .key = INPUT_KEY_ENTER};
-    input_post_event(&ev);
-    input_process_events();
+  g_gesture_calls = 0;
+  // Same two calls gesture_key_trampoline makes after reading the pin -
+  // exercises the device-forwarding bridge app_ui_bind_gesture() set up.
+  input_event_t ev = {.type = INPUT_EVENT_BUTTON_LONG_TAP,
+                      .key = INPUT_KEY_ENTER};
+  input_post_event(&ev);
+  input_process_events();
 
-    TEST_ASSERT_EQUAL(1, g_gesture_calls);
-    TEST_ASSERT_EQUAL(INPUT_EVENT_BUTTON_LONG_TAP, g_gesture_last_type);
+  TEST_ASSERT_EQUAL(1, g_gesture_calls);
+  TEST_ASSERT_EQUAL(INPUT_EVENT_BUTTON_LONG_TAP, g_gesture_last_type);
 
-    app_ui_deinit(&ui);
-    input_deinit();
+  app_ui_deinit(&ui);
+  input_deinit();
 }
 
 int main(void) {
-    UNITY_BEGIN();
-    RUN_TEST(test_ui_content_box_is_inset_by_default_padding);
-    RUN_TEST(test_app_ui_init_links_desc_from_real_app);
-    RUN_TEST(test_app_ui_init_tolerates_null_real_app);
-    RUN_TEST(test_bind_gesture_creates_recognizer_and_registers);
-    RUN_TEST(test_bind_gesture_second_call_reuses_the_same_recognizer);
-    RUN_TEST(test_bind_gesture_reuses_gpio_wiring_for_the_same_key);
-    RUN_TEST(test_bind_gesture_forwarding_device_reaches_callback);
-    return UNITY_END();
+  UNITY_BEGIN();
+  RUN_TEST(test_title_and_help_are_the_caller_pointers);
+  RUN_TEST(test_app_ui_init_uses_the_kit_context_and_leaves_its_display);
+  RUN_TEST(test_ui_content_box_is_inset_by_default_padding);
+  RUN_TEST(test_app_ui_init_links_desc_from_real_app);
+  RUN_TEST(test_app_ui_init_tolerates_null_real_app);
+  RUN_TEST(test_bind_gesture_creates_recognizer_and_registers);
+  RUN_TEST(test_bind_gesture_second_call_reuses_the_same_recognizer);
+  RUN_TEST(test_bind_gesture_reuses_gpio_wiring_for_the_same_key);
+  RUN_TEST(test_bind_gesture_forwarding_device_reaches_callback);
+  return UNITY_END();
 }

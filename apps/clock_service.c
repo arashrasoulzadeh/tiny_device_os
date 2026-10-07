@@ -84,6 +84,13 @@ int clock_service_shift(int32_t delta_s) {
     return write_saved(os_clock_now());
 }
 
+int clock_service_set(time_t unix_time) {
+    if (os_clock_set(unix_time) != 0) {
+        return -1;
+    }
+    return write_saved(unix_time);
+}
+
 int clock_service_checkpoint(void) {
     time_t now = os_clock_now();
     if (g_saved != 0 && now >= g_saved && (now - g_saved) < 60) {

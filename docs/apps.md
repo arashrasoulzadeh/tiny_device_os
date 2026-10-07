@@ -20,22 +20,23 @@ static void on_event(app_helper_t* app, app_helper_event_t ev) {
     if (ev == APP_EV_SELECT) g_count--;
 }
 
-static void on_draw(app_helper_t* app) {
+static void on_view(app_helper_t* app) {
     char buf[16];
     snprintf(buf, sizeof(buf), "%ld", (long)g_count);
-    app_helper_number(app, 0, buf, 4, ARDUBOT_COLOR_TEXT);
+    app_scene_hero(app, buf, ARDUBOT_COLOR_TEXT);
+    app_scene_gauge(app, g_count, 20, ARDUBOT_COLOR_SUCCESS);
 }
 
 APP_HELPER(counter_app, "counter",
     .state = &g_count,
     .state_size = sizeof(g_count),
     .on_event = on_event,
-    .on_draw = on_draw);
+    .on_view = on_view);
 ```
 
-Name, version, author, description, title, and help come from `apps/stdapps/<name>/app.json`. Configure and the device build both turn that file into the manifest. `APP_HELPER` does not take those fields. The launcher icon is `<symbol>_icon` (`counter_app` uses `counter_app_icon`). `.type` defaults to `APP_TYPE_TOOL` and `.fps` defaults to 30, so pass them only when the app is a game, a system app, or a different frame rate.
+Name, version, author, description, title, and help come from `apps/stdapps/<name>/app.json`. Configure and the device build both turn that file into the manifest. `APP_HELPER` does not take those fields. The launcher icon is `<symbol>_icon` (`counter_app` uses `counter_app_icon`). `.type` defaults to `APP_TYPE_TOOL`. `.fps` applies only when `.live` or `.game` is set, and it defaults to 30.
 
-Up and the `1` key increment. Down, Left, and Right are bound the same way. Select and the `2` key decrement. Escape leaves. The screen redraws when an event arrives, when `app_helper_invalidate(app)` runs, or when `.live = true`. `.on_tick` runs every frame before that check. `.on_ready` runs after the UI and keys exist (start a worker there). `.demand` tells the power governor how much compute this screen wants (`POWER_DEMAND_LOW` for a timer or sensor list, `POWER_DEMAND_HIGH` for a game). Leave it unset for a normal interactive app. See [`docs/power.md`](power.md). `.game = true` drops the title and help bars. `.keys` replaces the default map with a file-scope `app_ui_key_def_t` array; a `NULL` user pointer is filled in with the helper. `app_fmt_clock`, `app_fit_text_scale`, `app_bar_fill_px`, `app_gauge_fill_px`, `app_level_color`, `app_helper_clock`, `app_helper_bar`, `app_helper_gauge`, `app_helper_panel`, `app_helper_labelf`, and `app_helper_center_text` cover the layout math apps used to copy.
+Up and the `1` key increment. Down, Left, and Right are bound the same way. Select and the `2` key decrement. Escape leaves. A tool sleeps until a key, a notification, or `.every_ms`. `.on_view` fills a scene (rows, one hero number or clock, one bar or gauge, one side panel) and the framework places it. `.on_draw` is the canvas path for a game, a menu, or an editor. Set one of them. The screen redraws when an event arrives, when `app_helper_invalidate(app)` runs, when `.every_ms` elapses and `on_tick` invalidates, or when `.live = true`. `.on_ready` runs after the UI and keys exist. `.demand` tells the power governor how much compute this screen wants (`POWER_DEMAND_LOW` for a timer or sensor list, `POWER_DEMAND_HIGH` for a game). Leave it unset for a normal interactive app. See [`docs/power.md`](power.md). `.game = true` or `.fullscreen = true` drops the header_app band and the title and help bars. `.keys` replaces the default map with a file-scope `app_ui_key_def_t` array; a `NULL` user pointer is filled in with the helper. Files and pins are `fw/io.h`, included only by a screen that opens them.
 
 ## App state
 
@@ -45,7 +46,7 @@ Point `.state` at a plain struct and set `.state_size`. The helper loads that st
 
 The image boots **sensors** when that app is compiled in, otherwise info, otherwise clock, otherwise pomodoro, otherwise the launcher. The clock reads the wall clock (`os_clock_now`), not uptime. Up adds an hour and Select adds a minute.
 
-Every standard app's content box is inset by `ARDUBOT_UI_PADDING` on all four sides (16px when the panel is taller than 64). Games stay full-bleed.
+Every standard app's content box is inset by `ARDUBOT_UI_PADDING` on all four sides (16px when the panel is taller than 64). On a panel at least 280×150, that box also starts below the status band from `header_app.c`: battery on the left, uptime clock in the center, a separator on the last row of a 25px band. The same band is on the launcher. Flush paints it after the app, so it stays put. Games and `.fullscreen` apps stay full-bleed.
 
 A board with no battery RTC gets its clock from the clock service. `make usb` writes `ARDUBOT_CLOCK_UNIX` and `ARDUBOT_CLOCK_TZ_OFFSET_MIN` from your computer unless `device_config`'s `clock.unix` is set. On boot the service reads `/flash/clock.dat` (LittleFS on the chip, through `vfs`). A saved time wins. If the file is missing, the compile-time stamp is written there and used. Up and Select change the clock and save it; the service also rewrites the file about once a minute so a power cut keeps the last minute. Time spent fully off is not counted.
 

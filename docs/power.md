@@ -36,7 +36,8 @@ has no die sensor.
 ```c
 APP_HELPER(clock_app, "clock",
     .demand = POWER_DEMAND_LOW,
-    .on_draw = on_draw);
+    .every_ms = 100,
+    .on_view = on_view);
 ```
 
 | Hint | Meaning |
@@ -49,8 +50,8 @@ APP_HELPER(clock_app, "clock",
 `app_kit_set_demand()` is the same hint for a screen that does not use
 `APP_HELPER`. Leaving the foreground puts that app's live hint back to
 `NORMAL`, so a game in the background does not keep the fast clock. Pomodoro,
-clock, and sensors publish `LOW`. A worker task calls `power_set_demand()`
-itself; the pomodoro seconds task does.
+clock, and sensors publish `LOW` on the app task. A worker that must stay
+quiet calls `power_set_demand()` itself.
 
 `scheduler_step()` never runs `idle_task()`. A step that finds only the idle
 task is an idle sample. `scheduler_tick()` closes a 100 ms window and calls

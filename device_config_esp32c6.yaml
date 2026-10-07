@@ -96,3 +96,8 @@ inputs:
 outputs:
   leds: []
   sound: null
+
+# After a successful `make usb`, stay in this process and forward host
+# lines to the board until Ctrl+C. The key lives in device_secrets.yaml.
+notifications:
+  forward_from_host: true

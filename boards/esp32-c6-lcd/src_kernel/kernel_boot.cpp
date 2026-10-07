@@ -11,6 +11,9 @@
 #if __has_include("device_config.h")
 #include "device_config.h"
 #endif
+#if __has_include("device_secrets.h")
+#include "device_secrets.h"
+#endif
 
 extern "C" {
 #include "scheduler.h"
@@ -28,6 +31,12 @@ extern "C" {
 #include "clock_service.h"
 #include "sensor_service.h"
 #include "notify_service.h"
+#if defined(ARDUBOT_LINK_FORWARD) && ARDUBOT_LINK_FORWARD && defined(ARDUBOT_LINK_HAS_KEY) && \
+    ARDUBOT_LINK_HAS_KEY
+#include "link_bridge.h"
+#include "tty_service.h"
+#include <esp_system.h>
+#endif
 #include "hal_storage.h"
 #include "littlefs_vfs.h"
 }
@@ -219,7 +228,42 @@ void setup() {
     Serial.printf("[kernel_boot] %s started - entering loop()\n", start);
 }
 
+static void poll_host_link(void) {
+#if defined(ARDUBOT_LINK_FORWARD) && ARDUBOT_LINK_FORWARD && defined(ARDUBOT_LINK_HAS_KEY) && \
+    ARDUBOT_LINK_HAS_KEY
+    static int ready = 0;
+    uint8_t rx[64];
+    uint8_t tx[1024];
+    size_t n = 0;
+    int out;
+    if (!ready) {
+        static const uint8_t key[16] = ARDUBOT_LINK_KEY;
+        link_bridge_init(key, (uint8_t)ARDUBOT_LINK_KEY_ID);
+        tty_service_set_reboot(esp_restart);
+        ready = 1;
+    }
+    while (Serial.available() > 0 && n < sizeof(rx)) {
+        int byte = Serial.read();
+        if (byte < 0) {
+            break;
+        }
+        rx[n++] = (uint8_t)byte;
+    }
+    if (n > 0) {
+        out = link_bridge_rx(rx, n, tx, sizeof(tx));
+        if (out > 0) {
+            Serial.write(tx, (size_t)out);
+        }
+    }
+    out = link_bridge_poll((uint32_t)millis(), tx, sizeof(tx));
+    if (out > 0) {
+        Serial.write(tx, (size_t)out);
+    }
+#endif
+}
+
 void loop() {
+    poll_host_link();
     poll_real_buttons();
 
     static uint32_t last_tick_ms = 0;

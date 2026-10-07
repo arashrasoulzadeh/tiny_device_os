@@ -7,4 +7,5 @@
 #include "icons.h"
 #include "menu.h"
 #include "screen.h"
+#include "header.h"
 #include "status.h"
