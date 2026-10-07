@@ -58,6 +58,9 @@ typedef struct {
     app_helper_fn on_ready;
     app_helper_fn on_draw;
     app_helper_fn on_cleanup;
+    /* POWER_DEMAND_UNSET (0) keeps the default. LOW is for timers and
+     * sensors; HIGH is for a game that needs the top clock. */
+    power_demand_t demand;
 } app_helper_desc_t;
 
 struct app_helper {

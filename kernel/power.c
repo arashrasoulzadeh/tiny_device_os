@@ -75,6 +75,7 @@ int power_init(void) {
     
     init_available_freqs();
     g_power.initialized = true;
+    power_governor_reset();
     g_power.current_mode = POWER_MODE_ACTIVE;
     g_power.rtc_time_ms = 0;
     g_power.current_cpu_freq_mhz = 240;
@@ -96,6 +97,7 @@ int power_init(void) {
 void power_deinit(void) {
     g_power.initialized = false;
     g_power.current_mode = POWER_MODE_ACTIVE;
+    power_governor_reset();
 }
 
 // Light sleep - CPU pauses but RAM retained
@@ -193,6 +195,20 @@ int power_set_cpu_freq(uint32_t freq_mhz) {
 
 uint32_t power_get_cpu_freq(void) {
     return g_power.current_cpu_freq_mhz;
+}
+
+int power_set_available_freqs(const uint32_t* freqs, int count) {
+    if (!freqs || count < 1 || count > 8) {
+        return -1;
+    }
+    for (int i = 0; i < count; i++) {
+        if (freqs[i] == 0) {
+            return -1;
+        }
+        g_power.available_freqs[i] = freqs[i];
+    }
+    g_power.num_available_freqs = count;
+    return 0;
 }
 
 int power_get_available_freqs(uint32_t* freqs, uint32_t max_count) {

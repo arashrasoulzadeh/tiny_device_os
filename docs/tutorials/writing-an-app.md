@@ -146,7 +146,7 @@ app installed after `app_kit_catalog_build("launcher")` will not appear in
 that run.
 
 Boot does not start the launcher. `stdapps_start_name()` starts **sensors**
-on a full image, then info, clock, pomodoro, or the launcher. Escape from
+on a full image, otherwise info, clock, pomodoro, or the launcher. Escape from
 blink returns to the launcher.
 
 `settings`, `fileman`, `shell`, and `demo` are compiled into the simulator

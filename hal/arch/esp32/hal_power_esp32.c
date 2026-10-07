@@ -2,12 +2,12 @@
 #include <esp_pm.h>
 #include <esp_sleep.h>
 #include <esp_log.h>
-#include <driver/rtc_io.h>
 #include <driver/gpio.h>
-#include <driver/rtc_cntl.h>
+#include <driver/uart.h>
 #include <soc/rtc.h>
 #include <string.h>
 #include <stdlib.h>
+#include "driver/temperature_sensor.h"
 
 static const char* TAG = "hal_power";
 
@@ -67,6 +67,31 @@ int hal_power_set_cpu_freq(hal_power_t* power, uint32_t freq_mhz) {
 
 uint32_t hal_power_get_cpu_freq(const hal_power_t* power) {
     return power ? power->pm_config.max_freq_mhz : 240;
+}
+
+int hal_power_get_die_temp_c(hal_power_t* power, int32_t* temp_c) {
+    static temperature_sensor_handle_t handle;
+    static bool ready = false;
+    float celsius = 0.0f;
+
+    if (!power || !temp_c) {
+        return -1;
+    }
+    if (!ready) {
+        temperature_sensor_config_t cfg = TEMPERATURE_SENSOR_CONFIG_DEFAULT(-10, 80);
+        if (temperature_sensor_install(&cfg, &handle) != ESP_OK) {
+            return -1;
+        }
+        if (temperature_sensor_enable(handle) != ESP_OK) {
+            return -1;
+        }
+        ready = true;
+    }
+    if (temperature_sensor_get_celsius(handle, &celsius) != ESP_OK) {
+        return -1;
+    }
+    *temp_c = (int32_t)celsius;
+    return 0;
 }
 
 int hal_power_get_available_freqs(const hal_power_t* power, uint32_t* freqs, uint32_t* count) {

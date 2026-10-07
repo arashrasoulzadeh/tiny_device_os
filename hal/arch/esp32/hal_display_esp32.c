@@ -217,8 +217,19 @@ hal_display_rotation_t hal_display_get_rotation(const hal_display_t* display) {
     return display ? display->config.rotation : HAL_DISPLAY_ROTATION_0;
 }
 
+static uint8_t g_backlight_cap = 255;
+
+int hal_display_set_backlight_cap(uint8_t cap) {
+    g_backlight_cap = cap;
+    return 0;
+}
+
 int hal_display_set_brightness(hal_display_t* display, uint8_t brightness) {
     if (!display) return -1;
+    if (brightness > g_backlight_cap) {
+        brightness = g_backlight_cap;
+    }
+    (void)brightness;
     // PWM on backlight pin
     return 0;
 }

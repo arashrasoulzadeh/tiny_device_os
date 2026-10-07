@@ -86,6 +86,7 @@ Apps own their icons (`const app_icon_t` in a `*_icon.c`). `APP_DEFINE` register
 | `app_open(from, "name")` | Start or resume another app; suspend caller |
 | `app_request_exit(app)` | Soft-leave non-home app (suspend + resume launcher) |
 | `app_kit_is_foreground(app)` | Focus check (canvas uses this) |
+| `app_kit_set_demand(app, POWER_DEMAND_*)` | Compute ceiling for the governor. See [Power](power.md) |
 | `app_mark_dirty` / `app_is_dirty` | Redraw scheduling (also via canvas) |
 
 ## Components

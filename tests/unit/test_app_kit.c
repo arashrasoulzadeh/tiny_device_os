@@ -1,6 +1,7 @@
 #include "unity.h"
 #include "app_kit.h"
 #include "scheduler.h"
+#include "power.h"
 #include <string.h>
 
 static void dummy_entry(void) {}
@@ -12,6 +13,7 @@ static void dummy_key(void* app, void* user) {
 
 void setUp(void) {
     scheduler_init();
+    power_init();
 }
 
 void tearDown(void) {}
@@ -89,6 +91,39 @@ void test_app_bind_key_succeeds_then_rejects_overflow(void) {
     TEST_ASSERT_NOT_EQUAL(0, app_bind_key(&ctx, SIM_KEY_9, dummy_key, NULL));
 }
 
+static power_demand_t g_during_focus;
+
+static void burst_init(void* raw) {
+    app_ctx_t* app = (app_ctx_t*)raw;
+    TEST_ASSERT_EQUAL(0, app_kit_set_demand(app, POWER_DEMAND_HIGH));
+    g_during_focus = power_governor_get_foreground_demand();
+    TEST_ASSERT_EQUAL(POWER_DEMAND_HIGH, power_get_demand(task_get_current()));
+    app->running = false;
+}
+
+void test_demand_publishes_while_foreground_and_clears_on_exit(void) {
+    app_desc_t desc = {
+        .name = "burst",
+        .fps = 30,
+        .on_init = burst_init,
+    };
+    g_during_focus = POWER_DEMAND_UNSET;
+    app_kit_run(&desc);
+    TEST_ASSERT_EQUAL(POWER_DEMAND_HIGH, g_during_focus);
+    TEST_ASSERT_EQUAL(POWER_DEMAND_NORMAL, power_governor_get_foreground_demand());
+    TEST_ASSERT_EQUAL(POWER_DEMAND_NORMAL, power_get_demand(task_get_current()));
+}
+
+void test_demand_is_stored_until_the_app_is_foreground(void) {
+    app_ctx_t ctx;
+    memset(&ctx, 0, sizeof(ctx));
+    TEST_ASSERT_EQUAL(0, app_kit_set_demand(&ctx, POWER_DEMAND_LOW));
+    TEST_ASSERT_EQUAL(POWER_DEMAND_LOW, app_kit_get_demand(&ctx));
+    TEST_ASSERT_EQUAL(POWER_DEMAND_NORMAL, power_governor_get_foreground_demand());
+    TEST_ASSERT_EQUAL(-1, app_kit_set_demand(NULL, POWER_DEMAND_LOW));
+    TEST_ASSERT_EQUAL(POWER_DEMAND_NORMAL, app_kit_get_demand(NULL));
+}
+
 void test_app_bind_back_registers_escape(void) {
     app_ctx_t ctx;
     memset(&ctx, 0, sizeof(ctx));
@@ -103,6 +138,8 @@ int main(void) {
     RUN_TEST(test_app_request_exit_stops_running_flag);
     RUN_TEST(test_app_kit_is_foreground_false_without_focus);
     RUN_TEST(test_app_bind_key_succeeds_then_rejects_overflow);
+    RUN_TEST(test_demand_publishes_while_foreground_and_clears_on_exit);
+    RUN_TEST(test_demand_is_stored_until_the_app_is_foreground);
     RUN_TEST(test_app_bind_back_registers_escape);
     return UNITY_END();
 }

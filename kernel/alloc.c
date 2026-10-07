@@ -418,3 +418,7 @@ size_t os_get_min_free_heap(void) {
     }
     return g_system_pool->min_free;
 }
+
+size_t os_get_heap_total(void) {
+    return sizeof(g_heap_memory);
+}

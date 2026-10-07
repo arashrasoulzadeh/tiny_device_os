@@ -9,6 +9,7 @@
 
 #include "display.h"
 #include "hal_display.h"
+#include "notify_service.h"
 #include "os_time.h"
 #include "ssd1306_model.h"
 
@@ -167,6 +168,7 @@ static inline void app_display_flush(app_display_t* disp) {
     /* Pixels live in the HAL framebuffer until this call. Skipping it
      * leaves the previous frame on the glass. */
     if (disp && disp->initialized) {
+        notify_service_composite(disp);
         hal_display_flush(esp32_get_display());
     }
 }
@@ -280,7 +282,10 @@ static inline void app_display_text(app_display_t* disp, int x, int y, const cha
 }
 
 static inline void app_display_flush(app_display_t* disp) {
-    if (disp && disp->initialized) ssd1306_model_render();
+    if (disp && disp->initialized) {
+        notify_service_composite(disp);
+        ssd1306_model_render();
+    }
 }
 
 static inline void app_display_pixel(app_display_t* disp, int x, int y, bool on) {

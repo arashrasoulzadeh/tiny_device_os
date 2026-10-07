@@ -18,6 +18,10 @@ int hal_power_init(hal_power_t* power);
 int hal_power_set_cpu_freq(hal_power_t* power, uint32_t freq_mhz);
 uint32_t hal_power_get_cpu_freq(const hal_power_t* power);
 
+/* Die temperature in whole degrees Celsius. Returns 0 and writes *temp_c,
+ * or -1 when this target has no sensor. */
+int hal_power_get_die_temp_c(hal_power_t* power, int32_t* temp_c);
+
 // CPU frequency scaling - get available frequencies
 int hal_power_get_available_freqs(const hal_power_t* power, uint32_t* freqs, uint32_t* count);
 

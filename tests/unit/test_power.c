@@ -128,6 +128,17 @@ void test_get_available_freqs_returns_the_fixed_table(void) {
     TEST_ASSERT_EQUAL(240, freqs[0]);
 }
 
+void test_set_available_freqs_replaces_the_table(void) {
+    static const uint32_t freqs[] = {160, 80, 40};
+    uint32_t got[8] = {0};
+    TEST_ASSERT_EQUAL(0, power_set_available_freqs(freqs, 3));
+    TEST_ASSERT_EQUAL(3, power_get_available_freqs(got, 8));
+    TEST_ASSERT_EQUAL(160, got[0]);
+    TEST_ASSERT_EQUAL(40, got[2]);
+    TEST_ASSERT_EQUAL(-1, power_set_available_freqs(NULL, 3));
+    TEST_ASSERT_EQUAL(-1, power_set_available_freqs(freqs, 0));
+}
+
 void test_get_available_freqs_respects_max_count(void) {
     uint32_t freqs[2] = {0};
     int n = power_get_available_freqs(freqs, 2);
@@ -170,6 +181,7 @@ int main(void) {
     RUN_TEST(test_cpu_freq_set_get_round_trips_for_valid_frequency);
     RUN_TEST(test_cpu_freq_rejects_unavailable_frequency);
     RUN_TEST(test_get_available_freqs_returns_the_fixed_table);
+    RUN_TEST(test_set_available_freqs_replaces_the_table);
     RUN_TEST(test_get_available_freqs_respects_max_count);
     RUN_TEST(test_rtc_time_set_get_round_trips);
     RUN_TEST(test_battery_info_returns_plausible_values);

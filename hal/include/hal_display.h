@@ -72,6 +72,10 @@ hal_display_rotation_t hal_display_get_rotation(const hal_display_t* display);
 int hal_display_set_brightness(hal_display_t* display, uint8_t brightness);
 uint8_t hal_display_get_brightness(const hal_display_t* display);
 
+/* OS-wide backlight ceiling, 0..255. set_brightness clamps to it.
+ * 255 leaves the panel unrestricted. */
+int hal_display_set_backlight_cap(uint8_t cap);
+
 int hal_display_sleep(hal_display_t* display);
 int hal_display_wake(hal_display_t* display);
 

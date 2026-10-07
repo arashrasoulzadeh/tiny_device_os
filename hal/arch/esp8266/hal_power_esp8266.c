@@ -68,6 +68,12 @@ uint32_t hal_power_get_cpu_freq(const hal_power_t* power) {
     return power ? power->pm_config.max_freq_mhz : 160;
 }
 
+int hal_power_get_die_temp_c(hal_power_t* power, int32_t* temp_c) {
+    (void)power;
+    (void)temp_c;
+    return -1;
+}
+
 int hal_power_light_sleep(hal_power_t* power, uint32_t timeout_ms) {
     if (!power) return -1;
     

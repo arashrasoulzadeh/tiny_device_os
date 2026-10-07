@@ -15,6 +15,11 @@ int sensors_format_line(char* buf, size_t cap, const char* key, sensor_type_t ty
     if (type == SENSOR_TYPE_TEMP) {
         abs_raw = raw < 0 ? -raw : raw;
         n = snprintf(buf, cap, "%s %s%d.%dC", key, raw < 0 ? "-" : "", abs_raw / 10, abs_raw % 10);
+    } else if (type == SENSOR_TYPE_CPU || type == SENSOR_TYPE_RAM) {
+        n = snprintf(buf, cap, "%s %ld%%", key, (long)raw);
+    } else if (type == SENSOR_TYPE_POWER) {
+        n = raw < 0 ? snprintf(buf, cap, "%s --", key)
+                    : snprintf(buf, cap, "%s %ldMHz", key, (long)raw);
     } else {
         n = snprintf(buf, cap, "%s %ld", key, (long)raw);
     }
@@ -22,6 +27,16 @@ int sensors_format_line(char* buf, size_t cap, const char* key, sensor_type_t ty
         return -1;
     }
     return n;
+}
+
+static void on_ready(app_helper_t* app) {
+    notify_spec_t spec = {
+        .title = "hello world",
+        .extent = NOTIFY_EXTENT_BAND,
+        .duration_ms = 0,
+    };
+    (void)app;
+    notify_post(&spec);
 }
 
 static void on_tick(app_helper_t* app) {
@@ -53,7 +68,7 @@ static void on_draw(app_helper_t* app) {
         app_helper_label(app, 0, "No sensors");
         return;
     }
-    for (i = 0; i < n && i < 6; i++) {
+    for (i = 0; i < n && i < SENSOR_SERVICE_MAX; i++) {
         int32_t value = 0;
         char line[32];
         const char* key = sensor_service_key(i);
@@ -66,4 +81,9 @@ static void on_draw(app_helper_t* app) {
     }
 }
 
-APP_HELPER(sensors_app, "sensors", .fps = 2, .on_tick = on_tick, .on_draw = on_draw)
+power_demand_t sensors_app_power_demand(void) {
+    return POWER_DEMAND_LOW;
+}
+
+APP_HELPER(sensors_app, "sensors", .fps = 2, .demand = POWER_DEMAND_LOW, .on_ready = on_ready,
+           .on_tick = on_tick, .on_draw = on_draw)

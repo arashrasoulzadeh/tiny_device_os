@@ -166,6 +166,11 @@ int app_helper_start(app_helper_t* app, void* real_app, const app_helper_desc_t*
             app->state_loaded = true;
         }
     }
+    if (real_app && desc->demand != POWER_DEMAND_UNSET) {
+        if (app_kit_set_demand((app_ctx_t*)real_app, desc->demand) != 0) {
+            return -1;
+        }
+    }
     if (desc->on_ready) {
         desc->on_ready(app);
     }
@@ -222,7 +227,7 @@ void app_helper_frame(app_helper_t* app) {
     if (app->desc && app->desc->on_tick) {
         app->desc->on_tick(app);
     }
-    if (!app->needs_draw && !(app->desc && app->desc->live)) {
+    if (!app->needs_draw && !(app->desc && app->desc->live) && !notify_service_needs_present()) {
         return;
     }
     app->needs_draw = false;

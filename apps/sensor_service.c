@@ -9,8 +9,14 @@
 #if defined(ARDUBOT_TARGET_ESP32)
 #include "driver/temperature_sensor.h"
 #include "esp_adc/adc_oneshot.h"
+#include "esp_heap_caps.h"
+#include "esp_rom_sys.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #else
+#include "alloc.h"
 #include "hal_adc.h"
+#include "scheduler.h"
 #endif
 
 #if __has_include("device_config.h")
@@ -65,6 +71,97 @@ static int sample_temp(int32_t* value) {
 }
 
 #if defined(ARDUBOT_TARGET_ESP32)
+static int g_cpu_ready;
+static uint32_t g_idle_prev;
+static uint32_t g_total_prev;
+#endif
+
+int32_t sensor_cpu_busy_percent(uint64_t idle, uint64_t total) {
+    if (total == 0 || idle >= total) {
+        return 0;
+    }
+    return (int32_t)(((total - idle) * 100ull) / total);
+}
+
+static int sample_cpu(int32_t* value) {
+#if defined(ARDUBOT_TARGET_ESP32)
+    /* FreeRTOS already accounts idle-task time, including time spent waiting
+     * for an interrupt. A self-calibrated idle-hook rate flips between 0 and
+     * 100 because the hook runs once per interrupt and the loop task used to
+     * busy-spin. */
+    uint32_t idle = (uint32_t)ulTaskGetIdleRunTimeCounter();
+    uint32_t total = (uint32_t)portGET_RUN_TIME_COUNTER_VALUE();
+    uint32_t idle_d;
+    uint32_t total_d;
+    if (!g_cpu_ready) {
+        g_cpu_ready = 1;
+        g_idle_prev = idle;
+        g_total_prev = total;
+        *value = 0;
+        g_samples++;
+        return 0;
+    }
+    idle_d = idle - g_idle_prev;
+    total_d = total - g_total_prev;
+    g_idle_prev = idle;
+    g_total_prev = total;
+    *value = sensor_cpu_busy_percent(idle_d, total_d);
+#else
+    *value = sensor_cpu_busy_percent(scheduler_get_idle_tick_count(), scheduler_get_tick_count());
+#endif
+    g_samples++;
+    return 0;
+}
+
+static int sample_ram(int32_t* value) {
+#if defined(ARDUBOT_TARGET_ESP32)
+    size_t total = heap_caps_get_total_size(MALLOC_CAP_INTERNAL);
+    size_t freeb = heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+    if (total == 0) {
+        total = heap_caps_get_total_size(MALLOC_CAP_8BIT);
+        freeb = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    }
+#else
+    size_t total = os_get_heap_total();
+    size_t freeb = os_get_free_heap();
+#endif
+    if (total == 0 || freeb >= total) {
+        *value = 0;
+    } else {
+        *value = (int32_t)(((total - freeb) * 100u) / total);
+    }
+    g_samples++;
+    return 0;
+}
+
+static int sample_power(int32_t* value) {
+#if defined(ARDUBOT_TARGET_ESP32)
+    uint32_t mhz = esp_rom_get_cpu_ticks_per_us();
+    *value = mhz > 0 ? (int32_t)mhz : -1;
+#else
+    *value = -1;
+#endif
+    g_samples++;
+    return 0;
+}
+
+static int sample_meter(sensor_slot_t* slot, int32_t* value) {
+    if (slot->type == SENSOR_TYPE_TEMP) {
+        return sample_temp(value);
+    }
+    if (slot->type == SENSOR_TYPE_CPU) {
+        return sample_cpu(value);
+    }
+    if (slot->type == SENSOR_TYPE_RAM) {
+        return sample_ram(value);
+    }
+    if (slot->type == SENSOR_TYPE_POWER) {
+        return sample_power(value);
+    }
+    return 1;
+}
+
+#if defined(ARDUBOT_TARGET_ESP32)
 static adc_oneshot_unit_handle_t g_adc;
 static int g_adc_ready;
 
@@ -93,8 +190,9 @@ static int sample_hw(sensor_slot_t* slot, int32_t* value) {
     };
     int raw = 0;
     int channel;
-    if (slot->type == SENSOR_TYPE_TEMP) {
-        return sample_temp(value);
+    int meter = sample_meter(slot, value);
+    if (meter <= 0) {
+        return meter;
     }
     channel = channel_from_path(slot->path);
     if (!g_adc_ready) {
@@ -121,8 +219,9 @@ static int sample_hw(sensor_slot_t* slot, int32_t* value) {
 static int sample_hw(sensor_slot_t* slot, int32_t* value) {
     uint16_t raw = 0;
     hal_adc_t* adc;
-    if (slot->type == SENSOR_TYPE_TEMP) {
-        return sample_temp(value);
+    int meter = sample_meter(slot, value);
+    if (meter <= 0) {
+        return meter;
     }
     adc = (hal_adc_t*)slot->hw;
     if (!adc) {
@@ -176,7 +275,8 @@ int sensor_service_add(const char* key, sensor_type_t type, const char* path, ui
     if (!key || !key[0] || strlen(key) >= SENSOR_KEY_MAX) {
         return -1;
     }
-    if (type != SENSOR_TYPE_ADC && type != SENSOR_TYPE_TEMP) {
+    if (type != SENSOR_TYPE_ADC && type != SENSOR_TYPE_TEMP && type != SENSOR_TYPE_CPU &&
+        type != SENSOR_TYPE_RAM && type != SENSOR_TYPE_POWER) {
         return -1;
     }
     if (find_slot(key)) {
@@ -187,8 +287,10 @@ int sensor_service_add(const char* key, sensor_type_t type, const char* path, ui
             memset(&g_slots[i], 0, sizeof(g_slots[i]));
             strncpy(g_slots[i].key, key, SENSOR_KEY_MAX - 1);
             g_slots[i].type = type;
-            if (!path || !path[0]) {
+            if (type == SENSOR_TYPE_ADC && (!path || !path[0])) {
                 path = "/dev/adc0";
+            } else if (!path) {
+                path = "";
             }
             strncpy(g_slots[i].path, path, SENSOR_PATH_MAX - 1);
             g_slots[i].refresh_ms = refresh_ms;
@@ -249,6 +351,15 @@ int sensor_service_load_builtin(void) {
         n++;
     }
 #endif
+    if (sensor_service_add("cpu", SENSOR_TYPE_CPU, "", 1000) == 0) {
+        n++;
+    }
+    if (sensor_service_add("ram", SENSOR_TYPE_RAM, "", 1000) == 0) {
+        n++;
+    }
+    if (sensor_service_add("pwr", SENSOR_TYPE_POWER, "", 1000) == 0) {
+        n++;
+    }
     return n;
 }
 

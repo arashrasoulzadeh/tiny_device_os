@@ -30,6 +30,7 @@
 #endif
 
 #include "scheduler.h"
+#include "power.h"
 #include "stdapps_register.h"
 #include "os_time.h"
 #include "hal_gpio.h"
@@ -49,6 +50,7 @@
 #include "littlefs_vfs.h"
 #include "config_store.h"
 #include "clock_service.h"
+#include "notify_service.h"
 #include "sensor_service.h"
 #include "ardubot_enabled_apps.h"
 #include "input.h"
@@ -191,6 +193,11 @@ int main(int argc, char** argv) {
         fprintf(stderr, "Failed to initialize scheduler\n");
         return 1;
     }
+
+    /* The sim has no die sensor (the callback reports unknown, so the
+     * thermal rule stays off). Brightness is a real backlight cap. */
+    power_init();
+    power_governor_set_actuators(NULL, hal_display_set_backlight_cap, NULL);
     
     if (sim_time_init() != 0) {
         fprintf(stderr, "Failed to initialize sim time\n");
@@ -292,6 +299,7 @@ int main(int argc, char** argv) {
         }
         clock_service_start(time(NULL), 0);
         sensor_service_load_builtin();
+        notify_service_start();
     }
 
     /* Builtin apps are installed only from apps/stdapps_register.c.

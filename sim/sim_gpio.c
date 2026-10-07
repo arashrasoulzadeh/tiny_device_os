@@ -1,6 +1,7 @@
 #include "sim_gpio.h"
 #include "sim_video.h"
 #include "hal_gpio.h"
+#include "notify_service.h"
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -130,6 +131,9 @@ static void hal_gpio_check_edge(int pin, bool new_level) {
 }
 
 void sim_gpio_handle_key(sim_key_t key, bool pressed) {
+    if (!sim_key_is_system(key) && notify_service_on_key(key, pressed)) {
+        return;
+    }
     for (int i = 0; i < MAX_GPIO_PINS; i++) {
         if (!g_pins[i].registered) continue;
         

@@ -121,11 +121,14 @@ class TestDeviceConfig(unittest.TestCase):
             "  - key: die\n"
             "    type: temp\n"
             "    refresh_ms: 2000\n"
+            "  - key: cpu\n"
+            "    type: cpu\n"
+            "    refresh_ms: 500\n"
             "  - key: bad\n"
             "    type: lidar\n"
         )
         header = generate_header(parse_simple_yaml(text), now=1_700_000_000, tz_offset_min=0)
-        self.assertIn("#define ARDUBOT_SENSOR_COUNT 3", header)
+        self.assertIn("#define ARDUBOT_SENSOR_COUNT 4", header)
         self.assertIn('#define ARDUBOT_SENSOR_0_KEY "temp"', header)
         self.assertIn("#define ARDUBOT_SENSOR_0_TYPE SENSOR_TYPE_ADC", header)
         self.assertIn('#define ARDUBOT_SENSOR_0_PATH "/dev/adc0"', header)
@@ -137,6 +140,10 @@ class TestDeviceConfig(unittest.TestCase):
         self.assertIn("#define ARDUBOT_SENSOR_2_TYPE SENSOR_TYPE_TEMP", header)
         self.assertIn('#define ARDUBOT_SENSOR_2_PATH ""', header)
         self.assertIn("#define ARDUBOT_SENSOR_2_REFRESH_MS 2000", header)
+        self.assertIn('#define ARDUBOT_SENSOR_3_KEY "cpu"', header)
+        self.assertIn("#define ARDUBOT_SENSOR_3_TYPE SENSOR_TYPE_CPU", header)
+        self.assertIn('#define ARDUBOT_SENSOR_3_PATH ""', header)
+        self.assertIn("#define ARDUBOT_SENSOR_3_REFRESH_MS 500", header)
         self.assertNotIn("lidar", header)
 
     def test_button_on_lcd_scl_warns(self):

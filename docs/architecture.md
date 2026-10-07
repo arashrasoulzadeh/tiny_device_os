@@ -37,7 +37,7 @@ flowchart TB
     subgraph core["Kernel"]
         sched["kernel/scheduler.c<br/>cooperative, priority ready lists<br/>tickless idle"]
         alloc["kernel/alloc.c<br/>TLSF allocator"]
-        power["kernel/power.c<br/>sleep modes, wake sources"]
+        power["kernel/power.c + power_governor.c<br/>sleep, clock, backlight cap"]
     end
 
     subgraph hw["Hardware abstraction"]

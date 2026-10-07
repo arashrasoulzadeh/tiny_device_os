@@ -34,7 +34,8 @@ from device_config import load_device_config, resolve_apps  # noqa: E402
 
 VALID_ARCHES = ("sim", "esp32", "esp8266", "avr", "rp2040")
 
-KERNEL_SOURCES = ["scheduler.c", "host_stack.c", "os_time.c", "alloc.c", "event.c", "power.c"]
+KERNEL_SOURCES = ["scheduler.c", "host_stack.c", "os_time.c", "alloc.c", "event.c", "power.c",
+                   "power_governor.c"]
 DRIVERS_SOURCES = [
     "driver.c", "module.c", "device_registry.c", "gpio_driver.c",
     "i2c_driver.c", "spi_driver.c", "uart_driver.c", "wifi_driver.c",

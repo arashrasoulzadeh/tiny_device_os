@@ -30,6 +30,7 @@
 #include "hal_spi.h"
 #include "hal_storage.h"
 #include "hal_uart.h"
+#include "notify_service.h"
 #include "os_time.h"
 #include "scheduler.h"
 #include "sim_gpio.h"

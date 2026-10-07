@@ -33,6 +33,7 @@ void os_free(void* ptr);
 
 size_t os_get_free_heap(void);
 size_t os_get_min_free_heap(void);
+size_t os_get_heap_total(void);
 
 #ifdef __cplusplus
 }

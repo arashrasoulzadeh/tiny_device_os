@@ -5,6 +5,7 @@
 #include "icons.h"
 #include "ardubot_keys.h"
 #include "app.h"
+#include "power.h"
 
 #include <stdarg.h>
 
@@ -63,6 +64,9 @@ struct app_ctx {
     app_key_binding_t keys[APP_KIT_MAX_KEYS];
     uint32_t key_count;
     app_ui_config_t ui;
+    power_demand_t demand;
+    bool demand_set;
+    task_tcb_t* demand_task;
 };
 
 int app_bind_key(app_ctx_t* app, sim_key_t key, app_key_fn_t fn, void* user);
@@ -88,6 +92,12 @@ void app_request_exit_key(app_ctx_t* app, void* user);
 
 bool app_kit_is_foreground(const app_ctx_t* app);
 bool app_kit_is_foreground_desc(const app_desc_t* desc);
+
+/* Publish how much compute this app wants. The governor treats it as a
+ * ceiling. Leaving the foreground drops the live hint back to NORMAL;
+ * the stored demand is applied again when the app is focused. */
+int app_kit_set_demand(app_ctx_t* app, power_demand_t demand);
+power_demand_t app_kit_get_demand(const app_ctx_t* app);
 
 void app_kit_run(const app_desc_t* desc);
 

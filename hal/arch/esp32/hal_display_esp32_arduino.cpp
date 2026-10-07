@@ -204,9 +204,20 @@ hal_display_rotation_t hal_display_get_rotation(const hal_display_t* display) {
     return display ? (hal_display_rotation_t)display->config.rotation : HAL_DISPLAY_ROTATION_0;
 }
 
+static uint8_t g_backlight_cap = 255;
+
+int hal_display_set_backlight_cap(uint8_t cap) {
+    g_backlight_cap = cap;
+    return 0;
+}
+
 int hal_display_set_brightness(hal_display_t* display, uint8_t brightness) {
     if (!display) return -1;
+    if (brightness > g_backlight_cap) {
+        brightness = g_backlight_cap;
+    }
     // Simple on/off backlight on this board - no PWM channel wired for it.
+    // A non-zero cap keeps the panel on; only a zero cap blanks it.
     digitalWrite(ESP32C6_LCD_BL_GPIO, brightness > 0 ? HIGH : LOW);
     return 0;
 }

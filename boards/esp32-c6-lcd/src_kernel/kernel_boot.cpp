@@ -16,6 +16,8 @@ extern "C" {
 #include "scheduler.h"
 #include "os_time.h"
 #include "host_stack.h"
+#include "power.h"
+#include "hal_power.h"
 #include "hal_display.h"
 #include "app.h"
 #include "app_types.h"
@@ -25,6 +27,7 @@ extern "C" {
 #include "os_clock.h"
 #include "clock_service.h"
 #include "sensor_service.h"
+#include "notify_service.h"
 #include "hal_storage.h"
 #include "littlefs_vfs.h"
 }
@@ -60,6 +63,9 @@ static void install_board_clock(void) {
 
     if (clock_service_start(time(NULL), compiled) != 0) {
         Serial.println("[kernel_boot] clock service failed");
+    }
+    if (notify_service_start() != 0) {
+        Serial.println("[kernel_boot] notification service failed");
     }
 }
 
@@ -105,6 +111,58 @@ static void poll_real_buttons(void) {
     }
 }
 
+static hal_power_t* g_board_power;
+
+extern "C" {
+
+static int board_set_freq(uint32_t mhz) {
+    int rc = -1;
+    /* ESP32-C6 tops out at 160 MHz. The classic ESP32 table still lists 240. */
+    if (mhz > 160) {
+        mhz = 160;
+    }
+    if (g_board_power) {
+        rc = hal_power_set_cpu_freq(g_board_power, mhz);
+    }
+    if (power_set_cpu_freq(mhz) == 0) {
+        rc = 0;
+    }
+    return rc;
+}
+
+static int board_set_brightness(uint8_t cap) {
+    return hal_display_set_backlight_cap(cap);
+}
+
+static int board_read_temp(int32_t* temp_c) {
+    int32_t decideg = 0;
+    if (!temp_c) {
+        return -1;
+    }
+    /* sensor_service already owns the on-chip sensor when "temp" is configured. */
+    if (sensor_get("temp", &decideg) == 0) {
+        *temp_c = decideg / 10;
+        return 0;
+    }
+    if (g_board_power && hal_power_get_die_temp_c(g_board_power, temp_c) == 0) {
+        return 0;
+    }
+    return -1;
+}
+
+} /* extern "C" */
+
+static void bind_power_governor(void) {
+    static const uint32_t c6_freqs[] = {160, 80, 40, 20, 10};
+    power_init();
+    g_board_power = hal_power_open("/dev/power0");
+    if (g_board_power) {
+        (void)hal_power_init(g_board_power);
+    }
+    (void)power_set_available_freqs(c6_freqs, 5);
+    power_governor_set_actuators(board_set_freq, board_set_brightness, board_read_temp);
+}
+
 static task_tcb_t* g_demo_task_tcb;
 static uint32_t g_demo_tick_count;
 
@@ -133,6 +191,7 @@ void setup() {
         Serial.println("[kernel_boot] scheduler_init failed");
         return;
     }
+    bind_power_governor();
 
     if (task_create("demo", demo_task, NULL, TASK_PRIO_NORMAL, HOST_STACK_MIN_BYTES,
                      &g_demo_task_tcb) != 0) {
@@ -178,6 +237,9 @@ void loop() {
      * RISCV_TODO.md Phase 4: ~100x). Skip ticking entirely when no real
      * time has actually elapsed. */
     if (dt == 0) {
+        /* A bare return spins loopTask and starves the idle task, so a CPU
+         * reading flips between 0 and 100. Sleep one tick instead. */
+        vTaskDelay(1);
         return;
     }
     if (dt > 50) {

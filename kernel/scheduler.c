@@ -1,4 +1,5 @@
 #include "scheduler.h"
+#include "power.h"
 #include "host_stack.h"
 #include "hal_power.h"
 #include <string.h>
@@ -130,6 +131,8 @@ int scheduler_init(void) {
     if (ret != 0) {
         return ret;
     }
+    (void)power_set_demand(idle_task_tcb, POWER_DEMAND_IDLE);
+    power_governor_reset();
 
     if (!g_scheduler.free_list) {
         return -1;
@@ -178,8 +181,12 @@ int scheduler_step(void) {
 
     task_tcb_t* next = task_get_highest_ready();
     if (!next || next->priority == TASK_PRIO_IDLE) {
+        /* idle_task() never runs: this path is the idle context. */
+        power_governor_note_idle();
         return 0;
     }
+
+    power_governor_note_busy(next);
 
     if (next == g_last_switched_task) {
         return 0;
@@ -462,6 +469,10 @@ uint32_t scheduler_get_tick_count(void) {
     return g_scheduler.tick_count;
 }
 
+uint32_t scheduler_get_idle_tick_count(void) {
+    return g_scheduler.idle_tick_count;
+}
+
 void scheduler_tick(void) {
     scheduler_lock();
 
@@ -480,6 +491,20 @@ void scheduler_tick(void) {
     }
 
     scheduler_update_next_wake_tick();
+
+    {
+        bool any_runnable = false;
+        task_tcb_t* ready = task_get_highest_ready();
+        uint32_t gap = UINT32_MAX;
+        if (ready && ready->priority != TASK_PRIO_IDLE) {
+            any_runnable = true;
+        }
+        if (g_scheduler.next_wake_tick != UINT32_MAX &&
+            g_scheduler.next_wake_tick > g_scheduler.tick_count) {
+            gap = g_scheduler.next_wake_tick - g_scheduler.tick_count;
+        }
+        power_governor_tick(g_scheduler.tick_count, gap, any_runnable);
+    }
 
     scheduler_unlock();
 }

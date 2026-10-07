@@ -2,6 +2,7 @@
 #include "hal_display.h"
 
 void setUp(void) {
+    hal_display_set_backlight_cap(255);
 }
 
 void tearDown(void) {
@@ -119,6 +120,25 @@ void test_display_brightness(void) {
     hal_display_close(display);
 }
 
+void test_backlight_cap_clamps_requested_brightness(void) {
+    hal_display_config_t config = {
+        .width = 128,
+        .height = 64,
+        .bpp = 1,
+        .interface = HAL_DISPLAY_INTERFACE_I2C,
+        .color_format = HAL_DISPLAY_COLOR_MONO
+    };
+    hal_display_t* display = hal_display_open("/dev/display0", &config);
+    TEST_ASSERT_NOT_NULL(display);
+
+    TEST_ASSERT_EQUAL(0, hal_display_set_backlight_cap(64));
+    TEST_ASSERT_EQUAL(0, hal_display_set_brightness(display, 255));
+    TEST_ASSERT_EQUAL(64, hal_display_get_brightness(display));
+
+    hal_display_set_backlight_cap(255);
+    hal_display_close(display);
+}
+
 void test_display_sleep_wake(void) {
     hal_display_config_t config = {
         .width = 128,
@@ -168,6 +188,7 @@ int main(void) {
     RUN_TEST(test_display_draw_operations);
     RUN_TEST(test_display_rotation);
     RUN_TEST(test_display_brightness);
+    RUN_TEST(test_backlight_cap_clamps_requested_brightness);
     RUN_TEST(test_display_sleep_wake);
     RUN_TEST(test_display_size);
     

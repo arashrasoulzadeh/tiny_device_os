@@ -115,5 +115,9 @@ static void on_draw(app_helper_t* app) {
                            ARDUBOT_COLOR_TEXT_MUTED);
 }
 
-APP_HELPER(clock_app, "clock", .fps = 10, .on_event = on_event, .on_tick = on_tick,
-           .on_draw = on_draw)
+power_demand_t clock_app_power_demand(void) {
+    return POWER_DEMAND_LOW;
+}
+
+APP_HELPER(clock_app, "clock", .fps = 10, .demand = POWER_DEMAND_LOW, .on_event = on_event,
+           .on_tick = on_tick, .on_draw = on_draw)

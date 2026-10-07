@@ -53,6 +53,10 @@ typedef struct task_ctrl_block {
     
     struct task_ctrl_block* next;
     struct task_ctrl_block* prev;
+
+    /* power_demand_t stored as a byte so this header does not include power.h.
+     * 0 is POWER_DEMAND_UNSET, which the governor treats as NORMAL. */
+    uint8_t power_demand;
 } task_tcb_t;
 
 typedef enum {
@@ -105,6 +109,7 @@ task_state_t task_get_state(task_tcb_t* task);
 task_priority_t task_get_priority(task_tcb_t* task);
 
 uint32_t scheduler_get_tick_count(void);
+uint32_t scheduler_get_idle_tick_count(void);
 void scheduler_tick(void);
 
 void scheduler_lock(void);

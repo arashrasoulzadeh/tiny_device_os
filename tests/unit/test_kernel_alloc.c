@@ -131,7 +131,9 @@ void test_tlsf_memalign_across_many_offsets(void) {
 }
 
 void test_heap_tracking(void) {
-    size_t free_before = os_get_free_heap();
+    size_t free_before;
+    TEST_ASSERT_EQUAL(32 * 1024, os_get_heap_total());
+    free_before = os_get_free_heap();
     
     void* ptr = os_malloc(512);
     TEST_ASSERT_NOT_NULL(ptr);

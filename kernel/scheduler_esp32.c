@@ -28,6 +28,7 @@
  * for real if/when an app on this target actually needs them.
  */
 #include "scheduler.h"
+#include "power.h"
 #include "host_stack.h" /* HOST_STACK_MIN_BYTES, unused here otherwise */
 #include <string.h>
 #include <stdio.h>
@@ -62,6 +63,7 @@ static void esp32_task_trampoline(void* arg) {
 int scheduler_init(void) {
     memset(&g_scheduler, 0, sizeof(scheduler_t));
     g_started = false;
+    power_governor_reset();
     return 0;
 }
 
@@ -194,6 +196,24 @@ uint32_t scheduler_get_tick_count(void) {
     return g_scheduler.tick_count;
 }
 
+uint32_t scheduler_get_idle_tick_count(void) {
+    return g_scheduler.idle_tick_count;
+}
+
+static bool esp32_any_runnable(void) {
+    for (int i = 0; i < MAX_TASKS; i++) {
+        task_tcb_t* task = &g_scheduler.tasks[i];
+        if (task->name[0] == '\0' || task->priority == TASK_PRIO_IDLE) {
+            continue;
+        }
+        if (task->state == TASK_STATE_SUSPENDED || task->state == TASK_STATE_TERMINATED) {
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
+
 void scheduler_tick(void) {
     /* Real task scheduling is FreeRTOS's own job now (preemptive, driven
      * by its own hardware tick) - this just keeps the tick_count counter
@@ -201,6 +221,9 @@ void scheduler_tick(void) {
      * services ArdubotOS's own (non-FreeRTOS) os_timer_t list, same as
      * the fiber backend's caller (sim_main.c / kernel_boot.cpp) expects. */
     g_scheduler.tick_count++;
+    /* Next-wake is not tracked on this backend, so the gap stays unknown
+     * and the governor will not recommend light sleep from an infinite wait. */
+    power_governor_tick(g_scheduler.tick_count, UINT32_MAX, esp32_any_runnable());
 }
 
 void scheduler_lock(void) {
@@ -256,7 +279,14 @@ int scheduler_enter_deep_sleep(uint32_t timeout_ticks) {
 }
 
 int scheduler_step(void) {
-    return 0; /* not meaningful under preemptive FreeRTOS scheduling */
+    /* FreeRTOS preempts on its own. One sample per call lets the governor
+     * see that an app task exists (busy) or that the board is idle. */
+    if (esp32_any_runnable()) {
+        power_governor_note_busy(task_get_current());
+    } else {
+        power_governor_note_idle();
+    }
+    return 0;
 }
 
 const task_tcb_t* scheduler_get_task_slots(int* out_count) {

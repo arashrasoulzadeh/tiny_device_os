@@ -75,12 +75,54 @@ static void app_kit_remap_keys(app_ctx_t* app) {
     }
 }
 
+static void publish_focus_demand(const app_ctx_t* app) {
+    power_demand_t demand = POWER_DEMAND_NORMAL;
+    if (app && app->demand_set) {
+        demand = app->demand;
+    }
+    if (app && app->demand_task) {
+        (void)power_set_demand(app->demand_task, demand);
+    }
+    power_governor_set_foreground_demand(demand);
+}
+
 static void app_kit_focus(app_ctx_t* app) {
+    if (g_fg && g_fg != app && g_fg->demand_task) {
+        (void)power_set_demand(g_fg->demand_task, POWER_DEMAND_NORMAL);
+    }
     g_fg = app;
+    publish_focus_demand(app);
     if (app) {
         app_kit_remap_keys(app);
         app_mark_dirty(app);
     }
+}
+
+int app_kit_set_demand(app_ctx_t* app, power_demand_t demand) {
+    task_tcb_t* current;
+    if (!app || demand == POWER_DEMAND_UNSET || demand > POWER_DEMAND_HIGH) {
+        return -1;
+    }
+    app->demand = demand;
+    app->demand_set = true;
+    current = task_get_current();
+    if (!app->demand_task && current && current->priority != TASK_PRIO_IDLE) {
+        app->demand_task = current;
+    }
+    if (app_kit_is_foreground(app)) {
+        if (app->demand_task) {
+            (void)power_set_demand(app->demand_task, demand);
+        }
+        power_governor_set_foreground_demand(demand);
+    }
+    return 0;
+}
+
+power_demand_t app_kit_get_demand(const app_ctx_t* app) {
+    if (!app || !app->demand_set) {
+        return POWER_DEMAND_NORMAL;
+    }
+    return app->demand;
 }
 
 bool app_kit_is_foreground(const app_ctx_t* app) {
@@ -414,6 +456,10 @@ void app_kit_run(const app_desc_t* desc) {
                 app_kit_focus((void*)&ctx);
             }
         }
+        notify_service_pump();
+        if (notify_service_needs_present()) {
+            ctx.dirty = true;
+        }
         if (desc->on_frame) {
             desc->on_frame((void*)&ctx);
         }
@@ -433,7 +479,11 @@ void app_kit_run(const app_desc_t* desc) {
     app_kit_unregister_ctx(desc->name);
 
     if (g_fg == &ctx) {
+        if (ctx.demand_task) {
+            (void)power_set_demand(ctx.demand_task, POWER_DEMAND_NORMAL);
+        }
         g_fg = NULL;
+        power_governor_set_foreground_demand(POWER_DEMAND_NORMAL);
     }
     if (g_home == &ctx) {
         g_home = NULL;

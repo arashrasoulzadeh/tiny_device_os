@@ -1,5 +1,6 @@
 #include "unity.h"
 #include "scheduler.h"
+#include "power.h"
 #include <stdint.h>
 
 static int g_phase = 0;
@@ -145,6 +146,14 @@ void test_scheduler_tickless_idle_short_sleep_does_not_hang(void) {
     TEST_ASSERT_EQUAL(POWER_MODE_ACTIVE, scheduler_get_power_mode());
 }
 
+void test_scheduler_step_with_only_idle_increments_the_idle_count(void) {
+    uint32_t before;
+    TEST_ASSERT_EQUAL(0, scheduler_start());
+    before = power_governor_idle_steps();
+    scheduler_step();
+    TEST_ASSERT_EQUAL(before + 1, power_governor_idle_steps());
+}
+
 void test_scheduler_exit_idle_resets_to_active(void) {
     scheduler_enable_tickless_idle(true);
     scheduler_enter_deep_sleep(0); /* leaves power_mode == DEEP_SLEEP */
@@ -160,6 +169,7 @@ int main(void) {
     RUN_TEST(test_task_self_suspend_resumes_after_suspend_point);
     RUN_TEST(test_scheduler_enter_idle_short_sleep_advances_ticks);
     RUN_TEST(test_scheduler_tickless_idle_short_sleep_does_not_hang);
+    RUN_TEST(test_scheduler_step_with_only_idle_increments_the_idle_count);
     RUN_TEST(test_scheduler_exit_idle_resets_to_active);
     return UNITY_END();
 }

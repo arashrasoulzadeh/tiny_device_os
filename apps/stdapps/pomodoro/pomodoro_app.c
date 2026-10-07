@@ -84,6 +84,10 @@ static void on_event(app_helper_t* app, app_helper_event_t ev) {
     scheduler_unlock();
 }
 
+void pomodoro_set_worker_demand(task_tcb_t* task) {
+    (void)power_set_demand(task, POWER_DEMAND_LOW);
+}
+
 static void on_ready(app_helper_t* app) {
     g_app = app;
     g_worker_alive = true;
@@ -93,6 +97,8 @@ static void on_ready(app_helper_t* app) {
     if (task_create("pomo_sec", task_seconds, NULL, TASK_PRIO_NORMAL, 0, &g_sec_task) != 0) {
         APP_ERROR("Failed to create pomodoro worker task");
         g_worker_alive = false;
+    } else {
+        pomodoro_set_worker_demand(g_sec_task);
     }
 }
 
@@ -152,5 +158,5 @@ static void on_cleanup(app_helper_t* app) {
 }
 
 APP_HELPER(pomodoro_app, "pomodoro", .state = &g_st, .state_size = sizeof(g_st),
-           .on_event = on_event, .on_ready = on_ready, .on_draw = on_draw,
-           .on_cleanup = on_cleanup)
+           .demand = POWER_DEMAND_LOW, .on_event = on_event, .on_ready = on_ready,
+           .on_draw = on_draw, .on_cleanup = on_cleanup)

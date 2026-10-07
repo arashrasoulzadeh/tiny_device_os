@@ -16,7 +16,12 @@ Implemented and exercised by host tests:
   is unset. `apps/sensor_service.c` registers sensors from the device
   config (`key`, `type` `temp` or `adc`, `refresh_ms`) and
   `app_helper_sensor()` reads one by key. `apps/stdapps/sensors/` lists
-  every registered sensor.
+  every registered sensor. `apps/notify_service.c` is the notification
+  card. It is not an app: `stdapps_install()` does not register it and it
+  never takes focus. `notify_post()` queues a title and optional body that
+  slides over the focused app, either full-screen or as a top band. A
+  button press dismisses it; otherwise it leaves three seconds after the
+  show animation. Covered by `tests/unit/test_notify_service.c`.
 - HAL interfaces in `hal/include/hal_*.h` with a working **sim** backend in
   `hal/arch/sim/` plus SDL/device models in `sim/`.
 - Board backends under `hal/arch/{esp32,esp8266,avr}/` exist as per-arch files;
@@ -30,17 +35,22 @@ Implemented and exercised by host tests:
   `fileman`, `shell`, and `demo`. The last four are compiled into the
   simulator and are not installed, so the launcher does not list them.
   `stdapps_install()` is the only install list. `stdapps_start_name()` boots
-  sensors, then info, clock, pomodoro, or the launcher.
+  sensors, then info, clock, pomodoro, or the launcher. The sensors app also
+  lists CPU busy percent, heap used percent, and the CPU clock (`pwr`, in MHz).
 - VFS (`fs/vfs.c`) with LittleFS/FatFS backends (`fs/littlefs/`, `fs/fatfs/`),
   config KV store (`fs/config_store.c`), and OTA with A/B partitions + ed25519
   signature verification (`fs/ota.c`, `fs/ed25519.c`).
-- Power management (`kernel/power.c`) — sleep modes, wake sources, CPU
-  frequency scaling, per-driver suspend/resume callbacks. Covered by
-  `tests/unit/test_power.c` (18 tests). The tickless-idle path in
-  `kernel/scheduler.c` (`scheduler_enter_idle`/`scheduler_tickless_idle`/
-  `scheduler_exit_idle`) is covered directly in `tests/unit/test_scheduler.c` -
-  note that `idle_task()` itself is currently unreachable in practice, since
-  `scheduler_step()`/`task_yield()` both skip `TASK_PRIO_IDLE` tasks.
+- Power management (`kernel/power.c`, `kernel/power_governor.c`) — sleep
+  modes, wake sources, CPU frequency scaling, per-driver suspend/resume,
+  and an OS-wide governor. Apps publish a demand hint; the governor is the
+  only writer of the clock and the backlight cap. See `docs/power.md`.
+  Covered by `tests/unit/test_power.c` and `tests/unit/test_power_governor.c`.
+  The tickless-idle path in `kernel/scheduler.c`
+  (`scheduler_enter_idle`/`scheduler_tickless_idle`/`scheduler_exit_idle`)
+  is covered directly in `tests/unit/test_scheduler.c`. `idle_task()` still
+  never runs, because `scheduler_step()`/`task_yield()` skip `TASK_PRIO_IDLE`;
+  those skipped steps are what the governor counts as idle. Automatic deep
+  sleep is not part of the governor.
 - Driver framework (`drivers/`) — core (`driver.c`, open-handle dispatch,
   owned-vs-caller-owned device lifetime), the device registry with I2C/SPI
   hotplug scan (`device_registry.c`), the dynamic `.ardmod` module loader

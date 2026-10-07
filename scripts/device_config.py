@@ -426,7 +426,13 @@ def generate_header(
             continue
         key = str(item.get("key", "")).strip()
         kind = str(item.get("type", "")).strip().lower()
-        type_macro = {"adc": "SENSOR_TYPE_ADC", "temp": "SENSOR_TYPE_TEMP"}.get(kind)
+        type_macro = {
+            "adc": "SENSOR_TYPE_ADC",
+            "temp": "SENSOR_TYPE_TEMP",
+            "cpu": "SENSOR_TYPE_CPU",
+            "ram": "SENSOR_TYPE_RAM",
+            "power": "SENSOR_TYPE_POWER",
+        }.get(kind)
         if not re.fullmatch(r"[A-Za-z0-9_]+", key) or type_macro is None:
             continue
         if kind == "adc":

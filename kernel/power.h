@@ -98,9 +98,61 @@ int power_register_driver(void* driver_handle,
                           void* arg);
 int power_unregister_driver(void* driver_handle);
 
+// Replace the frequency table the governor ranks. count is 1..8.
+int power_set_available_freqs(const uint32_t* freqs, int count);
+
 // Power state
 power_mode_t get_power_mode(void);
 bool is_in_sleep_mode(void);
+
+/* How much compute a task wants. UNSET (zero) means "no hint": the governor
+ * treats it as NORMAL. Apps never publish UNSET. The governor is the only
+ * writer of the CPU clock; a hint is a ceiling, not a megahertz. */
+typedef enum {
+    POWER_DEMAND_UNSET = 0,
+    POWER_DEMAND_IDLE = 1,
+    POWER_DEMAND_LOW = 2,
+    POWER_DEMAND_NORMAL = 3,
+    POWER_DEMAND_HIGH = 4,
+} power_demand_t;
+
+typedef enum {
+    POWER_LEVEL_COOL = 0,
+    POWER_LEVEL_ECONOMY = 1,
+    POWER_LEVEL_BALANCED = 2,
+    POWER_LEVEL_PERFORMANCE = 3,
+} power_level_t;
+
+typedef int (*power_set_freq_fn)(uint32_t freq_mhz);
+typedef int (*power_set_brightness_fn)(uint8_t cap);
+typedef int (*power_read_temp_fn)(int32_t* temp_c);
+
+int power_set_demand(task_tcb_t* task, power_demand_t demand);
+power_demand_t power_get_demand(const task_tcb_t* task);
+
+void power_governor_reset(void);
+void power_governor_set_foreground_demand(power_demand_t demand);
+power_demand_t power_governor_get_foreground_demand(void);
+
+/* NULL set_freq keeps power_set_cpu_freq. NULL brightness is a no-op.
+ * NULL read_temp leaves the thermal rule off. */
+void power_governor_set_actuators(power_set_freq_fn set_freq,
+                                  power_set_brightness_fn set_brightness,
+                                  power_read_temp_fn read_temp);
+
+void power_governor_note_idle(void);
+void power_governor_note_busy(task_tcb_t* task);
+uint32_t power_governor_idle_steps(void);
+uint32_t power_governor_busy_steps(void);
+
+/* Close a window every 100 ms of `now_ms`. next_wake_ms is the gap until
+ * the next scheduled wake (UINT32_MAX = none). Does not call
+ * power_light_sleep(); read the recommendation with
+ * power_governor_light_sleep_ms(). */
+void power_governor_tick(uint32_t now_ms, uint32_t next_wake_ms, bool any_runnable);
+
+power_level_t power_governor_get_level(void);
+uint32_t power_governor_light_sleep_ms(void);
 
 #ifdef __cplusplus
 }

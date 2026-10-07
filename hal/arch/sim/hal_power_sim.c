@@ -34,6 +34,12 @@ uint32_t hal_power_get_cpu_freq(const hal_power_t* power) {
     return power_get_cpu_freq();
 }
 
+int hal_power_get_die_temp_c(hal_power_t* power, int32_t* temp_c) {
+    (void)power;
+    (void)temp_c;
+    return -1;
+}
+
 int hal_power_get_available_freqs(const hal_power_t* power, uint32_t* freqs, uint32_t* count) {
     (void)power;
     int cnt = power_get_available_freqs(freqs, count ? *count : 8);

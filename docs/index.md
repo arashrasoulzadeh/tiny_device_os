@@ -40,7 +40,9 @@ real versus still roadmap.
 - **TLSF memory allocator** — O(1) malloc/free, pool-based, built for a
   fixed-size microcontroller heap.
 - **Power management** — sleep modes, wake sources, CPU frequency scaling,
-  per-driver suspend/resume.
+  and an OS-wide governor that slows the clock and caps the backlight when
+  the chip is idle, cool, or an app asked for little compute. See
+  [Power](power.md).
 - **VFS** — unified `open/read/write/seek/stat` over LittleFS (`/flash`) and
   FatFS (`/sd`), a config KV store, and A/B OTA with signature verification.
 - **Driver framework** — `probe/open/read/write/ioctl`, a device registry
@@ -70,6 +72,7 @@ scaffold, state, a background task, installing it, and a test — in
 | [Agent guide](agent-guide.md) | What's real vs. roadmap, build/test commands, the TDD gate, where to add things |
 | [App kit](appkit.md) | `app_framework.h`, `APP_HELPER`, and the lower-level `app_kit` components |
 | [Apps](apps.md) | How a stdapp is written, and which app boots |
+| [Power](power.md) | Governor, demand hints, clock and backlight |
 | [Writing an app — tutorial](tutorials/writing-an-app.md) | Build one app from nothing, hands-on |
 
 Locked architecture decisions and the full phased roadmap live in

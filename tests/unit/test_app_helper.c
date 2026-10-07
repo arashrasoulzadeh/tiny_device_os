@@ -1,12 +1,15 @@
 #include "unity.h"
 #include "app_helper.h"
+#include "app_kit.h"
 #include "scheduler.h"
+#include "power.h"
 #include "theme.h"
 
 #include <string.h>
 
 void setUp(void) {
     scheduler_init();
+    power_init();
 }
 
 void tearDown(void) {}
@@ -210,6 +213,32 @@ void test_explicit_title_and_help_override_app_json(void) {
     app_helper_stop(&app);
 }
 
+static power_demand_t g_helper_demand;
+
+static void on_init_demand(void* raw) {
+    app_helper_desc_t desc = {
+        .name = "clock",
+        .title = "C",
+        .demand = POWER_DEMAND_LOW,
+    };
+    app_helper_t helper;
+    TEST_ASSERT_EQUAL(0, app_helper_start(&helper, raw, &desc));
+    g_helper_demand = power_governor_get_foreground_demand();
+    app_helper_stop(&helper);
+    ((app_ctx_t*)raw)->running = false;
+}
+
+void test_helper_demand_is_published_for_the_foreground_app(void) {
+    app_desc_t desc = {
+        .name = "clock-demand",
+        .fps = 30,
+        .on_init = on_init_demand,
+    };
+    g_helper_demand = POWER_DEMAND_UNSET;
+    app_kit_run(&desc);
+    TEST_ASSERT_EQUAL(POWER_DEMAND_LOW, g_helper_demand);
+}
+
 void test_start_rejects_a_missing_app_or_description(void) {
     app_helper_desc_t desc = {.title = "TEST"};
     app_helper_t app;
@@ -233,6 +262,7 @@ int main(void) {
     RUN_TEST(test_center_text_ignores_a_missing_app_or_text);
     RUN_TEST(test_omitted_title_and_help_come_from_app_json);
     RUN_TEST(test_explicit_title_and_help_override_app_json);
+    RUN_TEST(test_helper_demand_is_published_for_the_foreground_app);
     RUN_TEST(test_start_rejects_a_missing_app_or_description);
     return UNITY_END();
 }

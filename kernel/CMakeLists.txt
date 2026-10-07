@@ -6,6 +6,7 @@ add_library(kernel STATIC
     alloc.c
     event.c
     power.c
+    power_governor.c
 )
 
 target_include_directories(kernel PUBLIC
