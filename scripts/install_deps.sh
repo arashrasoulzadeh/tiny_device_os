@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Install host build, test, and USB-flash dependencies on a new machine.
 #
-# macOS and Debian/Ubuntu/Fedora. Windows is not installed here; CI uses
-# vcpkg (see .github/workflows/sim.yml).
+# macOS, Debian/Ubuntu, Fedora, and Arch. Windows is not installed here; CI
+# uses vcpkg (see .github/workflows/sim.yml). On Linux the same script
+# installs the compiler and SDL2/PortAudio, creates .venv-pio (PlatformIO
+# and pyserial), and adds your user to the dialout or uucp group so
+# /dev/ttyUSB* and /dev/ttyACM* can be opened.
 #
 # Proxy: pass --proxy, or export http_proxy / https_proxy / all_proxy
 # before running. The value is handed to apt, dnf, Homebrew, pip, and the
@@ -172,6 +175,77 @@ install_fedora() {
     fi
 }
 
+install_arch() {
+    # pacman honors http_proxy / https_proxy from the environment.
+    run_privileged pacman -Sy --needed --noconfirm \
+        base-devel \
+        cmake \
+        ninja \
+        pkgconf \
+        git \
+        python \
+        python-pip \
+        sdl2 \
+        portaudio \
+        lcov \
+        clang
+}
+
+linux_serial_group() {
+    if getent group dialout >/dev/null 2>&1; then
+        echo dialout
+    elif getent group uucp >/dev/null 2>&1; then
+        echo uucp
+    fi
+}
+
+grant_serial_access() {
+    local group user
+    group="$(linux_serial_group || true)"
+    if [[ -z "$group" ]]; then
+        return 0
+    fi
+    user="${SUDO_USER:-}"
+    if [[ -z "$user" || "$user" == root ]]; then
+        user="$(id -un)"
+    fi
+    if [[ "$user" == root ]]; then
+        echo "Running as root; not adding a login user to $group."
+        return 0
+    fi
+    if id -nG "$user" | tr ' ' '\n' | grep -qx "$group"; then
+        echo "$user is already in the $group group"
+        return 0
+    fi
+    run_privileged usermod -aG "$group" "$user"
+    echo "Added $user to $group."
+    echo "Log out and back in before opening /dev/ttyUSB* or /dev/ttyACM*."
+}
+
+require_cmake() {
+    local ver
+    if ! command -v cmake >/dev/null 2>&1; then
+        echo "error: cmake was not installed" >&2
+        exit 1
+    fi
+    ver="$(cmake --version | awk 'NR==1 { print $3 }')"
+    python3 - "$ver" <<'PY'
+import sys
+parts = []
+for piece in sys.argv[1].split("."):
+    if piece.isdigit():
+        parts.append(int(piece))
+    else:
+        break
+ver = tuple(parts[:2])
+if ver < (3, 20):
+    sys.stderr.write(
+        "error: cmake %s is older than 3.20, which this tree requires\n" % sys.argv[1]
+    )
+    sys.exit(1)
+PY
+}
+
 install_macos() {
     if ! command -v brew >/dev/null 2>&1; then
         echo "error: Homebrew is required on macOS (https://brew.sh)" >&2
@@ -236,17 +310,23 @@ main() {
                 *debian*|*ubuntu*|*linuxmint*)
                     install_debian
                     ;;
+                *arch*|*manjaro*)
+                    install_arch
+                    ;;
                 *)
                     if command -v apt-get >/dev/null 2>&1; then
                         install_debian
                     elif command -v dnf >/dev/null 2>&1; then
                         install_fedora
+                    elif command -v pacman >/dev/null 2>&1; then
+                        install_arch
                     else
-                        echo "error: unsupported Linux (${ID:-unknown}). Need apt-get or dnf." >&2
+                        echo "error: unsupported Linux (${ID:-unknown}). Need apt-get, dnf, or pacman." >&2
                         exit 1
                     fi
                     ;;
             esac
+            grant_serial_access
             ;;
         Darwin)
             install_macos
@@ -273,26 +353,26 @@ EOF
 
     install_python
     install_submodules
+    require_cmake
 
     cat <<EOF
 
 Installed.
-  Simulator deps: cmake, a C compiler, SDL2, PortAudio, lcov
-  Flash tools:    $VENV/bin/platformio
-  Python pkgs:    platformio, pyserial, cmakelang, pre-commit, kconfiglib
+  Simulator:   cmake, a C compiler, SDL2, PortAudio, lcov
+  Flash tools: $VENV/bin/platformio  (make usb finds this venv)
+  Python pkgs: platformio, pyserial, cmakelang, pre-commit, kconfiglib
 
-Add the virtualenv to PATH (platformio and cmake-format):
-
-  export PATH="$VENV/bin:\$PATH"
-
-Then, from $ROOT:
+Host scripts re-exec into that virtualenv, so plain python3 still works:
 
   make test
+  make run
   make usb DEVICE=nodemcu
 
-The first USB build downloads the board toolchain through the same proxy
-variables. Export http_proxy and https_proxy again in that shell if you
-passed --proxy only to this script.
+On Linux the board shows up as /dev/ttyUSB* or /dev/ttyACM*. If you were
+just added to the dialout or uucp group, log out and back in first.
+
+The first USB build downloads the board toolchain. Export http_proxy and
+https_proxy again in that shell if you passed --proxy only to this script.
 EOF
 }
 

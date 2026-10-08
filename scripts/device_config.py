@@ -535,7 +535,10 @@ def main(argv: list[str] | None = None) -> int:
         ports = list_serial_ports()
         if not ports:
             print("No USB serial ports found.")
-            print("On macOS, install the CH340/CP2102 driver if the NodeMCU is plugged in.")
+            if sys.platform.startswith("linux"):
+                print("Look for /dev/ttyUSB* or /dev/ttyACM* after plugging the board in.")
+            else:
+                print("Install the CH340/CP2102 driver if the NodeMCU is plugged in.")
             return 1
         for p in ports:
             print(p)

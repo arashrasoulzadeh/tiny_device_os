@@ -174,6 +174,9 @@ def session_target(config_path: str, secrets_path: str, port: str | None = None)
 
 
 def main(argv: list[str] | None = None) -> int:
+    from venv_exec import prefer_project_venv
+
+    prefer_project_venv()
     parser = argparse.ArgumentParser(description="Reconnect the device shell without flashing")
     parser.add_argument("--config", default="device_config.yaml")
     parser.add_argument("--secrets", default=str(ROOT / "device_secrets.yaml"))

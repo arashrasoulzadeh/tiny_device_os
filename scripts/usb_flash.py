@@ -52,6 +52,9 @@ ROSETTA_HINT = (
 
 def find_platformio() -> list[str] | None:
     """Return argv to invoke the `platformio` CLI only (not `pio`)."""
+    venv_pio = ROOT / ".venv-pio" / "bin" / "platformio"
+    if venv_pio.is_file():
+        return [str(venv_pio)]
     path = shutil.which("platformio")
     if path:
         return [path]
@@ -153,6 +156,9 @@ def run_platformio(
 
 
 def main(argv: list[str] | None = None) -> int:
+    from venv_exec import prefer_project_venv
+
+    prefer_project_venv()
     parser = argparse.ArgumentParser(
         description="Build and flash ArdubotOS over USB via PlatformIO"
     )
@@ -275,15 +281,26 @@ def main(argv: list[str] | None = None) -> int:
     if not port:
         ports = list_serial_ports()
         print("error: no USB serial port found.", file=sys.stderr)
-        print(
-            "The CH340 device is not visible to macOS right now.",
-            file=sys.stderr,
-        )
-        print(
-            "Unplug the NodeMCU, wait 2s, plug into a Mac USB port (not only a hub),",
-            file=sys.stderr,
-        )
-        print("then run:  ls /dev/cu.usb*   and  make usb DEVICE=nodemcu", file=sys.stderr)
+        if sys.platform.startswith("linux"):
+            print(
+                "Plug in the board and look for /dev/ttyUSB* or /dev/ttyACM*.",
+                file=sys.stderr,
+            )
+            print(
+                "If the node exists but open fails, log out and back in "
+                "after the installer added your user to the dialout group.",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "The USB-UART device is not visible right now.",
+                file=sys.stderr,
+            )
+            print(
+                "Unplug the NodeMCU, wait 2s, plug it back in,",
+                file=sys.stderr,
+            )
+            print("then run:  ls /dev/cu.usb*   and  make usb DEVICE=nodemcu", file=sys.stderr)
         if ports:
             print("Detected:", ", ".join(ports), file=sys.stderr)
         print("Continuing with build only (no upload)...")
@@ -291,11 +308,13 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"Serial port: {port}")
     print(f"PlatformIO env: {env_name}")
-    if arch == "esp8266":
+    if arch == "esp8266" and sys.platform == "darwin":
         print(
             "Note: this CH340 cannot use Arduino auto-reset (DTR kills the port). "
             "Uploader will ask you to hold FLASH + tap RST."
         )
+    elif arch == "esp8266" and sys.platform.startswith("linux"):
+        print("Linux upload resets the chip over /dev/ttyUSB* or /dev/ttyACM*.")
     rc = run_platformio(platformio, env_name, port, upload=True, jobs=args.jobs)
     if rc != 0 or not forward:
         return rc

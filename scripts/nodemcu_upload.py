@@ -1,7 +1,10 @@
 #!/usr/bin/env python3
-"""NodeMCU upload for flaky CH340-on-macOS.
+"""NodeMCU upload.
 
-Never toggles DTR/RTS (kills this CH340). Manual FLASH+RST only.
+macOS CH340 ports die if pyserial or esptool toggles DTR, so that host
+uses a manual FLASH+RST sequence and --before no_reset. Linux CP2102 and
+CH340 nodes are /dev/ttyUSB* or /dev/ttyACM*, and esptool's normal reset
+brings the chip up.
 Port "health" = node exists + open/close succeeds — no tcflush.
 """
 
@@ -22,7 +25,28 @@ PORT_GLOBS = (
     "/dev/cu.wch*",
     "/dev/cu.SLAB*",
     "/dev/cu.usbmodem*",
+    "/dev/ttyUSB*",
+    "/dev/ttyACM*",
+    "/dev/tty.usbserial*",
+    "/dev/tty.wch*",
+    "/dev/tty.SLAB*",
+    "/dev/tty.usbmodem*",
 )
+
+
+def esptool_reset_mode(platform: str | None = None) -> tuple[str, str]:
+    """Return esptool --before/--after. Linux resets the chip; macOS must not."""
+    plat = sys.platform if platform is None else platform
+    if plat.startswith("linux"):
+        return "default_reset", "hard_reset"
+    return "no_reset", "no_reset"
+
+
+def port_list_hint(platform: str | None = None) -> str:
+    plat = sys.platform if platform is None else platform
+    if plat.startswith("linux"):
+        return "ls /dev/ttyUSB* /dev/ttyACM*"
+    return "ls /dev/cu.usbserial*"
 
 
 def log(msg: str) -> None:
@@ -110,13 +134,15 @@ def upload(port_arg: str, firmware: Path, baud: int) -> int:
             "error: no USB serial port.\n"
             "  1) Unplug the NodeMCU USB cable\n"
             "  2) Plug it back in\n"
-            "  3) Run:  ls /dev/cu.usbserial*\n"
+            f"  3) Run:  {port_list_hint()}\n"
             "  4) make usb DEVICE=nodemcu"
         )
         return 1
 
     log(f"port ready: {current}")
-    prompt_flash_mode()
+    before, after = esptool_reset_mode()
+    if before == "no_reset":
+        prompt_flash_mode()
 
     # Re-check after the pause (user may have bumped the cable)
     again = wait_for_port(current, timeout=20.0)
@@ -134,9 +160,9 @@ def upload(port_arg: str, firmware: Path, baud: int) -> int:
         "--baud",
         str(baud),
         "--before",
-        "no_reset",
+        before,
         "--after",
-        "no_reset",
+        after,
         "--connect-attempts",
         "20",
         "write_flash",
@@ -150,7 +176,10 @@ def upload(port_arg: str, firmware: Path, baud: int) -> int:
     log("+ " + " ".join(cmd))
     rc = subprocess.call(cmd)
     if rc == 0:
-        log("Flash OK — press RST to run the firmware")
+        if before == "no_reset":
+            log("Flash OK — press RST to run the firmware")
+        else:
+            log("Flash OK")
         return 0
 
     log(
@@ -161,6 +190,9 @@ def upload(port_arg: str, firmware: Path, baud: int) -> int:
 
 
 def main() -> int:
+    from venv_exec import prefer_project_venv
+
+    prefer_project_venv()
     p = argparse.ArgumentParser()
     p.add_argument("--port", default=os.environ.get("UPLOAD_PORT", "auto"))
     p.add_argument("--firmware", default=str(ROOT / ".pio/build/nodemcu/firmware.bin"))

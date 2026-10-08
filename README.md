@@ -17,8 +17,16 @@ make run    # build (Debug, sim) and open the SDL2 emulator
 make test   # build and run the headless test suite
 ```
 
-On a new machine, install the simulator and flash tools first. `--proxy`
-is optional; `http_proxy` / `https_proxy` are picked up when it is omitted.
+Panel controls match the board: Up/Down move, Select launches, hold
+Select/Escape to go back.
+
+## New machine
+
+`scripts/install_deps.sh` installs the host simulator and the USB flash
+tools. It works on macOS (Homebrew), Debian/Ubuntu (apt), Fedora (dnf),
+and Arch (pacman). Behind a proxy, pass `--proxy` or export `http_proxy`
+/ `https_proxy` first. The proxy is applied to the package manager, pip,
+and the littlefs submodule fetch. Git config is left alone.
 
 ```bash
 ./scripts/install_deps.sh
@@ -26,8 +34,29 @@ is optional; `http_proxy` / `https_proxy` are picked up when it is omitted.
 make install-deps PROXY=http://proxy.example:8080
 ```
 
-Panel controls match the board: Up/Down move, Select launches, hold
-Select/Escape to go back.
+What it installs:
+
+| | macOS | Linux |
+|---|---|---|
+| Packages | `sdl2`, `portaudio`, CMake, lcov, clang-format | compiler, CMake, SDL2, PortAudio, lcov, clang-format |
+| Python | `.venv-pio` with PlatformIO and pyserial | same virtualenv |
+| Serial group | — | `dialout`, or `uucp` on Arch |
+
+After it finishes, `make test`, `make run`, and `make usb` use that
+virtualenv on their own. You do not activate it. `make test` is headless.
+`make run` opens the SDL2 window, so a Linux box needs a display.
+
+On Linux, log out and back in once if the script added you to `dialout`
+or `uucp`. Until that new login, `/dev/ttyUSB*` and `/dev/ttyACM*` cannot
+be opened. Check the board with:
+
+```bash
+make usb-ports
+ls /dev/ttyUSB* /dev/ttyACM*
+```
+
+macOS uses `/dev/cu.usbserial*` instead. `device.port: auto` picks the
+first match on either system.
 
 ## Documentation
 
@@ -113,12 +142,22 @@ cp device_config.yaml.example device_config.yaml     # fill in your board's port
 
 ```bash
 python3 scripts/ardubot.py flash --device nodemcu   # or: make usb DEVICE=nodemcu
-python3 scripts/ardubot.py monitor                   # serial monitor (needs pyserial)
+python3 scripts/ardubot.py monitor                   # serial monitor
 make usb-ports                                       # list candidate serial ports
 ```
 
-`make usb` with no `DEVICE` asks which target to compile. Override the port
-with `PORT=/dev/cu.usbserial-0001` (or leave `device.port: auto`).
+`make usb` with no `DEVICE` asks which target to compile. Leave
+`device.port: auto`, or override it:
+
+```bash
+make usb DEVICE=nodemcu PORT=/dev/ttyUSB0          # Linux
+make usb DEVICE=nodemcu PORT=/dev/cu.usbserial-0001  # macOS
+```
+
+Linux resets the chip through the serial lines. macOS does not toggle DTR
+(that wedges the CH340 on this machine) and asks you to hold FLASH and tap
+RST. pyserial lives in `.venv-pio`; the flash and monitor scripts switch
+to that interpreter when the virtualenv exists.
 
 The status bar shows a Wi-Fi glyph, signal bars, and battery. Without
 `device_secrets.yaml` the icons show Wi-Fi off; on the board the bars follow

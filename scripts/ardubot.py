@@ -256,6 +256,9 @@ def cmd_list(args: argparse.Namespace) -> int:
 
 
 def main(argv: list[str]) -> int:
+    from venv_exec import prefer_project_venv
+
+    prefer_project_venv()
     parser = argparse.ArgumentParser(prog="ardubot", description=__doc__.split("\n\n")[0])
     sub = parser.add_subparsers(dest="command", required=True)
 
