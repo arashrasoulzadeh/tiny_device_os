@@ -19,8 +19,13 @@ async function apiPost(path, body) {
 }
 
 function showScreen(name) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
-    document.getElementById(`screen-${name}`).classList.remove('hidden');
+    document.querySelectorAll('.screen').forEach(s => {
+        s.classList.add('hidden');
+        s.classList.remove('active');
+    });
+    const target = document.getElementById(`screen-${name}`);
+    target.classList.remove('hidden');
+    target.classList.add('active');
     document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(`nav-${name}`).classList.add('active');
     currentScreen = name;
