@@ -99,13 +99,22 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(f"data: {data}\n\n".encode())
 
     def handle_health(self):
-        from usb_flash import find_platformio
+        from usb_flash import find_platformio, check_xtensa_toolchain_arch, host_is_apple_silicon, rosetta_available
 
         platformio = find_platformio()
+        toolchain_err = check_xtensa_toolchain_arch()
+        is_apple_silicon = host_is_apple_silicon()
+        rosetta_ok = rosetta_available() if is_apple_silicon else True
+
         self.send_json({
             "version": VERSION,
             "repo_root": str(ROOT),
             "platformio_found": platformio is not None,
+            "platformio_path": platformio[0] if platformio else None,
+            "apple_silicon": is_apple_silicon,
+            "rosetta_available": rosetta_ok,
+            "xtensa_toolchain_ok": toolchain_err is None,
+            "xtensa_toolchain_error": toolchain_err,
         })
 
     def handle_ports(self):
@@ -399,17 +408,139 @@ class WebServer:
         if self._thread:
             self._thread.join(timeout=1.0)
 
+    import tempfile
+
     def write_apps_to_config(self, apps: list[str]):
-        # TODO: Implement surgical YAML update
-        pass
+        self._update_yaml_field("apps", apps)
 
     def write_main_app_to_config(self, main_app: str):
-        # TODO: Implement surgical YAML update
-        pass
+        self._update_yaml_field("main_app", main_app)
 
     def write_features_to_config(self, features: dict):
-        # TODO: Implement surgical YAML update
-        pass
+        self._update_yaml_field("features", features)
+
+    def _update_yaml_field(self, field: str, value: Any):
+        """Surgically update a field in device_config.yaml, preserving comments and formatting."""
+        import tempfile
+        import os
+        config_path = Path(self.config_path)
+        if not config_path.exists():
+            raise FileNotFoundError(f"{config_path} does not exist")
+
+        # Read original content
+        original = config_path.read_text(encoding="utf-8")
+        
+        # Create backup
+        backup_path = config_path.with_suffix(config_path.suffix + ".bak")
+        if not backup_path.exists():
+            backup_path.write_text(original, encoding="utf-8")
+
+        # Parse to validate the new value
+        from device_config import parse_simple_yaml
+        test_cfg = parse_simple_yaml(original)
+        test_cfg[field] = value
+        # Re-serialize to validate
+        # We just need to ensure the value is valid YAML for our parser
+
+        # Find and replace the field
+        lines = original.splitlines(keepends=True)
+        new_lines = []
+        i = 0
+        in_field = False
+        field_indent = None
+        
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.lstrip()
+            
+            # Check if this line starts the field
+            if not in_field and stripped.startswith(f"{field}:"):
+                # Found the field
+                indent = len(line) - len(stripped)
+                field_indent = indent
+                in_field = True
+                
+                # Write the new field
+                if isinstance(value, list):
+                    # List of scalars
+                    new_lines.append(f"{' ' * indent}{field}:\n")
+                    for item in value:
+                        new_lines.append(f"{' ' * (indent + 2)}- {item}\n")
+                elif isinstance(value, dict):
+                    # Map of scalars
+                    new_lines.append(f"{' ' * indent}{field}:\n")
+                    for k, v in value.items():
+                        if isinstance(v, bool):
+                            v_str = "true" if v else "false"
+                        elif isinstance(v, int):
+                            v_str = str(v)
+                        else:
+                            v_str = str(v)
+                        new_lines.append(f"{' ' * (indent + 2)}{k}: {v_str}\n")
+                else:
+                    # Scalar value
+                    if isinstance(value, bool):
+                        v_str = "true" if value else "false"
+                    elif isinstance(value, int):
+                        v_str = str(value)
+                    else:
+                        v_str = str(value)
+                    new_lines.append(f"{' ' * indent}{field}: {v_str}\n")
+                
+                # Skip the old field lines
+                i += 1
+                while i < len(lines):
+                    next_line = lines[i]
+                    next_stripped = next_line.lstrip()
+                    next_indent = len(next_line) - len(next_stripped) if next_stripped else 0
+                    
+                    # Stop when we hit a line at same or less indent that's not a comment/empty
+                    if next_stripped and not next_stripped.startswith("#") and next_indent <= field_indent:
+                        break
+                    # Also stop at end of file
+                    i += 1
+                continue
+            
+            new_lines.append(line)
+            i += 1
+
+        # If field was not found, add it at the end (before any trailing comments/empty lines)
+        if not in_field:
+            # Find a good insertion point - after the last top-level field
+            # We'll insert before the last non-empty, non-comment line if it's at indent 0
+            # Or just append at the end
+            new_lines.append(f"\n{field}:\n")
+            if isinstance(value, list):
+                for item in value:
+                    new_lines.append(f"  - {item}\n")
+            elif isinstance(value, dict):
+                for k, v in value.items():
+                    if isinstance(v, bool):
+                        v_str = "true" if v else "false"
+                    elif isinstance(v, int):
+                        v_str = str(v)
+                    else:
+                        v_str = str(v)
+                    new_lines.append(f"  {k}: {v_str}\n")
+            else:
+                if isinstance(value, bool):
+                    v_str = "true" if value else "false"
+                elif isinstance(value, int):
+                    v_str = str(value)
+                else:
+                    v_str = str(value)
+                new_lines[-1] = f"{field}: {v_str}\n"
+
+        # Write to temp file then atomically replace
+        with tempfile.NamedTemporaryFile(mode='w', dir=config_path.parent, delete=False, suffix='.tmp') as tmp:
+            tmp.write(''.join(new_lines))
+            tmp_path = Path(tmp.name)
+        
+        try:
+            os.replace(tmp_path, config_path)
+        except Exception:
+            tmp_path.unlink(missing_ok=True)
+            raise
 
     def start_job(self, port: str | None, upload: bool) -> "Job":
         job = Job(port, upload, self.config_path)
