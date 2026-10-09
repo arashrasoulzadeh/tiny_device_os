@@ -15,6 +15,7 @@ implemented versus still planned.
 ```bash
 make run    # build (Debug, sim) and open the SDL2 emulator
 make test   # build and run the headless test suite
+make web    # start web flash console on localhost:8765
 ```
 
 Panel controls match the board: Up/Down move, Select launches, hold
@@ -205,6 +206,7 @@ as the realistic target to raise incrementally, not 100%.
 |---|---|
 | `make run` / `make test` | Build + run the sim / headless test suite |
 | `make usb [DEVICE=x] [PORT=y]` | Build + flash a real board |
+| `make web` | Start web flash console on localhost:8765 |
 | `make monitor` | Serial monitor on the configured device |
 | `make create-app NAME=x` | Scaffold a new stdapp |
 | `make install-app SRC=path [FORCE=1]` | Install an `app.json` app from a local dir |
