@@ -18,8 +18,13 @@ import sys
 import threading
 import time
 import webbrowser
+import traceback
+import uuid
+from collections import defaultdict
+from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Dict, List, Optional
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -43,6 +48,99 @@ def redact_secrets(text: str) -> str:
     for pattern, replacement in SECRET_PATTERNS:
         result = pattern.sub(replacement, result)
     return result
+
+
+class RateLimiter:
+    """Simple in-memory rate limiter per IP."""
+    
+    def __init__(self, max_requests: int = 100, window_seconds: int = 60):
+        self.max_requests = max_requests
+        self.window_seconds = window_seconds
+        self.requests: Dict[str, List[float]] = defaultdict(list)
+        self._lock = threading.Lock()
+    
+    def is_allowed(self, ip: str) -> bool:
+        now = time.time()
+        with self._lock:
+            # Clean old requests
+            self.requests[ip] = [ts for ts in self.requests[ip] if now - ts < self.window_seconds]
+            if len(self.requests[ip]) >= self.max_requests:
+                return False
+            self.requests[ip].append(now)
+            return True
+
+
+class RequestLogger:
+    """Logs HTTP requests with timing and details."""
+    
+    def __init__(self, max_entries: int = 1000):
+        self.max_entries = max_entries
+        self.entries: List[Dict] = []
+        self._lock = threading.Lock()
+    
+    def log(self, method: str, path: str, status: int, duration_ms: float, 
+            ip: str, user_agent: str, request_id: str):
+        entry = {
+            "timestamp": datetime.utcnow().isoformat(),
+            "request_id": request_id,
+            "method": method,
+            "path": path,
+            "status": status,
+            "duration_ms": round(duration_ms, 2),
+            "ip": ip,
+            "user_agent": user_agent,
+        }
+        with self._lock:
+            self.entries.append(entry)
+            if len(self.entries) > self.max_entries:
+                self.entries = self.entries[-self.max_entries:]
+    
+    def get_recent(self, limit: int = 100) -> List[Dict]:
+        with self._lock:
+            return self.entries[-limit:]
+
+
+class SecurityHeaders:
+    """Security headers for responses."""
+    
+    HEADERS = {
+        "X-Content-Type-Options": "nosniff",
+        "X-Frame-Options": "DENY",
+        "X-XSS-Protection": "1; mode=block",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'",
+    }
+    
+    @classmethod
+    def apply(cls, handler: http.server.BaseHTTPRequestHandler):
+        for header, value in cls.HEADERS.items():
+            handler.send_header(header, value)
+
+
+class ValidationError(Exception):
+    """Raised when request validation fails."""
+    def __init__(self, message: str, field: str = "", code: str = "VALIDATION_ERROR"):
+        super().__init__(message)
+        self.field = field
+        self.code = code
+
+
+def validate_request_body(data: Dict, required_fields: List[str], 
+                         field_types: Dict[str, type] = None) -> None:
+    """Validate request body has required fields and correct types."""
+    missing = [f for f in required_fields if f not in data]
+    if missing:
+        raise ValidationError(f"Missing required fields: {', '.join(missing)}", 
+                             field=missing[0], code="MISSING_FIELD")
+    
+    if field_types:
+        for field, expected_type in field_types.items():
+            if field in data and not isinstance(data[field], expected_type):
+                raise ValidationError(
+                    f"Field '{field}' must be of type {expected_type.__name__}",
+                    field=field, code="INVALID_TYPE"
+                )
+
 
 def parse_kconfig(kconfig_path: Path) -> list[dict]:
     """Parse Kconfig file and return list of symbol definitions."""
@@ -121,63 +219,171 @@ WEB_DIR = ROOT / "tools" / "web"
 
 class APIHandler(http.server.BaseHTTPRequestHandler):
     server: "WebServer"
+    
+    # Error code mappings
+    ERROR_CODES = {
+        400: "BAD_REQUEST",
+        401: "UNAUTHORIZED",
+        403: "FORBIDDEN",
+        404: "NOT_FOUND",
+        405: "METHOD_NOT_ALLOWED",
+        409: "CONFLICT",
+        429: "RATE_LIMITED",
+        500: "INTERNAL_ERROR",
+    }
+
+    def __init__(self, *args, **kwargs):
+        self.request_id = str(uuid.uuid4())[:8]
+        self.start_time = time.time()
+        super().__init__(*args, **kwargs)
 
     def do_GET(self):
-        if self.path == "/api/health":
-            self.handle_health()
-        elif self.path == "/api/ports":
-            self.handle_ports()
-        elif self.path == "/api/devices":
-            self.handle_devices()
-        elif self.path == "/api/apps":
-            self.handle_apps()
-        elif self.path == "/api/main-app":
-            self.handle_main_app()
-        elif self.path == "/api/features":
-            self.handle_features()
-        elif self.path == "/api/size":
-            self.handle_size()
-        elif self.path == "/api/jobs/current":
-            self.handle_job_status()
-        elif self.path == "/api/jobs/current/log":
-            self.handle_job_log()
-        elif self.path == "/api/console/output":
-            self.handle_console_output()
+        self._handle_request("GET")
+
+    def do_POST(self):
+        self._handle_request("POST")
+
+    def _handle_request(self, method: str):
+        """Main request handler with logging, rate limiting, and error handling."""
+        start_time = time.time()
+        client_ip = self.client_address[0]
+        user_agent = self.headers.get("User-Agent", "unknown")
+        
+        # Rate limiting
+        if not self.server.web_server.rate_limiter.is_allowed(client_ip):
+            self._send_error(429, "Rate limit exceeded. Please slow down.")
+            return
+        
+        try:
+            # Parse path and query
+            parsed = urlparse(self.path)
+            path = parsed.path
+            query = parse_qs(parsed.query)
+            
+            # Route request
+            if method == "GET":
+                self._route_get(path, query)
+            elif method == "POST":
+                self._route_post(path)
+            else:
+                self._send_error(405, f"Method {method} not allowed")
+                
+        except ValidationError as e:
+            self._send_validation_error(e)
+        except Exception as e:
+            self._send_server_error(e)
+        finally:
+            # Log request
+            duration_ms = (time.time() - start_time) * 1000
+            self.server.web_server.request_logger.log(
+                method=method,
+                path=self.path,
+                status=getattr(self, '_response_status', 500),
+                duration_ms=duration_ms,
+                ip=client_ip,
+                user_agent=user_agent,
+                request_id=self.request_id
+            )
+
+    def _route_get(self, path: str, query: Dict):
+        """Route GET requests."""
+        routes = {
+            "/api/health": self.handle_health,
+            "/api/ports": self.handle_ports,
+            "/api/devices": self.handle_devices,
+            "/api/apps": self.handle_apps,
+            "/api/main-app": self.handle_main_app,
+            "/api/features": self.handle_features,
+            "/api/size": self.handle_size,
+            "/api/jobs/current": self.handle_job_status,
+            "/api/jobs/current/log": self.handle_job_log,
+            "/api/console/output": self.handle_console_output,
+            "/api/logs": self.handle_logs,  # New: request logs
+            "/api/metrics": self.handle_metrics,  # New: server metrics
+        }
+        
+        handler = routes.get(path)
+        if handler:
+            handler()
         else:
             self.serve_static()
 
-    def do_POST(self):
-        if self.path == "/api/device/port":
-            self.handle_device_port()
-        elif self.path == "/api/apps":
-            self.handle_apps_post()
-        elif self.path == "/api/main-app":
-            self.handle_main_app_post()
-        elif self.path == "/api/features":
-            self.handle_features_post()
-        elif self.path == "/api/jobs":
-            self.handle_jobs_post()
-        elif self.path == "/api/jobs/current/cancel":
-            self.handle_job_cancel()
-        elif self.path == "/api/console":
-            self.handle_console_open()
-        elif self.path == "/api/console/input":
-            self.handle_console_input()
-        elif self.path == "/api/console/close":
-            self.handle_console_close()
-        else:
-            self.send_error(404)
+    def _route_post(self, path: str):
+        """Route POST requests with body parsing and validation."""
+        content_length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(content_length).decode() if content_length else "{}"
+        
+        try:
+            data = json.loads(body) if body else {}
+        except json.JSONDecodeError:
+            raise ValidationError("Invalid JSON body", code="INVALID_JSON")
+        
+        routes = {
+            "/api/device/port": (self.handle_device_port, {"port": (str, type(None))}),
+            "/api/apps": (self.handle_apps_post, {"apps": list}),
+            "/api/main-app": (self.handle_main_app_post, {"main_app": str}),
+            "/api/features": (self.handle_features_post, {"features": dict}),
+            "/api/jobs": (self.handle_jobs_post, {"upload": (bool, type(None))}),
+            "/api/jobs/current/cancel": (self.handle_job_cancel, {}),
+            "/api/console": (self.handle_console_open, {}),
+            "/api/console/input": (self.handle_console_input, {"data": str}),
+            "/api/console/close": (self.handle_console_close, {}),
+        }
+        
+        handler_info = routes.get(path)
+        if not handler_info:
+            self._send_error(404, "Endpoint not found")
+            return
+        
+        handler, field_types = handler_info
+        if field_types:
+            validate_request_body(data, list(field_types.keys()), field_types)
+        handler(data)
 
     def send_json(self, data: Any, status: int = 200):
+        self._response_status = status
         body = json.dumps(data).encode()
         self.send_response(status)
-        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        SecurityHeaders.apply(self)
         self.end_headers()
         self.wfile.write(body)
 
     def send_sse(self, data: str):
         self.wfile.write(f"data: {data}\n\n".encode())
+
+    def _send_error(self, status: int, message: str):
+        self._response_status = status
+        self.send_json({
+            "error": message,
+            "code": self.ERROR_CODES.get(status, "ERROR"),
+            "request_id": self.request_id
+        }, status=status)
+
+    def _send_validation_error(self, e: ValidationError):
+        self._response_status = 400
+        self.send_json({
+            "error": str(e),
+            "code": e.code,
+            "field": e.field,
+            "request_id": self.request_id
+        }, status=400)
+
+    def _send_server_error(self, e: Exception):
+        self._response_status = 500
+        self.add_log(f"Server error: {e}\n{traceback.format_exc()}")
+        self.send_json({
+            "error": "Internal server error",
+            "code": "INTERNAL_ERROR",
+            "request_id": self.request_id
+        }, status=500)
+
+    def add_log(self, message: str):
+        """Add log message to current job if exists."""
+        job = getattr(self.server.web_server, 'current_job', None)
+        if job and hasattr(job, 'add_log'):
+            job.add_log(f"[{self.request_id}] {message}")
 
     def handle_health(self):
         from usb_flash import find_platformio, check_xtensa_toolchain_arch, host_is_apple_silicon, rosetta_available
@@ -253,10 +459,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         self.send_json({"apps": apps, "enabled": enabled})
 
-    def handle_apps_post(self):
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length).decode()
-        data = json.loads(body) if body else {}
+    def handle_apps_post(self, data: Dict):
         apps = data.get("apps", [])
 
         self.server.web_server.write_apps_to_config(apps)
@@ -267,10 +470,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         main_app = cfg.get("main_app", "launcher")
         self.send_json({"main_app": main_app})
 
-    def handle_main_app_post(self):
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length).decode()
-        data = json.loads(body) if body else {}
+    def handle_main_app_post(self, data: Dict):
         main_app = data.get("main_app", "launcher")
 
         self.server.web_server.write_main_app_to_config(main_app)
@@ -341,10 +541,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
         self.send_json({"features": feature_list})
 
-    def handle_features_post(self):
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length).decode()
-        data = json.loads(body) if body else {}
+    def handle_features_post(self, data: Dict):
         features = data.get("features", {})
 
         self.server.web_server.write_features_to_config(features)
@@ -418,11 +615,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self.server.web_server.session_port = port
         self.send_json({"ok": True, "port": port})
 
-    def handle_jobs_post(self):
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length).decode()
-        data = json.loads(body) if body else {}
-
+    def handle_jobs_post(self, data: Dict):
         if self.server.web_server.current_job and self.server.web_server.current_job.running:
             self.send_json({"error": "job already running"}, 409)
             return
@@ -477,6 +670,35 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self.server.web_server.console = None
         self.send_json({"ok": True})
 
+    def handle_logs(self):
+        """Get recent request logs."""
+        limit = 100
+        parsed = urlparse(self.path)
+        query = parse_qs(parsed.query)
+        if "limit" in query:
+            try:
+                limit = min(int(query["limit"][0]), 500)
+            except ValueError:
+                pass
+        logs = self.server.web_server.request_logger.get_recent(limit)
+        self.send_json({"logs": logs})
+
+    def handle_metrics(self):
+        """Get server metrics."""
+        uptime = time.time() - self.server.web_server.start_time
+        job = self.server.web_server.current_job
+        self.send_json({
+            "uptime_seconds": round(time.time() - self.server.web_server.start_time, 2),
+            "total_requests": len(self.server.web_server.request_logger.entries),
+            "current_job": job.to_dict() if job else None,
+            "rate_limiter": {
+                "max_requests": self.server.web_server.rate_limiter.max_requests,
+                "window_seconds": self.server.web_server.rate_limiter.window_seconds,
+                "active_ips": len(self.server.web_server.rate_limiter.requests),
+            },
+            "job_history_count": len(self.server.web_server.job_history),
+        })
+
     def serve_static(self):
         path = self.path.lstrip("/")
         if not path:
@@ -520,6 +742,12 @@ class WebServer:
         self._thread: threading.Thread | None = None
         self.job_history: list[dict] = []
         self._history_file = ROOT / "build" / "web" / "jobs.json"
+        
+        # Professional features
+        self.rate_limiter = RateLimiter(max_requests=200, window_seconds=60)
+        self.request_logger = RequestLogger(max_entries=500)
+        self.start_time = time.time()
+        
         self._load_job_history()
 
     def _load_job_history(self):
