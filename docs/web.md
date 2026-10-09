@@ -163,6 +163,7 @@ The size report shows two numbers at two moments:
 python3 tests/unit/test_web_config.py
 python3 tests/unit/test_web_jobs.py
 python3 tests/unit/test_web_sizes.py
+python3 tests/unit/test_web_server.py
 
 # Integration test (starts server on ephemeral port)
 python3 tests/integration/test_web_integration.py
