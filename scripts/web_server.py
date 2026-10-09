@@ -602,10 +602,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 if data:
                     self.send_sse(json.dumps({"data": data}))
 
-    def handle_device_port(self):
-        content_length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(content_length).decode()
-        data = json.loads(body) if body else {}
+    def handle_device_port(self, data: Dict):
         port = data.get("port")
 
         if port and not Path(port).exists():
