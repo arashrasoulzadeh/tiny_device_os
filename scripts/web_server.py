@@ -336,6 +336,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         size_file = ROOT / "build" / "web" / "last_size.json"
         if size_file.exists():
             data = json.loads(size_file.read_text())
+            # Check if stale (apps/features changed since last build)
+            # For now just return the data
             self.send_json(data)
         else:
             cfg = load_device_config(self.server.web_server.config_path)
@@ -705,26 +707,240 @@ class Job:
         self._thread.start()
 
     def _run(self):
-        # TODO: Implement actual build/flash using usb_flash.py logic
-        self.add_log("Job started")
-        time.sleep(1)
-        self.add_log("Build complete")
-        if self.upload:
-            self.state = "uploading"
-            self.add_log("Uploading...")
-            time.sleep(1)
-            self.state = "flashed"
-            self.add_log("Flash complete")
-        else:
-            self.state = "built"
-            self.add_log("Build complete (no upload)")
-        self.running = False
+        import subprocess
+        import os
+        
+        try:
+            # Run the same steps as usb_flash.py
+            from device_config import (
+                load_device_config, pin_conflict_warnings, resolve_port, write_header
+            )
+            from device_secrets import write_secrets_header, SecretsError
+            from usb_flash import (
+                find_platformio, pio_env_for_target, run_platformio,
+                check_xtensa_toolchain_arch, host_is_apple_silicon
+            )
+            
+            cfg = load_device_config(self.config_path)
+            
+            # Pin warnings
+            for w in pin_conflict_warnings(cfg):
+                self.add_log(f"warning: {w}")
+            
+            # Determine target from config
+            device = cfg.get("device") or {}
+            target_id = device.get("board", "nodemcu")
+            
+            # Find target
+            from device_config import KNOWN_TARGETS
+            target = None
+            for t in KNOWN_TARGETS:
+                if t["id"] == target_id or t["board"] == target_id:
+                    target = t
+                    break
+            
+            if not target:
+                self.error = f"Unknown target: {target_id}"
+                self.state = "failed"
+                self.running = False
+                return
+            
+            arch = target["arch"]
+            self.add_log(f"Target: {target['label']} (arch={arch})")
+            
+            # Generate device_config.h
+            header_path = ROOT / "build" / "generated" / "device_config.h"
+            cfg_for_header = dict(cfg)
+            cfg_for_header["device"] = dict(cfg.get("device") or {})
+            cfg_for_header["device"]["arch"] = arch
+            cfg_for_header["device"]["board"] = target["board"]
+            write_header(cfg_for_header, header_path)
+            self.add_log(f"Generated {header_path.relative_to(ROOT)}")
+            
+            # Generate device_secrets.h
+            secrets_header = ROOT / "build" / "generated" / "device_secrets.h"
+            notes = cfg.get("notifications") or {}
+            forward = isinstance(notes, dict) and bool(notes.get("forward_from_host"))
+            try:
+                write_secrets_header(
+                    ROOT / "device_secrets.yaml",
+                    secrets_header,
+                    require=(arch != "sim"),
+                    require_link=forward and arch != "sim",
+                )
+                self.add_log(f"Generated {secrets_header.relative_to(ROOT)}")
+            except SecretsError as exc:
+                self.error = str(exc)
+                self.state = "failed"
+                self.running = False
+                return
+            
+            if arch == "sim":
+                self.add_log("Simulator target selected - not flashing")
+                self.state = "built"
+                self.running = False
+                return
+            
+            # Get PlatformIO env
+            env_name = pio_env_for_target(target, cfg)
+            if not env_name:
+                self.error = f"No PlatformIO env mapped for {target['id']}"
+                self.state = "failed"
+                self.running = False
+                return
+            
+            # Find PlatformIO
+            platformio = find_platformio()
+            if not platformio:
+                self.error = "`platformio` not found on PATH"
+                self.add_log(self.error)
+                self.state = "failed"
+                self.running = False
+                return
+            
+            # Check xtensa toolchain on Apple Silicon
+            if arch in ("esp8266",) and host_is_apple_silicon():
+                toolchain_err = check_xtensa_toolchain_arch()
+                if toolchain_err:
+                    self.error = toolchain_err
+                    self.add_log(self.error)
+                    self.state = "failed"
+                    self.running = False
+                    return
+                if not rosetta_available():
+                    self.add_log("warning: ESP8266 toolchain is x86_64; Rosetta required on Apple Silicon.")
+            
+            # Resolve port
+            port = resolve_port(cfg, self.port)
+            if port and not os.path.exists(port):
+                self.add_log(f"warning: configured port {port} is missing")
+                port = None
+            
+            if not port:
+                ports = list_serial_ports()
+                if not ports:
+                    self.add_log("error: no USB serial port found")
+                    self.add_log("The CH340 device is not visible. Unplug, wait 2s, replug directly.")
+                    if ports:
+                        self.add_log(f"Detected: {', '.join(ports)}")
+                    self.add_log("Continuing with build only (no upload)...")
+                    upload = False
+                else:
+                    port = ports[0]
+            
+            self.port = port
+            self.add_log(f"Serial port: {port or '(none - build only)'}")
+            self.add_log(f"PlatformIO env: {env_name}")
+            
+            if arch == "esp8266" and port:
+                self.add_log("Note: CH340 cannot use Arduino auto-reset. Uploader will ask to hold FLASH + tap RST.")
+            
+            # Run PlatformIO build
+            self.add_log("Starting PlatformIO build...")
+            self.state = "building"
+            
+            def log_callback(line):
+                self.add_log(line.rstrip())
+            
+            # Run platformio with output capture
+            cmd = [*platformio, "run", "-e", env_name, "-d", str(ROOT)]
+            self.add_log(f"+ {' '.join(cmd)}")
+            
+            self._process = subprocess.Popen(
+                cmd,
+                cwd=ROOT,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            
+            # Stream output
+            if self._process.stdout:
+                for line in self._process.stdout:
+                    if not self.running:
+                        self._process.terminate()
+                        break
+                    self.add_log(line.rstrip())
+            
+            rc = self._process.wait()
+            self._process = None
+            
+            if rc != 0:
+                self.error = f"Build failed with exit code {rc}"
+                self.add_log(self.error)
+                self.state = "failed"
+                self.running = False
+                return
+            
+            self.add_log("Build successful")
+            
+            # Find firmware path
+            firmware_path = ROOT / ".pio" / "build" / env_name / "firmware.bin"
+            if firmware_path.exists():
+                self.firmware_path = str(firmware_path.relative_to(ROOT))
+                self.add_log(f"Firmware: {self.firmware_path}")
+            
+            # Upload if requested and port available
+            if self.upload and port:
+                self.state = "uploading"
+                self.add_log("Starting upload...")
+                
+                upload_cmd = [
+                    *platformio, "run", "-e", env_name, "-d", str(ROOT),
+                    "-t", "upload", "--upload-port", port
+                ]
+                self.add_log(f"+ {' '.join(upload_cmd)}")
+                
+                self._process = subprocess.Popen(
+                    upload_cmd,
+                    cwd=ROOT,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                )
+                
+                if self._process.stdout:
+                    for line in self._process.stdout:
+                        if not self.running:
+                            self._process.terminate()
+                            break
+                        self.add_log(line.rstrip())
+                
+                rc = self._process.wait()
+                self._process = None
+                
+                if rc != 0:
+                    self.error = f"Upload failed with exit code {rc}"
+                    self.add_log(self.error)
+                    self.state = "failed"
+                    self.running = False
+                    return
+                
+                self.add_log("Upload successful")
+                self.state = "flashed"
+            elif not self.upload:
+                self.state = "built"
+            elif not port:
+                self.state = "built"
+                self.add_log("Build complete (no port for upload)")
+            
+        except Exception as e:
+            self.error = f"Job error: {e}"
+            self.add_log(self.error)
+            self.state = "failed"
+        finally:
+            self.running = False
 
     def cancel(self):
         self.running = False
         self.state = "cancelled"
         if self._process:
-            self._process.terminate()
+            try:
+                self._process.terminate()
+            except Exception:
+                pass
 
 
 class Console:
