@@ -24,6 +24,69 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import re
+
+def parse_kconfig(kconfig_path: Path) -> list[dict]:
+    """Parse Kconfig file and return list of symbol definitions."""
+    if not kconfig_path.exists():
+        return []
+    
+    content = kconfig_path.read_text(encoding="utf-8")
+    symbols = []
+    
+    # Simple regex-based parsing for Kconfig
+    lines = content.splitlines()
+    i = 0
+    while i < len(lines):
+        line = lines[i].strip()
+        
+        # Match config SYMBOL
+        match = re.match(r'^config\s+(\w+)', line)
+        if match:
+            symbol = match.group(1)
+            symbol_info = {"symbol": symbol, "type": "bool", "prompt": "", "default": "", "range": ""}
+            i += 1
+            
+            # Parse symbol properties
+            while i < len(lines):
+                prop_line = lines[i].strip()
+                if prop_line.startswith(("config ", "menu ", "choice ", "endchoice", "endmenu", "comment ")):
+                    break
+                
+                if prop_line.startswith("bool") or prop_line.startswith("tristate"):
+                    symbol_info["type"] = "bool"
+                    # Extract prompt if present
+                    prompt_match = re.match(r'bool\s+"([^"]+)"', prop_line)
+                    if prompt_match:
+                        symbol_info["prompt"] = prompt_match.group(1)
+                elif prop_line.startswith("int ") or prop_line.startswith("hex "):
+                    symbol_info["type"] = "int"
+                    prompt_match = re.match(r'(int|hex)\s+"([^"]+)"', prop_line)
+                    if prompt_match:
+                        symbol_info["prompt"] = prompt_match.group(1)
+                elif prop_line.startswith("string "):
+                    symbol_info["type"] = "string"
+                    prompt_match = re.match(r'string\s+"([^"]+)"', prop_line)
+                    if prompt_match:
+                        symbol_info["prompt"] = prompt_match.group(1)
+                elif prop_line.startswith("default "):
+                    # Extract default value
+                    default_match = re.match(r'default\s+(\S+)', prop_line)
+                    if default_match:
+                        symbol_info["default"] = default_match.group(1)
+                elif prop_line.startswith("range "):
+                    symbol_info["range"] = prop_line[6:].strip()
+                
+                i += 1
+            
+            symbols.append(symbol_info)
+            continue
+        
+        i += 1
+    
+    return symbols
+
+
 from device_config import (  # noqa: E402
     list_serial_ports,
     load_device_config,
@@ -201,17 +264,61 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         cfg = load_device_config(self.server.web_server.config_path)
         features = cfg.get("features", {})
 
-        # TODO: Walk Kconfig for full catalog
+        # Walk Kconfig for full catalog
+        kconfig_path = ROOT / "Kconfig"
+        kconfig_symbols = parse_kconfig(kconfig_path)
+        
+        # Symbols that are known to be wired (actually affect compilation)
+        wired_symbols = {
+            "HEAP_SIZE_KB", "TICK_RATE_HZ", "ENABLE_POWER_MANAGEMENT",
+            "ENABLE_TICKLESS_IDLE", "USE_LITTLEFS", "USE_FATFS",
+            "DISPLAY_DRIVER_SSD1306", "DISPLAY_DRIVER_ILI9341",
+            "DISPLAY_DRIVER_ST7789", "MAX_TASKS", "STACK_GUARD_SIZE",
+            "DEEP_SLEEP_MIN_US", "USE_TLSF_ALLOCATOR", "LITTLEFS_BLOCK_SIZE",
+            "LITTLEFS_LOOKAHEAD", "VIRTUAL_CANVAS_WIDTH", "VIRTUAL_CANVAS_HEIGHT",
+            "UI_FRAMEWORK", "UI_THEMES", "UI_ANIMATIONS",
+            "HELPER_STRINGS", "HELPER_MATH", "HELPER_COLLECTIONS",
+            "HELPER_DEBUG", "HELPER_PROFILING", "HELPER_CONFIG",
+            "HELPER_TIME", "HELPER_FS",
+        }
+        
+        # Also include architecture-specific symbols
+        device = cfg.get("device") or {}
+        arch = device.get("arch", "esp8266")
+        if arch == "sim":
+            wired_symbols.update({"SIM_HEADLESS", "SIM_AUDIO", "SIM_NETWORK"})
+        
         feature_list = []
-        for symbol, value in features.items():
+        for symbol_info in kconfig_symbols:
+            symbol = symbol_info["symbol"]
+            # Skip architecture selection symbols
+            if symbol.startswith("ARDUINO_ARCH_"):
+                continue
+            
+            current_value = features.get(symbol, symbol_info.get("default", ""))
+            
+            # Convert default to appropriate type
+            if symbol_info["type"] == "bool":
+                if current_value in ("y", "Y", "1", True, "true"):
+                    current_value = True
+                elif current_value in ("n", "N", "0", False, "false", ""):
+                    current_value = False
+            elif symbol_info["type"] == "int":
+                try:
+                    current_value = int(current_value)
+                except (ValueError, TypeError):
+                    current_value = 0
+            
+            is_wired = symbol in wired_symbols
+            
             feature_list.append({
                 "symbol": symbol,
-                "type": "bool" if isinstance(value, bool) else "int",
-                "value": value,
-                "wired": symbol in ("HEAP_SIZE_KB", "TICK_RATE_HZ", "ENABLE_POWER_MANAGEMENT",
-                                    "ENABLE_TICKLESS_IDLE", "USE_LITTLEFS", "USE_FATFS",
-                                    "DISPLAY_DRIVER_SSD1306", "DISPLAY_DRIVER_ILI9341",
-                                    "DISPLAY_DRIVER_ST7789"),
+                "type": symbol_info["type"],
+                "prompt": symbol_info["prompt"],
+                "default": symbol_info["default"],
+                "range": symbol_info["range"],
+                "value": current_value,
+                "wired": is_wired,
             })
 
         self.send_json({"features": feature_list})
