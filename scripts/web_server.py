@@ -926,6 +926,19 @@ class Job:
                 self.state = "built"
                 self.add_log("Build complete (no port for upload)")
             
+            # Generate and save size report on success
+            if self.state in ("flashed", "built"):
+                try:
+                    from web_sizes import generate_size_report, save_size_report
+                    map_path = ROOT / ".pio" / "build" / env_name / "firmware.map"
+                    report = generate_size_report(map_path)
+                    if report:
+                        size_file = ROOT / "build" / "web" / "last_size.json"
+                        save_size_report(report, size_file)
+                        self.add_log(f"Size report saved to {size_file.relative_to(ROOT)}")
+                except Exception as e:
+                    self.add_log(f"Warning: Failed to generate size report: {e}")
+            
         except Exception as e:
             self.error = f"Job error: {e}"
             self.add_log(self.error)
@@ -944,20 +957,73 @@ class Job:
 
 
 class Console:
-    def __init__(self, port: str):
+    def __init__(self, port: str, baud: int = 115200):
         self.port = port
+        self.baud = baud
         self.running = True
         self._link = None
+        self._serial = None
         self._buffer = bytearray()
         self._lock = threading.Lock()
+        self._read_thread: threading.Thread | None = None
 
     def start(self):
-        # TODO: Open serial port and start link
-        pass
+        import serial
+        from device_secrets import load_link_secrets
+        from link_codec import Link
+        from link_monitor import tty_present, tty_local_action
+        
+        try:
+            self._serial = serial.Serial(self.port, self.baud, timeout=0.1)
+        except Exception as e:
+            self.running = False
+            raise RuntimeError(f"Failed to open serial port {self.port}: {e}")
+        
+        # Check for link key
+        key_id, key = load_link_secrets(ROOT / "device_secrets.yaml")
+        if key:
+            self._link = Link(key, key_id)
+            self._link.open_serial(self._serial)
+            self.add_log("Link encryption enabled")
+        else:
+            self.add_log("No link key - using raw monitor")
+        
+        self._read_thread = threading.Thread(target=self._read_loop, daemon=True)
+        self._read_thread.start()
+
+    def _read_loop(self):
+        from link_monitor import tty_present
+        
+        while self.running and self._serial:
+            try:
+                if self._serial.in_waiting:
+                    data = self._serial.read(self._serial.in_waiting)
+                    if self._link:
+                        # Decrypt through link
+                        for byte in data:
+                            result = self._link.receive(bytes([byte]))
+                            if result:
+                                with self._lock:
+                                    self._buffer.extend(result)
+                    else:
+                        # Raw monitor - process through tty_present
+                        processed = tty_present(data.decode(errors="replace"))
+                        with self._lock:
+                            self._buffer.extend(processed.encode())
+            except Exception:
+                pass
+            time.sleep(0.01)
 
     def write(self, data: str):
-        if self._link:
-            self._link.send(data.encode())
+        if not self._serial:
+            return
+        try:
+            if self._link:
+                self._link.send(data.encode())
+            else:
+                self._serial.write(data.encode())
+        except Exception:
+            pass
 
     def read(self) -> str:
         with self._lock:
@@ -965,10 +1031,25 @@ class Console:
             self._buffer.clear()
             return data
 
+    def add_log(self, msg: str):
+        """Add a log message to the buffer."""
+        with self._lock:
+            self._buffer.extend(f"[console] {msg}\n".encode())
+
     def close(self):
         self.running = False
         if self._link:
-            self._link.close()
+            try:
+                self._link.close()
+            except Exception:
+                pass
+        if self._serial:
+            try:
+                self._serial.close()
+            except Exception:
+                pass
+        if self._read_thread:
+            self._read_thread.join(timeout=1.0)
 
 
 def main():
