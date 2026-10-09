@@ -39,6 +39,7 @@ COVERAGE_FILE ?= coverage.info
 DEVICE_CONFIG ?= device_config.yaml
 DEVICE      ?=
 PORT        ?=
+WEB_PORT    ?= 8765
 
 # Load user config if present
 -include build.mk
@@ -93,7 +94,7 @@ CMAKE_CACHE = $(BUILD_DIR)/CMakeCache.txt
 # ============================================================================
 # Main targets
 # ============================================================================
-.PHONY: all configure build run test clean clean-all config help compile compile-clean compile-info usb usb-ports device-config monitor tty tty-run create-app install-app list-apps docs docs-doxygen docs-site coverage
+.PHONY: all configure build run test clean clean-all config help compile compile-clean compile-info usb usb-ports web device-config monitor tty tty-run create-app install-app list-apps docs docs-doxygen docs-site coverage
 
 all: build
 
@@ -198,6 +199,10 @@ usb:
 
 usb-ports:
 	@python3 scripts/device_config.py --config $(DEVICE_CONFIG) ports
+
+# Web flash console: local HTTP server for device management
+web:
+	@python3 scripts/web_server.py --config $(DEVICE_CONFIG) --port $(WEB_PORT)
 
 # New machine: SDL2, PortAudio, CMake, PlatformIO venv, littlefs submodule.
 # PROXY is optional (http://host:port). https_proxy is used when PROXY is empty.
@@ -488,6 +493,7 @@ help:
 	@echo "  rebuild       - Clean and rebuild"
 	@echo "  install       - Flash to hardware (requires tool)"
 	@echo "  usb           - Ask target, PlatformIO build + flash (https://platformio.org/)"
+	@echo "  web           - Start web flash console on localhost:$(WEB_PORT)"
 	@echo "  tty           - Reconnect the device shell without flashing"
 	@echo "  tty-run       - Run one shell command and exit (make tty-run sensors)"
 	@echo "  usb-ports     - List detected USB serial ports"
@@ -510,6 +516,7 @@ help:
 	@echo "  TEST_FILTER - Test filter (default: all)"
 	@echo "  DEVICE      - USB target id (nodemcu|esp32|sim|...) skips the prompt"
 	@echo "  PORT        - Serial port override (else device_config.yaml / auto)"
+	@echo "  WEB_PORT    - Web server port (default: 8765)"
 	@echo "  DEVICE_CONFIG - Path to YAML (default: device_config.yaml)"
 	@echo ""
 	@echo "Config files:"
