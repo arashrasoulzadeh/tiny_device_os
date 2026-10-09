@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ArdubotOS Web Flash Console</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 30px;
+        }
+        h1 { color: #333; }
+        .status { padding: 10px; background: #e8f5e9; border-radius: 4px; margin-bottom: 20px; }
+        .api-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+        .api-links a { padding: 8px 16px; background: #2196f3; color: white; text-decoration: none; border-radius: 4px; }
+        .api-links a:hover { background: #1976d2; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ArdubotOS Web Flash Console</h1>
+        <div class="status" id="status">Loading...</div>
+        <div class="api-links">
+            <a href="/api/health" target="_blank">/api/health</a>
+            <a href="/api/ports" target="_blank">/api/ports</a>
+            <a href="/api/devices" target="_blank">/api/devices</a>
+            <a href="/api/apps" target="_blank">/api/apps</a>
+            <a href="/api/features" target="_blank">/api/features</a>
+            <a href="/api/size" target="_blank">/api/size</a>
+        </div>
+        <p>Open the API endpoints above to test the server.</p>
+    </div>
+    <script>
+        fetch('/api/health')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('status').textContent =
+                    `Server v${data.version} | PlatformIO: ${data.platformio_found ? 'found' : 'not found'} | Repo: ${data.repo_root}`;
+            })
+            .catch(e => {
+                document.getElementById('status').textContent = `Error: ${e.message}`;
+            });
+    </script>
+</body>
+</html>
