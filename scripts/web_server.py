@@ -26,6 +26,24 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import re
 
+
+# Secret patterns for redaction
+SECRET_PATTERNS = [
+    (re.compile(r'(password|passwd|pwd)["\s:=]+[\w!@#$%^&*]+', re.IGNORECASE), r'\1=***REDACTED***'),
+    (re.compile(r'(ssid)["\s:=]+[\w!@#$%^&*]+', re.IGNORECASE), r'\1=***REDACTED***'),
+    (re.compile(r'(link\.key|link_key)["\s:=]+[0-9a-fA-F]+', re.IGNORECASE), r'\1=***REDACTED***'),
+    (re.compile(r'(api[_-]?key|apikey)["\s:=]+[\w\-]+', re.IGNORECASE), r'\1=***REDACTED***'),
+    (re.compile(r'[0-9a-fA-F]{32}'), '***REDACTED_KEY***'),
+    (re.compile(r'[0-9a-fA-F]{64}'), '***REDACTED_KEY***'),
+]
+
+def redact_secrets(text: str) -> str:
+    """Redact secrets from log text."""
+    result = text
+    for pattern, replacement in SECRET_PATTERNS:
+        result = pattern.sub(replacement, result)
+    return result
+
 def parse_kconfig(kconfig_path: Path) -> list[dict]:
     """Parse Kconfig file and return list of symbol definitions."""
     if not kconfig_path.exists():
@@ -500,6 +518,29 @@ class WebServer:
         self.running = False
         self._server: http.server.HTTPServer | None = None
         self._thread: threading.Thread | None = None
+        self.job_history: list[dict] = []
+        self._history_file = ROOT / "build" / "web" / "jobs.json"
+        self._load_job_history()
+
+    def _load_job_history(self):
+        if self._history_file.exists():
+            try:
+                self.job_history = json.loads(self._history_file.read_text())
+            except Exception:
+                self.job_history = []
+
+    def _save_job_history(self):
+        self._history_file.parent.mkdir(parents=True, exist_ok=True)
+        # Keep last 50 jobs
+        self.job_history = self.job_history[-50:]
+        self._history_file.write_text(json.dumps(self.job_history, indent=2))
+
+    def _add_job_to_history(self, job: "Job"):
+        entry = job.to_dict()
+        entry["timestamp"] = time.time()
+        entry["config_path"] = self.config_path
+        self.job_history.append(entry)
+        self._save_job_history()
 
     def start(self):
         self._server = http.server.HTTPServer((self.host, self.port), APIHandler)
@@ -653,6 +694,7 @@ class WebServer:
 
     def start_job(self, port: str | None, upload: bool) -> "Job":
         job = Job(port, upload, self.config_path)
+        job._web_server_ref = self
         self.current_job = job
         job.start()
         return job
@@ -945,6 +987,10 @@ class Job:
             self.state = "failed"
         finally:
             self.running = False
+            # Add to job history
+            web_server = getattr(self, '_web_server_ref', None)
+            if web_server and hasattr(web_server, '_add_job_to_history'):
+                web_server._add_job_to_history(self)
 
     def cancel(self):
         self.running = False
