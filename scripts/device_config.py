@@ -461,6 +461,11 @@ def generate_header(
     if isinstance(notes, dict):
         forward = bool(notes.get("forward_from_host"))
     lines.append(f"#define ARDUBOT_LINK_FORWARD {1 if forward else 0}")
+    
+    main_app = cfg.get("main_app")
+    if main_app:
+        lines.append(f'#define ARDUBOT_MAIN_APP "{main_app}"')
+    
     lines.append("")
     return "\n".join(lines)
 

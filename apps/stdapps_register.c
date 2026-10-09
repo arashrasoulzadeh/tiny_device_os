@@ -2,12 +2,14 @@
 
 #include "app.h"
 #include "catalog.h"
+#include <string.h>
 
 /* CMake writes this from ARDUBOT_ENABLED_APPS. A PlatformIO image that
  * does not have the header passes the same ARDUBOT_APP_*_ENABLED macros
  * on the compiler command line. Absent macro means that app is not in
- * this image. */
-#if defined(__has_include)
+ * this image. For PlatformIO (ARDUBOT_PIO=1), we rely on compiler
+ * defines only and skip the CMake-generated header. */
+#if defined(__has_include) && !defined(ARDUBOT_PIO)
 #if __has_include("ardubot_enabled_apps.h")
 #include "ardubot_enabled_apps.h"
 #endif
@@ -89,6 +91,40 @@ int stdapps_install(void) {
 }
 
 const char* stdapps_start_name(void) {
+#ifdef ARDUBOT_MAIN_APP
+    /* Check if the main app is actually enabled */
+    #ifdef ARDUBOT_APP_SENSORS_ENABLED
+    if (strcmp(ARDUBOT_MAIN_APP, "sensors") == 0) return "sensors";
+    #endif
+    #ifdef ARDUBOT_APP_INFO_ENABLED
+    if (strcmp(ARDUBOT_MAIN_APP, "info") == 0) return "info";
+    #endif
+    #ifdef ARDUBOT_APP_CLOCK_ENABLED
+    if (strcmp(ARDUBOT_MAIN_APP, "clock") == 0) return "clock";
+    #endif
+    #ifdef ARDUBOT_APP_POMODORO_ENABLED
+    if (strcmp(ARDUBOT_MAIN_APP, "pomodoro") == 0) return "pomodoro";
+    #endif
+    #ifdef ARDUBOT_APP_STOPWATCH_ENABLED
+    if (strcmp(ARDUBOT_MAIN_APP, "stopwatch") == 0) return "stopwatch";
+    #endif
+    #ifdef ARDUBOT_APP_COUNTER_ENABLED
+    if (strcmp(ARDUBOT_MAIN_APP, "counter") == 0) return "counter";
+    #endif
+    #ifdef ARDUBOT_APP_PONG_ENABLED
+    if (strcmp(ARDUBOT_MAIN_APP, "pong") == 0) return "pong";
+    #endif
+    #ifdef ARDUBOT_APP_WIDGETS_ENABLED
+    if (strcmp(ARDUBOT_MAIN_APP, "widgets") == 0) return "widgets";
+    #endif
+    #ifdef ARDUBOT_APP_TASKMGR_ENABLED
+    if (strcmp(ARDUBOT_MAIN_APP, "taskmgr") == 0) return "taskmgr";
+    #endif
+    /* Launcher is always enabled */
+    if (strcmp(ARDUBOT_MAIN_APP, "launcher") == 0) return "launcher";
+    /* Fall through to default chain if main app not enabled */
+#endif
+
 #ifdef ARDUBOT_APP_SENSORS_ENABLED
     return "sensors";
 #elif defined(ARDUBOT_APP_INFO_ENABLED)
