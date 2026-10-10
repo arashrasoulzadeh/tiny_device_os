@@ -10,7 +10,11 @@ import sys
 from pathlib import Path
 
 # Add scripts directory to path
-REPO_ROOT = Path(__file__).resolve().parents[1]
+# __file__ is not defined when executed via SCons exec(), so use sys.argv[0] as fallback
+try:
+    REPO_ROOT = Path(__file__).resolve().parents[1]
+except NameError:
+    REPO_ROOT = Path(sys.argv[0]).resolve().parents[1]
 SCRIPTS_DIR = REPO_ROOT / "scripts"
 sys.path.insert(0, str(SCRIPTS_DIR))
 
@@ -135,6 +139,30 @@ def main():
         
         # Add include path for generated headers
         env.Append(CPPPATH=[str(features_header.parent)])
+
+    # Generate enabled_apps.h (like CMake's ardubot_enabled_apps.h)
+    enabled_apps_header = REPO_ROOT / "build" / "generated" / "enabled_apps.h"
+    enabled_apps_header.parent.mkdir(parents=True, exist_ok=True)
+    
+    lines = [
+        "/* Auto-generated from device_config.yaml by pio_enabled_apps.py — do not edit */",
+        "#pragma once",
+        "",
+    ]
+    
+    for app_name in enabled_apps:
+        if app_name in known_apps:
+            define_name = f"ARDUBOT_APP_{app_name.upper()}_ENABLED"
+            lines.append(f"#define {define_name} 1")
+    
+    if main_app and main_app in enabled_apps:
+        lines.append(f'#define ARDUBOT_MAIN_APP "{main_app}"')
+    
+    enabled_apps_header.write_text("\n".join(lines) + "\n")
+    print(f"Generated {enabled_apps_header.relative_to(REPO_ROOT)}")
+    
+    # Add include path for generated headers
+    env.Append(CPPPATH=[str(enabled_apps_header.parent)])
 
     # Also add ARDUBOT_PIO define
     env.Append(CPPDEFINES=[("ARDUBOT_PIO", 1)])

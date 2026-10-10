@@ -26,6 +26,17 @@ static void app_lock(void) {
 static void app_unlock(void) {
     _InterlockedExchange((volatile long*)&g_app_lock, 0);
 }
+#elif defined(ARDUBOT_TARGET_ESP8266) && defined(ARDUBOT_PIO)
+/* ESP8266 Arduino: single-threaded loop, no actual concurrency.
+ * Use a simple non-atomic flag since interrupts are the only preemption. */
+static void app_lock(void) {
+    /* In Arduino, we're single-threaded. Just set the flag. */
+    g_app_lock = 1;
+}
+
+static void app_unlock(void) {
+    g_app_lock = 0;
+}
 #else
 static void app_lock(void) {
     while (__sync_lock_test_and_set(&g_app_lock, 1)) {}

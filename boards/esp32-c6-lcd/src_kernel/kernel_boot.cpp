@@ -30,6 +30,7 @@ extern "C" {
 #include "os_clock.h"
 #include "os_boot.h"
 #include "sensor_service.h"
+#include "stdlog.h"
 #if defined(ARDUBOT_LINK_FORWARD) && ARDUBOT_LINK_FORWARD && defined(ARDUBOT_LINK_HAS_KEY) && \
     ARDUBOT_LINK_HAS_KEY
 #include "link_bridge.h"
@@ -118,10 +119,16 @@ static int board_mount_storage(void) {
 
 static int board_set_freq(uint32_t mhz) {
     int rc = -1;
-    /* ESP32-C6 tops out at 160 MHz. The classic ESP32 table still lists 240. */
+    /* ESP32-C6 tops out at ARDUBOT_CPU_MAX_FREQ_MHZ MHz. */
+#ifdef ARDUBOT_CPU_MAX_FREQ_MHZ
+    if (mhz > ARDUBOT_CPU_MAX_FREQ_MHZ) {
+        mhz = ARDUBOT_CPU_MAX_FREQ_MHZ;
+    }
+#else
     if (mhz > 160) {
         mhz = 160;
     }
+#endif
     if (g_board_power) {
         rc = hal_power_set_cpu_freq(g_board_power, mhz);
     }
@@ -154,7 +161,17 @@ static int board_read_temp(int32_t* temp_c) {
 } /* extern "C" */
 
 static void bind_power_governor(void) {
+#ifdef ARDUBOT_CPU_MAX_FREQ_MHZ
+    static const uint32_t c6_freqs[] = {
+        ARDUBOT_CPU_MAX_FREQ_MHZ,
+        ARDUBOT_CPU_MAX_FREQ_MHZ / 2,
+        ARDUBOT_CPU_MAX_FREQ_MHZ / 4,
+        ARDUBOT_CPU_MAX_FREQ_MHZ / 8,
+        ARDUBOT_CPU_MAX_FREQ_MHZ / 16
+    };
+#else
     static const uint32_t c6_freqs[] = {160, 80, 40, 20, 10};
+#endif
     power_init();
     g_board_power = hal_power_open("/dev/power0");
     if (g_board_power) {
@@ -171,47 +188,74 @@ static void demo_task(void* arg) {
     (void)arg;
     for (;;) {
         g_demo_tick_count++;
-        Serial.printf("[kernel_boot] demo_task tick=%lu\n",
-                       (unsigned long)g_demo_tick_count);
         task_sleep(1000);
     }
 }
-
 void setup() {
     Serial.begin(115200);
     delay(500);
+    Serial.println("\n\n=== KERNEL_BOOT SETUP START ===");
+    Serial.flush();
     Serial.println("[kernel_boot] ArdubotOS real kernel starting (Phase 2 skeleton)");
+    Serial.flush();
+    Serial.println("[kernel_boot] After first print");
+    Serial.flush();
     install_board_tz();
+    Serial.println("[kernel_boot] board tz installed");
+    Serial.flush();
 
     pinMode(KERNEL_BOOT_BTN_UP_GPIO, INPUT_PULLUP);
     pinMode(KERNEL_BOOT_BTN_SELECT_GPIO, INPUT_PULLUP);
     sim_gpio_init();
+    Serial.println("[kernel_boot] sim_gpio init done");
+    Serial.flush();
+
+    stdlog_init();
+    Serial.println("[kernel_boot] stdlog initialized");
+    Serial.flush();
 
     if (scheduler_init() != 0) {
         Serial.println("[kernel_boot] scheduler_init failed");
         return;
     }
+    Serial.println("[kernel_boot] scheduler_init done");
+    Serial.flush();
     bind_power_governor();
+    Serial.println("[kernel_boot] power governor bound");
+    Serial.flush();
 
-    if (task_create("demo", demo_task, NULL, TASK_PRIO_NORMAL, HOST_STACK_MIN_BYTES,
-                     &g_demo_task_tcb) != 0) {
-        Serial.println("[kernel_boot] task_create failed");
-        return;
-    }
+    // Skip demo task for now - it may interfere with main task Serial output
+//    if (task_create("demo", demo_task, NULL, TASK_PRIO_NORMAL, 4096,
+//                     &g_demo_task_tcb) != 0) {
+//        Serial.println("[kernel_boot] task_create failed");
+//        return;
+//    }
+//    Serial.println("[kernel_boot] demo task created");
+//    Serial.flush();
 
     if (scheduler_start() != 0) {
         Serial.println("[kernel_boot] scheduler_start failed");
         return;
     }
-
     Serial.println("[kernel_boot] scheduler started - boot banner printed");
+    Serial.flush();
 
     // Every builtin comes from apps/stdapps via stdapps_install().
     // os_boot_load then mounts /flash, starts services, and runs on_load.
-    if (app_init() != 0 || stdapps_install() != 0) {
+    Serial.println("[kernel_boot] calling app_init()");
+    Serial.flush();
+    if (app_init() != 0) {
+        Serial.println("[kernel_boot] app_init failed");
+        return;
+    }
+    Serial.println("[kernel_boot] app_init done, calling stdapps_install()");
+    Serial.flush();
+    if (stdapps_install() != 0) {
         Serial.println("[kernel_boot] stdapps_install failed");
         return;
     }
+    Serial.println("[kernel_boot] stdapps installed, calling os_boot_load()");
+    Serial.flush();
     {
         os_boot_args_t args;
         time_t compiled = 0;
@@ -226,12 +270,15 @@ void setup() {
             return;
         }
     }
+    Serial.println("[kernel_boot] os_boot_load done");
+    Serial.flush();
     const char* start = stdapps_start_name();
     if (app_start(start) != 0) {
         Serial.printf("[kernel_boot] app_start(%s) failed\n", start);
         return;
     }
     Serial.printf("[kernel_boot] %s started - entering loop()\n", start);
+    Serial.flush();
 }
 
 static void poll_host_link(void) {

@@ -97,7 +97,14 @@ outputs:
   leds: []
   sound: null
 
+# CPU frequency (MHz) - ESP32-C6 max is 160
+cpu:
+  max_freq_mhz: 160
+
 # After a successful `make usb`, stay in this process and forward host
 # lines to the board until Ctrl+C. The key lives in device_secrets.yaml.
 notifications:
   forward_from_host: true
+
+# Default app to start at boot
+main_app: "launcher"

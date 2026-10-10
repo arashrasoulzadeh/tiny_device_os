@@ -2,16 +2,13 @@
 
 #include "app.h"
 #include "catalog.h"
+#include <stdio.h>
 #include <string.h>
 
-/* CMake writes this from ARDUBOT_ENABLED_APPS. A PlatformIO image that
- * does not have the header passes the same ARDUBOT_APP_*_ENABLED macros
- * on the compiler command line. Absent macro means that app is not in
- * this image. For PlatformIO (ARDUBOT_PIO=1), we rely on compiler
- * defines only and skip the CMake-generated header. */
-#if defined(__has_include) && !defined(ARDUBOT_PIO)
-#if __has_include("ardubot_enabled_apps.h")
-#include "ardubot_enabled_apps.h"
+/* PlatformIO pre-script generates this from device_config.yaml. */
+#if defined(__has_include)
+#if __has_include("enabled_apps.h")
+#include "enabled_apps.h"
 #endif
 #endif
 
@@ -23,11 +20,19 @@ static int install_manifest(app_manifest_t* manifest, const char* name) {
 }
 
 int stdapps_install(void) {
+    printf("[stdapps] stdapps_install start\n");
+    fflush(stdout);
+    
 #ifdef ARDUBOT_APP_COUNTER_ENABLED
+    printf("[stdapps] COUNTER enabled\n");
+    fflush(stdout);
     extern app_manifest_t* counter_app_manifest;
     if (install_manifest(counter_app_manifest, "counter") != 0) {
         return -1;
     }
+#else
+    printf("[stdapps] COUNTER disabled\n");
+    fflush(stdout);
 #endif
 #ifdef ARDUBOT_APP_INFO_ENABLED
     extern app_manifest_t* info_app_manifest;
@@ -66,10 +71,15 @@ int stdapps_install(void) {
     }
 #endif
 #ifdef ARDUBOT_APP_CLOCK_ENABLED
+    printf("[stdapps] CLOCK enabled\n");
+    fflush(stdout);
     extern app_manifest_t* clock_app_manifest;
     if (install_manifest(clock_app_manifest, "clock") != 0) {
         return -1;
     }
+#else
+    printf("[stdapps] CLOCK disabled\n");
+    fflush(stdout);
 #endif
 #ifdef ARDUBOT_APP_SENSORS_ENABLED
     extern app_manifest_t* sensors_app_manifest;
@@ -87,6 +97,8 @@ int stdapps_install(void) {
     if (app_kit_catalog_build("launcher") < 0) {
         return -1;
     }
+    printf("[stdapps] stdapps_install done\n");
+    fflush(stdout);
     return 0;
 }
 

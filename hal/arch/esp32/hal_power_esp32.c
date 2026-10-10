@@ -37,9 +37,15 @@ void hal_power_close(hal_power_t* power) {
 int hal_power_init(hal_power_t* power) {
     if (!power || power->initialized) return -1;
     
-    // Configure power management
+    // Configure power management for ESP32-C6
+#ifdef ARDUBOT_CPU_MAX_FREQ_MHZ
+    uint32_t max_freq = ARDUBOT_CPU_MAX_FREQ_MHZ;
+#else
+    uint32_t max_freq = 160;
+#endif
+    
     power->pm_config = (esp_pm_config_t){
-        .max_freq_mhz = 240,
+        .max_freq_mhz = max_freq,
         .min_freq_mhz = 10,
         .light_sleep_enable = true,
     };
@@ -57,7 +63,13 @@ int hal_power_init(hal_power_t* power) {
 int hal_power_set_cpu_freq(hal_power_t* power, uint32_t freq_mhz) {
     if (!power) return -1;
     
-    if (freq_mhz > 240) freq_mhz = 240;
+#ifdef ARDUBOT_CPU_MAX_FREQ_MHZ
+    uint32_t max_freq = ARDUBOT_CPU_MAX_FREQ_MHZ;
+#else
+    uint32_t max_freq = 160;
+#endif
+    
+    if (freq_mhz > max_freq) freq_mhz = max_freq;
     if (freq_mhz < 10) freq_mhz = 10;
     
     power->pm_config.max_freq_mhz = freq_mhz;
@@ -97,9 +109,15 @@ int hal_power_get_die_temp_c(hal_power_t* power, int32_t* temp_c) {
 int hal_power_get_available_freqs(const hal_power_t* power, uint32_t* freqs, uint32_t* count) {
     if (!power || !freqs || !count) return -1;
     
-    // ESP32 available frequencies
-    static const uint32_t available_freqs[] = {240, 160, 80, 40, 20, 10};
-    uint32_t num_freqs = sizeof(available_freqs) / sizeof(available_freqs[0]);
+    // ESP32-C6 available frequencies based on max freq
+#ifdef ARDUBOT_CPU_MAX_FREQ_MHZ
+    uint32_t max_freq = ARDUBOT_CPU_MAX_FREQ_MHZ;
+#else
+    uint32_t max_freq = 160;
+#endif
+    
+    uint32_t available_freqs[6] = {max_freq, max_freq / 2, max_freq / 4, max_freq / 8, max_freq / 16, 10};
+    uint32_t num_freqs = 6;
     
     if (*count < num_freqs) {
         return -1; // Buffer too small

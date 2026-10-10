@@ -8,28 +8,26 @@
 /* One copy of the panel primitives. Callers include fw/ui.h for the
  * declarations; the font and the HAL/sim branches live only in this file. */
 
-#if defined(ARDUBOT_TARGET_ESP32)
+#if defined(ARDUBOT_TARGET_ESP32) || defined(ARDUBOT_TARGET_ESP8266)
 /* RISCV_TODO.md Phase 4: real-hardware display backend. Every
- * app_display_* function below routes to hal_display_* (the real ST7789
- * driver, hal/arch/esp32/hal_display_esp32_arduino.cpp) instead of
- * ssd1306_model_* (a pure simulator construct). One process-wide
+ * app_display_* function below routes to hal_display_* (the real driver)
+ * instead of ssd1306_model_* (a pure simulator construct). One process-wide
  * singleton handle - this board only ever has one display, same
  * assumption ssd1306_model.c's own global state already makes for sim.
  * The handle and the font live in this file, so every caller shares
- * one copy. esp32_get_display() still opens the panel on first use:
+ * one copy. get_display() still opens the panel on first use:
  * a draw that runs before app_display_init() must not see a NULL
  * handle (confirmed on hardware, RISCV_TODO.md Phase 4/5). */
-static hal_display_t *g_esp32_display = NULL;
+static hal_display_t *g_hw_display = NULL;
 
-static inline hal_display_t *esp32_get_display(void) {
-  if (!g_esp32_display) {
-    g_esp32_display = hal_display_open("lcd0", NULL);
-    if (g_esp32_display) {
-      hal_display_init(
-          g_esp32_display); /* idempotent - see hal_display_esp32_arduino.cpp */
+static inline hal_display_t *hw_get_display(void) {
+  if (!g_hw_display) {
+    g_hw_display = hal_display_open("lcd0", NULL);
+    if (g_hw_display) {
+      hal_display_init(g_hw_display);
     }
   }
-  return g_esp32_display;
+  return g_hw_display;
 }
 
 /* hal_display.h has no text primitive (it's pixel/rect/line/bitmap only)
@@ -39,8 +37,8 @@ static inline hal_display_t *esp32_get_display(void) {
  * sim/models/ssd1306_model.c (itself already duplicated 3x in that file)
  * - a fourth copy for real hardware is consistent with existing practice,
  * not a new smell. */
-static void esp32_draw_text_color(int x, int y, const char *text, int scale,
-                                  uint16_t rgb565) {
+static void hw_draw_text_color(int x, int y, const char *text, int scale,
+                               uint32_t color) {
   static const uint8_t font_5x7[96][5] = {
       {0x00, 0x00, 0x00, 0x00, 0x00}, {0x00, 0x00, 0x5F, 0x00, 0x00},
       {0x00, 0x07, 0x00, 0x07, 0x00}, {0x14, 0x7F, 0x14, 0x7F, 0x14},
@@ -112,10 +110,10 @@ static void esp32_draw_text_color(int x, int y, const char *text, int scale,
         /* Collapse a contiguous "on" run into one fill_rect, same
          * optimization boards/esp32-c6-lcd/src/gfx_mono.h uses -
          * one real SPI window-set per run instead of per dot. */
-        hal_display_fill_rect(esp32_get_display(),
+        hal_display_fill_rect(hw_get_display(),
                               (int16_t)(char_x + col * scale),
                               (int16_t)(y + run_start * scale), (uint16_t)scale,
-                              (uint16_t)((row - run_start) * scale), rgb565);
+                              (uint16_t)((row - run_start) * scale), color);
       }
     }
     char_x += (5 + 1) * scale;
@@ -127,7 +125,7 @@ int app_display_init(app_display_t *disp, const char *dev_path) {
                    fixed display */
   if (!disp)
     return -1;
-  if (!esp32_get_display()) {
+  if (!hw_get_display()) {
     return -1;
   }
   disp->width = APP_DISPLAY_WIDTH;
@@ -140,14 +138,14 @@ void app_display_deinit(app_display_t *disp) { (void)disp; }
 
 void app_display_clear(app_display_t *disp) {
   if (disp && disp->initialized) {
-    hal_display_fill_rect(esp32_get_display(), 0, 0, disp->width, disp->height,
+    hal_display_fill_rect(hw_get_display(), 0, 0, disp->width, disp->height,
                           0x0000);
   }
 }
 
 void app_display_text(app_display_t *disp, int x, int y, const char *text) {
   if (disp && disp->initialized)
-    esp32_draw_text_color(x, y, text, 1, 0xFFFF);
+    hw_draw_text_color(x, y, text, 1, 0xFFFFFFFF);
 }
 
 void app_display_flush(app_display_t *disp) {
@@ -156,14 +154,14 @@ void app_display_flush(app_display_t *disp) {
   if (disp && disp->initialized) {
     header_app_composite(disp);
     notify_service_composite(disp);
-    hal_display_flush(esp32_get_display());
+    hal_display_flush(hw_get_display());
   }
 }
 
 void app_display_pixel(app_display_t *disp, int x, int y, bool on) {
   if (disp && disp->initialized) {
-    hal_display_draw_pixel(esp32_get_display(), (int16_t)x, (int16_t)y,
-                           on ? 0xFFFF : 0x0000);
+    hal_display_draw_pixel(hw_get_display(), (int16_t)x, (int16_t)y,
+                           on ? 0xFFFFFFFF : 0x00000000);
   }
 }
 
@@ -173,23 +171,23 @@ void app_display_rect(app_display_t *disp, int x, int y, int w, int h,
     return;
   }
   if (fill) {
-    hal_display_fill_rect(esp32_get_display(), (int16_t)x, (int16_t)y,
-                          (uint16_t)w, (uint16_t)h, 0xFFFF);
+    hal_display_fill_rect(hw_get_display(), (int16_t)x, (int16_t)y,
+                          (uint16_t)w, (uint16_t)h, 0xFFFFFFFF);
   } else {
-    hal_display_draw_rect(esp32_get_display(), (int16_t)x, (int16_t)y,
-                          (uint16_t)w, (uint16_t)h, 0xFFFF);
+    hal_display_draw_rect(hw_get_display(), (int16_t)x, (int16_t)y,
+                          (uint16_t)w, (uint16_t)h, 0xFFFFFFFF);
   }
 }
 
 void app_display_set_rotation(app_display_t *disp, uint8_t rot) {
   (void)disp;
-  hal_display_set_rotation(esp32_get_display(), (hal_display_rotation_t)rot);
+  hal_display_set_rotation(hw_get_display(), (hal_display_rotation_t)rot);
 }
 
 void app_display_pixel_color(app_display_t *disp, int x, int y,
                              uint16_t rgb565) {
   if (disp && disp->initialized) {
-    hal_display_draw_pixel(esp32_get_display(), (int16_t)x, (int16_t)y, rgb565);
+    hal_display_draw_pixel(hw_get_display(), (int16_t)x, (int16_t)y, rgb565);
   }
 }
 
@@ -200,7 +198,7 @@ void app_display_fill_rect_color(app_display_t *disp, int x, int y, int w,
                                  int h, int radius, uint16_t rgb565) {
   (void)radius;
   if (disp && disp->initialized) {
-    hal_display_fill_rect(esp32_get_display(), (int16_t)x, (int16_t)y,
+    hal_display_fill_rect(hw_get_display(), (int16_t)x, (int16_t)y,
                           (uint16_t)w, (uint16_t)h, rgb565);
   }
 }
@@ -209,7 +207,7 @@ void app_display_draw_rect_color(app_display_t *disp, int x, int y, int w,
                                  int h, int radius, uint16_t rgb565) {
   (void)radius;
   if (disp && disp->initialized) {
-    hal_display_draw_rect(esp32_get_display(), (int16_t)x, (int16_t)y,
+    hal_display_draw_rect(hw_get_display(), (int16_t)x, (int16_t)y,
                           (uint16_t)w, (uint16_t)h, rgb565);
   }
 }
@@ -221,7 +219,7 @@ void app_display_fill_circle_color(app_display_t *disp, int cx, int cy, int r,
    * the rect radius above. Revisit if an app's icon depends on it
    * actually looking round on real hardware. */
   if (disp && disp->initialized) {
-    hal_display_fill_rect(esp32_get_display(), (int16_t)(cx - r),
+    hal_display_fill_rect(hw_get_display(), (int16_t)(cx - r),
                           (int16_t)(cy - r), (uint16_t)(2 * r),
                           (uint16_t)(2 * r), rgb565);
   }
@@ -230,7 +228,7 @@ void app_display_fill_circle_color(app_display_t *disp, int cx, int cy, int r,
 void app_display_hline_color(app_display_t *disp, int x, int y, int w,
                              uint16_t rgb565) {
   if (disp && disp->initialized) {
-    hal_display_fill_rect(esp32_get_display(), (int16_t)x, (int16_t)y,
+    hal_display_fill_rect(hw_get_display(), (int16_t)x, (int16_t)y,
                           (uint16_t)w, 1, rgb565);
   }
 }
@@ -238,7 +236,7 @@ void app_display_hline_color(app_display_t *disp, int x, int y, int w,
 void app_display_text_color(app_display_t *disp, int x, int y, const char *text,
                             int scale, uint16_t rgb565) {
   if (disp && disp->initialized)
-    esp32_draw_text_color(x, y, text, scale, rgb565);
+    hw_draw_text_color(x, y, text, scale, rgb565);
 }
 
 int app_display_text_width(const char *text, int scale) {
@@ -250,7 +248,7 @@ int app_display_text_width(const char *text, int scale) {
   return n * 6 * scale;
 }
 
-#else /* !ARDUBOT_TARGET_ESP32: sim/host build, routes to ssd1306_model */
+#else /* !ARDUBOT_TARGET_ESP32 && !ARDUBOT_TARGET_ESP8266: sim/host build, routes to ssd1306_model */
 
 // Simple display wrapper using the build-time panel size
 // (app_display_t and app_timer_t defined in app_types.h)
@@ -355,4 +353,4 @@ int app_display_text_width(const char *text, int scale) {
   return ssd1306_model_text_width(text, scale);
 }
 
-#endif /* ARDUBOT_TARGET_ESP32 */
+#endif /* ARDUBOT_TARGET_ESP32 || ARDUBOT_TARGET_ESP8266 */

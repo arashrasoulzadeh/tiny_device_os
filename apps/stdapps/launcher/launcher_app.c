@@ -12,8 +12,11 @@ static void on_launch(void *app, void *user) {
 }
 
 static void on_ready(app_helper_t *app) {
+  APP_INFO("[launcher] on_ready start");
   int keep = g_menu.selected;
+  APP_INFO("[launcher] calling app_kit_catalog_build");
   app_kit_catalog_build("launcher");
+  APP_INFO("[launcher] app_kit_catalog_build done");
   if (APP_DISPLAY_HEIGHT <= 32) {
     app_menu_init(&g_menu, 8, 10);
     app_menu_load_catalog(&g_menu);
@@ -28,6 +31,7 @@ static void on_ready(app_helper_t *app) {
     g_menu.selected = keep;
   }
   APP_INFO("Launcher ready");
+  APP_INFO("[launcher] on_ready done");
 }
 
 static void on_draw(app_helper_t *app) {

@@ -189,6 +189,8 @@ int app_helper_start(app_helper_t *app, void *real_app,
     app_ui_config_ui(&cfg, title, help);
   }
   if (app_ui_init(&app->ui, real_app, &cfg) != 0) {
+    printf("[app_helper] app_ui_init failed\n");
+    fflush(stdout);
     return -1;
   }
   if (desc->keys) {
@@ -218,9 +220,13 @@ int app_helper_start(app_helper_t *app, void *real_app,
   app->saw_frame = false;
   app->painted_s = 0;
   app->last_tick_ms = 0;
+  printf("[app_helper] calling on_ready\n");
+  fflush(stdout);
   if (desc->on_ready) {
     desc->on_ready(app);
   }
+  printf("[app_helper] on_ready done\n");
+  fflush(stdout);
   return 0;
 }
 

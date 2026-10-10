@@ -456,6 +456,10 @@ def generate_header(
     lines.append("")
     lines.append(f"#define ARDUBOT_CLOCK_UNIX {unix}")
     lines.append(f"#define ARDUBOT_CLOCK_TZ_OFFSET_MIN {offset}")
+
+    cpu = cfg.get("cpu") or {}
+    max_freq = int(cpu.get("max_freq_mhz", 160))
+    lines.append(f"#define ARDUBOT_CPU_MAX_FREQ_MHZ {max_freq}")
     notes = cfg.get("notifications") or {}
     forward = False
     if isinstance(notes, dict):

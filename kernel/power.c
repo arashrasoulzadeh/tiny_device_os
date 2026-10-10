@@ -35,15 +35,21 @@ static struct {
     int num_drivers;
 } g_power = {0};
 
-// Internal: get available CPU frequencies for ESP32
+// Internal: get available CPU frequencies - use device_config.h value if available
 static void init_available_freqs(void) {
+#ifdef ARDUBOT_CPU_MAX_FREQ_MHZ
+    uint32_t max_freq = ARDUBOT_CPU_MAX_FREQ_MHZ;
+#else
+    uint32_t max_freq = 160;  // Default for ESP32-C6
+#endif
+
     g_power.num_available_freqs = 5;
-    g_power.available_freqs[0] = 240;
-    g_power.available_freqs[1] = 160;
-    g_power.available_freqs[2] = 80;
-    g_power.available_freqs[3] = 40;
-    g_power.available_freqs[4] = 10;
-    g_power.current_cpu_freq_mhz = 240;
+    g_power.available_freqs[0] = max_freq;
+    g_power.available_freqs[1] = max_freq / 2;
+    g_power.available_freqs[2] = max_freq / 4;
+    g_power.available_freqs[3] = max_freq / 8;
+    g_power.available_freqs[4] = max_freq / 16;
+    g_power.current_cpu_freq_mhz = max_freq;
 }
 
 /* Declared in power.h, never defined anywhere - a link error for any
@@ -78,7 +84,7 @@ int power_init(void) {
     power_governor_reset();
     g_power.current_mode = POWER_MODE_ACTIVE;
     g_power.rtc_time_ms = 0;
-    g_power.current_cpu_freq_mhz = 240;
+    // g_power.current_cpu_freq_mhz set by init_available_freqs()
     g_power.wake_config.timeout_ms = 0;
     g_power.wake_config.gpio_num = -1;
     g_power.wake_config.gpio_trigger = 0;
