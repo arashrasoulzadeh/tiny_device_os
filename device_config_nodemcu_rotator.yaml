@@ -59,3 +59,7 @@ inputs:
 outputs:
   leds: []
   sound: null
+
+# CPU frequency (MHz) - ESP8266 max is 160 (overclocked)
+cpu:
+  max_freq_mhz: 160
