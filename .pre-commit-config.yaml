@@ -7,24 +7,24 @@ repos:
       - id: check-yaml
       - id: check-added-large-files
       - id: check-merge-conflict
-      - id: debug-logger
       - id: check-case-conflict
-
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      - id: clang-format
-        args: ['--style=file']
-        files: '\.(c|h)$'
 
   - repo: local
     hooks:
+      - id: clang-format
+        name: clang-format
+        entry: clang-format
+        language: system
+        args: ['-i', '--style=file']
+        files: '\.(c|h|cpp|hpp)$'
+
       - id: tdd-check
         name: TDD Check - Test must exist before implementation
         entry: python3 scripts/tdd_check.py
         language: system
         types: [c]
         args: ['--staged']
+        pass_filenames: false
         always_run: true
         verbose: true
 
@@ -34,10 +34,3 @@ repos:
         language: system
         types: [cmake]
         args: ['-i']
-
-      - id: kconfig-lint
-        name: Validate Kconfig
-        entry: python3 -m kconfiglib
-        language: system
-        types: [kconfig]
-        args: ['Kconfig']

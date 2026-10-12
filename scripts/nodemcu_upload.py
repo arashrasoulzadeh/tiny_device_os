@@ -2,9 +2,14 @@
 """NodeMCU upload.
 
 macOS CH340 ports die if pyserial or esptool toggles DTR, so that host
-uses a manual FLASH+RST sequence and --before no_reset. Linux CP2102 and
-CH340 nodes are /dev/ttyUSB* or /dev/ttyACM*, and esptool's normal reset
-brings the chip up.
+uses a manual FLASH+RST sequence and --before no_reset. Linux tries
+esptool's normal reset first. If that never syncs, it asks for the same
+FLASH+RST sequence and retries with --before no_reset.
+
+A NodeMCU CH340 is /dev/ttyUSB* (or cu.usbserial/wch on macOS). /dev/ttyACM*
+is usually a different board's native USB (the ESP32-C6). When both are
+plugged in, the UART adapter is tried first unless the caller named a
+UART port explicitly.
 Port "health" = node exists + open/close succeeds — no tcflush.
 """
 
@@ -40,6 +45,51 @@ def esptool_reset_mode(platform: str | None = None) -> tuple[str, str]:
     if plat.startswith("linux"):
         return "default_reset", "hard_reset"
     return "no_reset", "no_reset"
+
+
+def reset_attempts(platform: str | None = None) -> list[tuple[str, str]]:
+    """Linux auto-reset, then a manual FLASH+RST retry. macOS is manual only."""
+    before, after = esptool_reset_mode(platform)
+    if before == "no_reset":
+        return [("no_reset", "no_reset")]
+    return [("default_reset", "hard_reset"), ("no_reset", "no_reset")]
+
+
+_UART_PREFIXES = (
+    "ttyUSB",
+    "tty.usbserial",
+    "tty.wch",
+    "tty.SLAB",
+    "cu.usbserial",
+    "cu.wch",
+    "cu.SLAB",
+)
+
+
+def is_uart_adapter(port: str) -> bool:
+    """CH340 / CP2102 / FTDI style nodes. Native USB (ttyACM, usbmodem) is not."""
+    return os.path.basename(port).startswith(_UART_PREFIXES)
+
+
+def rank_ports(ports: list[str], preferred: str | None = None) -> list[str]:
+    """Order candidates so a NodeMCU UART wins over another board's ttyACM.
+
+    An explicit UART `preferred` stays first. A preferred ttyACM is used
+    only when no UART adapter is present.
+    """
+    unique: list[str] = []
+    for port in ports:
+        if port not in unique:
+            unique.append(port)
+    uart = sorted(p for p in unique if is_uart_adapter(p))
+    native = sorted(p for p in unique if not is_uart_adapter(p))
+    if preferred and is_uart_adapter(preferred):
+        rest_uart = [p for p in uart if p != preferred]
+        rest_native = [p for p in native if p != preferred]
+        return [preferred, *rest_uart, *rest_native]
+    if preferred and preferred in native and not uart:
+        return [preferred, *[p for p in native if p != preferred]]
+    return uart + native
 
 
 def port_list_hint(platform: str | None = None) -> str:
@@ -97,12 +147,14 @@ def wait_for_port(preferred: str | None = None, timeout: float = 45.0) -> str | 
         if ports != last_list:
             last_list = ports
             log(f"  seen: {ports or '(none)'}")
-        ordered = []
-        if preferred:
-            ordered.append(preferred)
-        ordered.extend(p for p in ports if p not in ordered)
+        ordered = rank_ports(ports, preferred)
         for port in ordered:
             if port_is_openable(port):
+                if preferred and port != preferred and is_uart_adapter(port):
+                    log(
+                        f"Using {port} for NodeMCU (CH340). "
+                        f"{preferred} is left for the other board."
+                    )
                 return port
         time.sleep(0.4)
     return None
@@ -120,6 +172,33 @@ def prompt_flash_mode() -> None:
         input()
     except EOFError:
         time.sleep(2.0)
+
+
+def esptool_cmd(
+    port: str, firmware: Path, baud: int, before: str, after: str, attempts: int
+) -> list[str]:
+    return [
+        *find_esptool(),
+        "--chip",
+        "esp8266",
+        "--port",
+        port,
+        "--baud",
+        str(baud),
+        "--before",
+        before,
+        "--after",
+        after,
+        "--connect-attempts",
+        str(attempts),
+        "write_flash",
+        "-fm",
+        "dio",
+        "-fs",
+        "4MB",
+        "0x0",
+        str(firmware),
+    ]
 
 
 def upload(port_arg: str, firmware: Path, baud: int) -> int:
@@ -140,47 +219,34 @@ def upload(port_arg: str, firmware: Path, baud: int) -> int:
         return 1
 
     log(f"port ready: {current}")
-    before, after = esptool_reset_mode()
-    if before == "no_reset":
-        prompt_flash_mode()
-
-    # Re-check after the pause (user may have bumped the cable)
-    again = wait_for_port(current, timeout=20.0)
-    if not again:
-        log("error: port disappeared — unplug/replug and retry")
-        return 1
-    current = again
-
-    cmd = [
-        *find_esptool(),
-        "--chip",
-        "esp8266",
-        "--port",
-        current,
-        "--baud",
-        str(baud),
-        "--before",
-        before,
-        "--after",
-        after,
-        "--connect-attempts",
-        "20",
-        "write_flash",
-        "-fm",
-        "dio",
-        "-fs",
-        "4MB",
-        "0x0",
-        str(firmware),
-    ]
-    log("+ " + " ".join(cmd))
-    rc = subprocess.call(cmd)
-    if rc == 0:
+    attempts = reset_attempts()
+    rc = 1
+    for index, (before, after) in enumerate(attempts):
         if before == "no_reset":
-            log("Flash OK — press RST to run the firmware")
-        else:
-            log("Flash OK")
-        return 0
+            if index > 0:
+                log("Auto-reset did not connect. Switching to manual flash mode.")
+            prompt_flash_mode()
+            again = wait_for_port(current, timeout=20.0)
+            if not again:
+                log("error: port disappeared — unplug/replug and retry")
+                return 1
+            current = again
+        cmd = esptool_cmd(
+            current,
+            firmware,
+            baud,
+            before,
+            after,
+            3 if before == "default_reset" else 20,
+        )
+        log("+ " + " ".join(cmd))
+        rc = subprocess.call(cmd)
+        if rc == 0:
+            if before == "no_reset":
+                log("Flash OK — press RST to run the firmware")
+            else:
+                log("Flash OK")
+            return 0
 
     log(
         "Flash failed. Hold FLASH for the entire Connecting… phase, "

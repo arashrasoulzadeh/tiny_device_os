@@ -68,6 +68,21 @@ class TestDeviceConfig(unittest.TestCase):
         self.assertEqual(resolve_pin("D7", "nodemcu"), 13)
         self.assertEqual(resolve_pin("GPIO12"), 12)
 
+    def test_rotator_profile_is_sh1106_128x64(self):
+        path = ROOT / "device_config_nodemcu_rotator.yaml"
+        cfg = load_device_config(path)
+        self.assertEqual(cfg["lcd"]["type"], "sh1106")
+        self.assertEqual(cfg["lcd"]["width"], 128)
+        self.assertEqual(cfg["lcd"]["height"], 64)
+        self.assertEqual(cfg["lcd"]["col_offset"], 2)
+        header = generate_header(cfg, now=1_700_000_000, tz_offset_min=0)
+        self.assertIn("#define ARDUBOT_LCD_WIDTH 128", header)
+        self.assertIn("#define ARDUBOT_LCD_HEIGHT 64", header)
+        self.assertIn("#define ARDUBOT_LCD_IS_SH1106 1", header)
+        self.assertIn("#define ARDUBOT_LCD_COL_OFFSET 2", header)
+        self.assertIn("#define ARDUBOT_LCD_SCL_GPIO 5", header)
+        self.assertIn("#define ARDUBOT_LCD_SDA_GPIO 4", header)
+
     def test_load_repo_device_config(self):
         path = ROOT / "device_config.yaml"
         self.assertTrue(path.is_file(), "device_config.yaml must exist at repo root")

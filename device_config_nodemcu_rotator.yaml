@@ -4,12 +4,13 @@
 #
 # Use: make usb DEVICE_CONFIG=device_config_nodemcu_rotator.yaml DEVICE=nodemcu
 #
-# Panel is marked "DST-013", 1.3" 128x64 — that size/resolution combo is
-# almost always SH1106, not SSD1306 (confirmed: SSD1306 init only lit the
-# top page because SH1106 doesn't support SSD1306's horizontal-addressing
-# commands). ssd1306_mini.h now has an SH1106 page-addressing path, selected
-# via lcd.type: sh1106 below. col_offset 2 is the common SH1106 default —
-# nudge it if the image is shifted sideways.
+# IdeaElec 1.3" color OLED + EC11 (IE2-13A06): 128x64, I2C, 3.3V.
+# That size is an SH1106 (132 columns, visible window at col_offset 2).
+# SSD1306 horizontal addressing only writes page 0. 64 rows need
+# alternative COM (0x12); sequential COM (0x02) draws the picture short.
+# lcd.type/width/height/col_offset below are baked into device_config.h
+# and select ssd1306_mini.h's page-addressing path. col_offset 2 is the
+# common SH1106 default — nudge it if the image is shifted sideways.
 #
 # EC11 encoder: ENCODER-A/ENCODER-B (quadrature) + ENCODER-PUSH (button).
 # Listed below as three plain digital inputs (inputs.buttons); main.cpp

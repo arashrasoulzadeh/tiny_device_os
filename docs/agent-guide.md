@@ -162,10 +162,15 @@ image (`[env:esp32-c6]`) boots that set. Its ST7789 path composites into
 `hal/display_fb.c` and presents dirty rows from `hal_display_flush()`
 (called by `app_display_flush` / `app_ui_end_frame`) so a clear-then-draw
 is not visible on the glass. SPI stays at 40 MHz; the panel scan stays at
-the driver's ~60 Hz. The NodeMCU image does not host
-the app framework yet, so it does not draw its own launcher. Wiring:
-NodeMCU SSD1306 128×32 I2C (SCL=D1, SDA=D2), **UP** on D5, **SELECT** on D6
-(other side GND; long-press SELECT = back to launcher).
+the driver's ~60 Hz. The NodeMCU image installs the same `apps/stdapps` set. Its panel size and
+controller come from the active profile's `lcd.width`, `lcd.height`, and
+`lcd.type` (`build/generated/device_config.h`), not a fixed 128×32. The
+default profile is an SSD1306 on I2C (SCL=D1, SDA=D2).
+`device_config_nodemcu_rotator.yaml` is the IdeaElec 1.3" 128×64 SH1106
+(I2C, column offset 2). Driving that glass with SSD1306 horizontal
+addressing only clears the top page. A 64-row panel uses alternative COM
+(`0x12`); sequential COM (`0x02`) draws the picture at the wrong height. **UP** is D5, **SELECT** is D6 (other side GND;
+long-press SELECT = back to launcher).
 
 On Apple Silicon, ESP8266 builds need Rosetta (`Bad CPU type in executable` means
 it is missing): `softwareupdate --install-rosetta --agree-to-license`.

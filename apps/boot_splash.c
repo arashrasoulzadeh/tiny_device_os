@@ -18,7 +18,7 @@
 #define ARDUBOT_GIT_HASH "00000000"
 #endif
 
-#if !defined(ARDUBOT_TARGET_ESP32)
+#if !defined(ARDUBOT_TARGET_ESP32) && !defined(ARDUBOT_TARGET_ESP8266)
 #include "sim_video.h"
 #endif
 
@@ -155,7 +155,7 @@ void boot_splash_show(const char *label, int done, int total) {
                          y + line_h + gap + bar_h + gap, status, scale,
                          ARDUBOT_COLOR_TEXT_MUTED);
   app_display_flush(&g_disp);
-#if !defined(ARDUBOT_TARGET_ESP32)
+#if !defined(ARDUBOT_TARGET_ESP32) && !defined(ARDUBOT_TARGET_ESP8266)
   sim_video_render();
 #endif
 }

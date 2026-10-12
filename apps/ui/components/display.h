@@ -4,15 +4,32 @@
  * Build-time panel geometry.
  *
  * CMake sets APP_DISPLAY_WIDTH / APP_DISPLAY_HEIGHT from the active device
- * target (see apps/CMakeLists.txt). Defaults match the SSD1306 used by the sim.
+ * target (see apps/CMakeLists.txt). A PlatformIO image leaves them unset
+ * and takes lcd.width / lcd.height from device_config.h, so a 128x64
+ * SH1106 profile is not laid out as a 128x32 SSD1306. Defaults match the
+ * small SSD1306 used when neither source is present.
  */
 
+#if defined(__has_include)
+#if __has_include("device_config.h")
+#include "device_config.h"
+#endif
+#endif
+
 #ifndef APP_DISPLAY_WIDTH
+#ifdef ARDUBOT_LCD_WIDTH
+#define APP_DISPLAY_WIDTH ARDUBOT_LCD_WIDTH
+#else
 #define APP_DISPLAY_WIDTH 128
+#endif
 #endif
 
 #ifndef APP_DISPLAY_HEIGHT
+#ifdef ARDUBOT_LCD_HEIGHT
+#define APP_DISPLAY_HEIGHT ARDUBOT_LCD_HEIGHT
+#else
 #define APP_DISPLAY_HEIGHT 32
+#endif
 #endif
 
 /**

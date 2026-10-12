@@ -1,30 +1,30 @@
 #include "alloc.h"
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define TLSF_SIGNATURE 0x544C5346
 #define TLSF_BLOCK_FREE 0x01
 #define TLSF_BLOCK_USED 0x02
 
 typedef struct block_header {
-    uint32_t signature;
-    uint32_t size;
-    uint8_t flags;
-    uint8_t padding[3];
-    struct block_header* prev_free;
-    struct block_header* next_free;
-    struct block_header* prev_phys;
-    struct block_header* next_phys;
+  uint32_t signature;
+  uint32_t size;
+  uint8_t flags;
+  uint8_t padding[3];
+  struct block_header *prev_free;
+  struct block_header *next_free;
+  struct block_header *prev_phys;
+  struct block_header *next_phys;
 } block_header_t;
 
 struct tlsf_pool {
-    uint32_t signature;
-    size_t total_size;
-    size_t used_size;
-    size_t min_free;
-    block_header_t* free_list[32];
-    block_header_t* block_list;
-    uint8_t* memory;
+  uint32_t signature;
+  size_t total_size;
+  size_t used_size;
+  size_t min_free;
+  block_header_t *free_list[32];
+  block_header_t *block_list;
+  uint8_t *memory;
 };
 
 #define BLOCK_OVERHEAD sizeof(block_header_t)
@@ -33,392 +33,423 @@ struct tlsf_pool {
 #define MIN_BLOCK_SIZE (BLOCK_OVERHEAD + TLSF_BLOCK_ALIGN)
 
 static inline uint32_t tlsf_fls(uint32_t x) {
-    uint32_t r = 0;
-    if (x >= 0x10000) { x >>= 16; r += 16; }
-    if (x >= 0x100)   { x >>= 8;  r += 8;  }
-    if (x >= 0x10)    { x >>= 4;  r += 4;  }
-    if (x >= 0x4)     { x >>= 2;  r += 2;  }
-    if (x >= 0x2)     { r += 1; }
-    return r;
+  uint32_t r = 0;
+  if (x >= 0x10000) {
+    x >>= 16;
+    r += 16;
+  }
+  if (x >= 0x100) {
+    x >>= 8;
+    r += 8;
+  }
+  if (x >= 0x10) {
+    x >>= 4;
+    r += 4;
+  }
+  if (x >= 0x4) {
+    x >>= 2;
+    r += 2;
+  }
+  if (x >= 0x2) {
+    r += 1;
+  }
+  return r;
 }
 
 static inline int tlsf_get_fl_index(size_t size) {
-    /* block_header_t.size is uint32_t (TLSF_MAX_POOL_SIZE is 256KB, well
-     * under 4GB - see the comment below), so this narrowing is always
-     * safe; cast explicitly so MSVC's /W4 doesn't flag it as an
-     * unintentional 64-bit-size_t-to-32-bit truncation. */
-    return tlsf_fls((uint32_t)size);
+  /* block_header_t.size is uint32_t (TLSF_MAX_POOL_SIZE is 256KB, well
+   * under 4GB - see the comment below), so this narrowing is always
+   * safe; cast explicitly so MSVC's /W4 doesn't flag it as an
+   * unintentional 64-bit-size_t-to-32-bit truncation. */
+  return tlsf_fls((uint32_t)size);
 }
 
 /* Single-level segregated free list: bucket fl holds every free block with
  * size in [2^fl, 2^(fl+1)), so a bucket's blocks are not all guaranteed big
  * enough for a given request - tlsf_malloc scans within a bucket for one
- * that fits. 32 buckets covers up to 2^31 bytes, well past TLSF_MAX_POOL_SIZE. */
+ * that fits. 32 buckets covers up to 2^31 bytes, well past TLSF_MAX_POOL_SIZE.
+ */
 static inline int tlsf_get_index(size_t size) {
-    int fl = tlsf_get_fl_index(size);
-    return (fl >= 32) ? 31 : fl;
+  int fl = tlsf_get_fl_index(size);
+  return (fl >= 32) ? 31 : fl;
 }
 
-static block_header_t* block_from_ptr(void* ptr) {
-    return (block_header_t*)((uint8_t*)ptr - BLOCK_OVERHEAD);
+static block_header_t *block_from_ptr(void *ptr) {
+  return (block_header_t *)((uint8_t *)ptr - BLOCK_OVERHEAD);
 }
 
-static void* ptr_from_block(block_header_t* block) {
-    return (uint8_t*)block + BLOCK_OVERHEAD;
+static void *ptr_from_block(block_header_t *block) {
+  return (uint8_t *)block + BLOCK_OVERHEAD;
 }
 
-static void block_insert_free(tlsf_pool_t* pool, block_header_t* block) {
-    int idx = tlsf_get_index(block->size);
-    block->flags |= TLSF_BLOCK_FREE;
-    block->next_free = pool->free_list[idx];
-    block->prev_free = NULL;
-    if (pool->free_list[idx]) {
-        pool->free_list[idx]->prev_free = block;
-    }
-    pool->free_list[idx] = block;
+static void block_insert_free(tlsf_pool_t *pool, block_header_t *block) {
+  int idx = tlsf_get_index(block->size);
+  block->flags |= TLSF_BLOCK_FREE;
+  block->next_free = pool->free_list[idx];
+  block->prev_free = NULL;
+  if (pool->free_list[idx]) {
+    pool->free_list[idx]->prev_free = block;
+  }
+  pool->free_list[idx] = block;
 }
 
-static void block_remove_free(tlsf_pool_t* pool, block_header_t* block) {
-    int idx = tlsf_get_index(block->size);
-    if (block->prev_free) {
-        block->prev_free->next_free = block->next_free;
-    } else {
-        pool->free_list[idx] = block->next_free;
-    }
-    if (block->next_free) {
-        block->next_free->prev_free = block->prev_free;
-    }
-    block->flags &= ~TLSF_BLOCK_FREE;
+static void block_remove_free(tlsf_pool_t *pool, block_header_t *block) {
+  int idx = tlsf_get_index(block->size);
+  if (block->prev_free) {
+    block->prev_free->next_free = block->next_free;
+  } else {
+    pool->free_list[idx] = block->next_free;
+  }
+  if (block->next_free) {
+    block->next_free->prev_free = block->prev_free;
+  }
+  block->flags &= ~TLSF_BLOCK_FREE;
 }
 
-static block_header_t* block_split(tlsf_pool_t* pool, block_header_t* block, size_t size) {
-    size_t remaining = block->size - size - BLOCK_OVERHEAD;
-    if (remaining < MIN_BLOCK_SIZE) {
-        return NULL;
-    }
-    
-    block_header_t* new_block = (block_header_t*)((uint8_t*)block + size + BLOCK_OVERHEAD);
-    new_block->signature = TLSF_SIGNATURE;
-    new_block->size = (uint32_t)remaining;  /* always < TLSF_MAX_POOL_SIZE, see tlsf_get_fl_index */
-    new_block->flags = 0;
-    new_block->prev_phys = block;
-    new_block->next_phys = block->next_phys;
-
-    if (block->next_phys) {
-        block->next_phys->prev_phys = new_block;
-    }
-    block->next_phys = new_block;
-    block->size = (uint32_t)size;
-    
-    block_insert_free(pool, new_block);
-    
-    return new_block;
-}
-
-static block_header_t* block_merge(tlsf_pool_t* pool, block_header_t* block) {
-    if (block->prev_phys && (block->prev_phys->flags & TLSF_BLOCK_FREE)) {
-        block_header_t* prev = block->prev_phys;
-        block_remove_free(pool, prev);
-        prev->size += BLOCK_OVERHEAD + block->size;
-        prev->next_phys = block->next_phys;
-        if (block->next_phys) {
-            block->next_phys->prev_phys = prev;
-        }
-        block = prev;
-    }
-    
-    if (block->next_phys && (block->next_phys->flags & TLSF_BLOCK_FREE)) {
-        block_header_t* next = block->next_phys;
-        block_remove_free(pool, next);
-        block->size += BLOCK_OVERHEAD + next->size;
-        block->next_phys = next->next_phys;
-        if (next->next_phys) {
-            next->next_phys->prev_phys = block;
-        }
-    }
-    
-    return block;
-}
-
-tlsf_pool_t* tlsf_create(void* mem, size_t bytes) {
-    if (!mem || bytes < sizeof(tlsf_pool_t) + MIN_BLOCK_SIZE) {
-        return NULL;
-    }
-    
-    tlsf_pool_t* pool = (tlsf_pool_t*)mem;
-    memset(pool, 0, sizeof(tlsf_pool_t));
-    
-    pool->signature = TLSF_SIGNATURE;
-    pool->total_size = bytes - sizeof(tlsf_pool_t);
-    pool->used_size = 0;
-    pool->min_free = pool->total_size;
-    pool->memory = (uint8_t*)mem + sizeof(tlsf_pool_t);
-    
-    block_header_t* block = (block_header_t*)pool->memory;
-    block->signature = TLSF_SIGNATURE;
-    block->size = (uint32_t)(pool->total_size - BLOCK_OVERHEAD);
-    block->flags = 0;
-    block->prev_phys = NULL;
-    block->next_phys = NULL;
-    
-    pool->block_list = block;
-    block_insert_free(pool, block);
-    
-    return pool;
-}
-
-void tlsf_destroy(tlsf_pool_t* pool) {
-    (void)pool;
-}
-
-void* tlsf_malloc(tlsf_pool_t* pool, size_t size) {
-    if (!pool || size == 0) return NULL;
-    
-    size = ALIGN_UP(size, TLSF_BLOCK_ALIGN);
-    size_t total_size = size + BLOCK_OVERHEAD;
-    
-    int start_fl = tlsf_get_index(total_size);
-
-    for (int fl = start_fl; fl < 32; fl++) {
-        /* Every block in a bucket past start_fl is >= 2^fl > total_size, so
-         * the first one fits; in start_fl itself a smaller block may share
-         * the bucket, so scan for one that's actually big enough. */
-        block_header_t* block = pool->free_list[fl];
-        if (fl == start_fl) {
-            while (block && block->size < total_size) {
-                block = block->next_free;
-            }
-        }
-
-        if (block) {
-            block_remove_free(pool, block);
-
-            if (block->size >= total_size + MIN_BLOCK_SIZE) {
-                block_split(pool, block, size);
-            }
-
-            block->flags |= TLSF_BLOCK_USED;
-            pool->used_size += block->size + BLOCK_OVERHEAD;
-            size_t free = tlsf_pool_free_size(pool);
-            if (free < pool->min_free) pool->min_free = free;
-
-            return ptr_from_block(block);
-        }
-    }
-    
+static block_header_t *block_split(tlsf_pool_t *pool, block_header_t *block,
+                                   size_t size) {
+  size_t remaining = block->size - size - BLOCK_OVERHEAD;
+  if (remaining < MIN_BLOCK_SIZE) {
     return NULL;
+  }
+
+  block_header_t *new_block =
+      (block_header_t *)((uint8_t *)block + size + BLOCK_OVERHEAD);
+  new_block->signature = TLSF_SIGNATURE;
+  new_block->size = (uint32_t)
+      remaining; /* always < TLSF_MAX_POOL_SIZE, see tlsf_get_fl_index */
+  new_block->flags = 0;
+  new_block->prev_phys = block;
+  new_block->next_phys = block->next_phys;
+
+  if (block->next_phys) {
+    block->next_phys->prev_phys = new_block;
+  }
+  block->next_phys = new_block;
+  block->size = (uint32_t)size;
+
+  block_insert_free(pool, new_block);
+
+  return new_block;
 }
 
-void* tlsf_memalign(tlsf_pool_t* pool, size_t align, size_t size) {
-    if (!pool || size == 0) return NULL;
-    if ((align & (align - 1)) != 0) return NULL;
-
-    size = ALIGN_UP(size, TLSF_BLOCK_ALIGN);
-    align = ALIGN_UP(align, TLSF_BLOCK_ALIGN);
-
-    /* When the raw allocation's offset to the next alignment boundary is
-     * nonzero but smaller than MIN_BLOCK_SIZE, there's no valid place to
-     * put a free-block header for the discarded prefix - this used to
-     * just return the unaligned address directly (`(void*)aligned` from
-     * the ORIGINAL unsplit block), silently breaking the alignment
-     * contract the caller asked for, and the returned pointer could
-     * never be freed since block_from_ptr(aligned) lands on whatever
-     * bytes happen to precede it rather than a real header, so tlsf_free
-     * on it silently no-ops - a permanent leak. Confirmed via a
-     * standalone sweep of pool states where this offset landed below
-     * MIN_BLOCK_SIZE. Requesting extra slack (2*align + MIN_BLOCK_SIZE)
-     * guarantees room to always bump to a offset that's either 0 or
-     * large enough for a real header. */
-    void* ptr = tlsf_malloc(pool, size + 2 * align + MIN_BLOCK_SIZE);
-    if (!ptr) return NULL;
-
-    uintptr_t raw = (uintptr_t)ptr;
-    uintptr_t aligned = ALIGN_UP(raw, align);
-    uintptr_t offset = aligned - raw;
-
-    if (offset != 0 && offset < MIN_BLOCK_SIZE) {
-        aligned += align;
-        offset = aligned - raw;
-    }
-
-    if (offset == 0) {
-        return ptr;
-    }
-
-    block_header_t* block = block_from_ptr(ptr);
-    block_header_t* new_block = (block_header_t*)((uint8_t*)block + offset);
-
-    block_remove_free(pool, block);
-
-    /* new_block's header occupies BLOCK_OVERHEAD bytes of what used to be
-     * `block`'s data region, starting at `offset` bytes in - so the
-     * front remainder's own data size is offset - BLOCK_OVERHEAD (not
-     * `offset`; the original code's off-by-BLOCK_OVERHEAD here made the
-     * front block's declared extent overlap new_block's header by
-     * BLOCK_OVERHEAD bytes). */
-    new_block->signature = TLSF_SIGNATURE;
-    new_block->size = (uint32_t)(block->size - offset);
-    new_block->flags = 0;
-    new_block->prev_phys = block;
-    new_block->next_phys = block->next_phys;
-
+static block_header_t *block_merge(tlsf_pool_t *pool, block_header_t *block) {
+  if (block->prev_phys && (block->prev_phys->flags & TLSF_BLOCK_FREE)) {
+    block_header_t *prev = block->prev_phys;
+    block_remove_free(pool, prev);
+    prev->size += BLOCK_OVERHEAD + block->size;
+    prev->next_phys = block->next_phys;
     if (block->next_phys) {
-        block->next_phys->prev_phys = new_block;
+      block->next_phys->prev_phys = prev;
     }
-    block->next_phys = new_block;
-    block->size = (uint32_t)(offset - BLOCK_OVERHEAD);
+    block = prev;
+  }
 
-    /* `block` (the discarded, unaligned front remainder) goes back on
-     * the free list; `new_block` (the aligned part we're handing to the
-     * caller) is what gets marked used - the original code had this
-     * backwards, inserting the block it was about to return into the
-     * free list and marking the discarded remainder as used, then
-     * returning the discarded (unaligned) remainder's pointer to the
-     * caller instead of the aligned one. */
-    block_insert_free(pool, block);
-
-    new_block->flags |= TLSF_BLOCK_USED;
-    pool->used_size += new_block->size + BLOCK_OVERHEAD;
-
-    if (new_block->size >= size + MIN_BLOCK_SIZE) {
-        block_split(pool, new_block, size);
+  if (block->next_phys && (block->next_phys->flags & TLSF_BLOCK_FREE)) {
+    block_header_t *next = block->next_phys;
+    block_remove_free(pool, next);
+    block->size += BLOCK_OVERHEAD + next->size;
+    block->next_phys = next->next_phys;
+    if (next->next_phys) {
+      next->next_phys->prev_phys = block;
     }
+  }
 
-    return ptr_from_block(new_block);
+  return block;
 }
 
-void* tlsf_realloc(tlsf_pool_t* pool, void* ptr, size_t size) {
-    if (!ptr) return tlsf_malloc(pool, size);
-    if (size == 0) { tlsf_free(pool, ptr); return NULL; }
-    
-    block_header_t* block = block_from_ptr(ptr);
-    if (block->signature != TLSF_SIGNATURE) return NULL;
-    
-    size = ALIGN_UP(size, TLSF_BLOCK_ALIGN);
-    size_t total_size = size + BLOCK_OVERHEAD;
-    
-    if (block->size >= total_size) {
-        if (block->size >= total_size + MIN_BLOCK_SIZE) {
-            block_split(pool, block, size);
-        }
-        return ptr;
+tlsf_pool_t *tlsf_create(void *mem, size_t bytes) {
+  if (!mem || bytes < sizeof(tlsf_pool_t) + MIN_BLOCK_SIZE) {
+    return NULL;
+  }
+
+  tlsf_pool_t *pool = (tlsf_pool_t *)mem;
+  memset(pool, 0, sizeof(tlsf_pool_t));
+
+  pool->signature = TLSF_SIGNATURE;
+  pool->total_size = bytes - sizeof(tlsf_pool_t);
+  pool->used_size = 0;
+  pool->min_free = pool->total_size;
+  pool->memory = (uint8_t *)mem + sizeof(tlsf_pool_t);
+
+  block_header_t *block = (block_header_t *)pool->memory;
+  block->signature = TLSF_SIGNATURE;
+  block->size = (uint32_t)(pool->total_size - BLOCK_OVERHEAD);
+  block->flags = 0;
+  block->prev_phys = NULL;
+  block->next_phys = NULL;
+
+  pool->block_list = block;
+  block_insert_free(pool, block);
+
+  return pool;
+}
+
+void tlsf_destroy(tlsf_pool_t *pool) { (void)pool; }
+
+void *tlsf_malloc(tlsf_pool_t *pool, size_t size) {
+  if (!pool || size == 0)
+    return NULL;
+
+  size = ALIGN_UP(size, TLSF_BLOCK_ALIGN);
+  size_t total_size = size + BLOCK_OVERHEAD;
+
+  int start_fl = tlsf_get_index(total_size);
+
+  for (int fl = start_fl; fl < 32; fl++) {
+    /* Every block in a bucket past start_fl is >= 2^fl > total_size, so
+     * the first one fits; in start_fl itself a smaller block may share
+     * the bucket, so scan for one that's actually big enough. */
+    block_header_t *block = pool->free_list[fl];
+    if (fl == start_fl) {
+      while (block && block->size < total_size) {
+        block = block->next_free;
+      }
     }
-    
-    block_header_t* next = block->next_phys;
-    if (next && (next->flags & TLSF_BLOCK_FREE) &&
-        (block->size + BLOCK_OVERHEAD + next->size) >= total_size) {
-        
-        block_remove_free(pool, next);
-        block->size += BLOCK_OVERHEAD + next->size;
-        block->next_phys = next->next_phys;
-        if (next->next_phys) {
-            next->next_phys->prev_phys = block;
-        }
-        
-        if (block->size >= total_size + MIN_BLOCK_SIZE) {
-            block_split(pool, block, size);
-        }
-        return ptr;
+
+    if (block) {
+      block_remove_free(pool, block);
+
+      if (block->size >= total_size + MIN_BLOCK_SIZE) {
+        block_split(pool, block, size);
+      }
+
+      block->flags |= TLSF_BLOCK_USED;
+      pool->used_size += block->size + BLOCK_OVERHEAD;
+      size_t free = tlsf_pool_free_size(pool);
+      if (free < pool->min_free)
+        pool->min_free = free;
+
+      return ptr_from_block(block);
     }
-    
-    void* new_ptr = tlsf_malloc(pool, size);
-    if (new_ptr) {
-        memcpy(new_ptr, ptr, block->size);
-        tlsf_free(pool, ptr);
-    }
-    return new_ptr;
+  }
+
+  return NULL;
 }
 
-void tlsf_free(tlsf_pool_t* pool, void* ptr) {
-    if (!pool || !ptr) return;
-    
-    block_header_t* block = block_from_ptr(ptr);
-    if (block->signature != TLSF_SIGNATURE) return;
-    if (!(block->flags & TLSF_BLOCK_USED)) return;
-    
-    block->flags &= ~TLSF_BLOCK_USED;
-    pool->used_size -= block->size + BLOCK_OVERHEAD;
-    
-    block = block_merge(pool, block);
-    block_insert_free(pool, block);
-}
+void *tlsf_memalign(tlsf_pool_t *pool, size_t align, size_t size) {
+  if (!pool || size == 0)
+    return NULL;
+  if ((align & (align - 1)) != 0)
+    return NULL;
 
-size_t tlsf_pool_free_size(tlsf_pool_t* pool) {
-    if (!pool) return 0;
-    size_t free = 0;
-    for (int i = 0; i < 32; i++) {
-        block_header_t* block = pool->free_list[i];
-        while (block) {
-            free += block->size + BLOCK_OVERHEAD;
-            block = block->next_free;
-        }
-    }
-    return free;
-}
+  size = ALIGN_UP(size, TLSF_BLOCK_ALIGN);
+  align = ALIGN_UP(align, TLSF_BLOCK_ALIGN);
 
-size_t tlsf_pool_used_size(tlsf_pool_t* pool) {
-    return pool ? pool->used_size : 0;
-}
+  /* When the raw allocation's offset to the next alignment boundary is
+   * nonzero but smaller than MIN_BLOCK_SIZE, there's no valid place to
+   * put a free-block header for the discarded prefix - this used to
+   * just return the unaligned address directly (`(void*)aligned` from
+   * the ORIGINAL unsplit block), silently breaking the alignment
+   * contract the caller asked for, and the returned pointer could
+   * never be freed since block_from_ptr(aligned) lands on whatever
+   * bytes happen to precede it rather than a real header, so tlsf_free
+   * on it silently no-ops - a permanent leak. Confirmed via a
+   * standalone sweep of pool states where this offset landed below
+   * MIN_BLOCK_SIZE. Requesting extra slack (2*align + MIN_BLOCK_SIZE)
+   * guarantees room to always bump to a offset that's either 0 or
+   * large enough for a real header. */
+  void *ptr = tlsf_malloc(pool, size + 2 * align + MIN_BLOCK_SIZE);
+  if (!ptr)
+    return NULL;
 
-size_t tlsf_pool_total_size(tlsf_pool_t* pool) {
-    return pool ? pool->total_size : 0;
-}
+  uintptr_t raw = (uintptr_t)ptr;
+  uintptr_t aligned = ALIGN_UP(raw, align);
+  uintptr_t offset = aligned - raw;
 
-bool tlsf_pool_check(tlsf_pool_t* pool) {
-    if (!pool || pool->signature != TLSF_SIGNATURE) return false;
-    
-    block_header_t* block = pool->block_list;
-    while (block) {
-        if (block->signature != TLSF_SIGNATURE) return false;
-        block = block->next_phys;
-    }
-    return true;
-}
+  if (offset != 0 && offset < MIN_BLOCK_SIZE) {
+    aligned += align;
+    offset = aligned - raw;
+  }
 
-static tlsf_pool_t* g_system_pool = NULL;
-static uint8_t g_heap_memory[32 * 1024];
-
-void* os_malloc(size_t size) {
-    if (!g_system_pool) {
-        g_system_pool = tlsf_create(g_heap_memory, sizeof(g_heap_memory));
-    }
-    return tlsf_malloc(g_system_pool, size);
-}
-
-void* os_calloc(size_t nmemb, size_t size) {
-    size_t total = nmemb * size;
-    void* ptr = os_malloc(total);
-    if (ptr) memset(ptr, 0, total);
+  if (offset == 0) {
     return ptr;
+  }
+
+  block_header_t *block = block_from_ptr(ptr);
+  block_header_t *new_block = (block_header_t *)((uint8_t *)block + offset);
+
+  block_remove_free(pool, block);
+
+  /* new_block's header occupies BLOCK_OVERHEAD bytes of what used to be
+   * `block`'s data region, starting at `offset` bytes in - so the
+   * front remainder's own data size is offset - BLOCK_OVERHEAD (not
+   * `offset`; the original code's off-by-BLOCK_OVERHEAD here made the
+   * front block's declared extent overlap new_block's header by
+   * BLOCK_OVERHEAD bytes). */
+  new_block->signature = TLSF_SIGNATURE;
+  new_block->size = (uint32_t)(block->size - offset);
+  new_block->flags = 0;
+  new_block->prev_phys = block;
+  new_block->next_phys = block->next_phys;
+
+  if (block->next_phys) {
+    block->next_phys->prev_phys = new_block;
+  }
+  block->next_phys = new_block;
+  block->size = (uint32_t)(offset - BLOCK_OVERHEAD);
+
+  /* `block` (the discarded, unaligned front remainder) goes back on
+   * the free list; `new_block` (the aligned part we're handing to the
+   * caller) is what gets marked used - the original code had this
+   * backwards, inserting the block it was about to return into the
+   * free list and marking the discarded remainder as used, then
+   * returning the discarded (unaligned) remainder's pointer to the
+   * caller instead of the aligned one. */
+  block_insert_free(pool, block);
+
+  new_block->flags |= TLSF_BLOCK_USED;
+  pool->used_size += new_block->size + BLOCK_OVERHEAD;
+
+  if (new_block->size >= size + MIN_BLOCK_SIZE) {
+    block_split(pool, new_block, size);
+  }
+
+  return ptr_from_block(new_block);
 }
 
-void* os_realloc(void* ptr, size_t size) {
-    if (!g_system_pool) {
-        g_system_pool = tlsf_create(g_heap_memory, sizeof(g_heap_memory));
+void *tlsf_realloc(tlsf_pool_t *pool, void *ptr, size_t size) {
+  if (!ptr)
+    return tlsf_malloc(pool, size);
+  if (size == 0) {
+    tlsf_free(pool, ptr);
+    return NULL;
+  }
+
+  block_header_t *block = block_from_ptr(ptr);
+  if (block->signature != TLSF_SIGNATURE)
+    return NULL;
+
+  size = ALIGN_UP(size, TLSF_BLOCK_ALIGN);
+  size_t total_size = size + BLOCK_OVERHEAD;
+
+  if (block->size >= total_size) {
+    if (block->size >= total_size + MIN_BLOCK_SIZE) {
+      block_split(pool, block, size);
     }
-    return tlsf_realloc(g_system_pool, ptr, size);
+    return ptr;
+  }
+
+  block_header_t *next = block->next_phys;
+  if (next && (next->flags & TLSF_BLOCK_FREE) &&
+      (block->size + BLOCK_OVERHEAD + next->size) >= total_size) {
+
+    block_remove_free(pool, next);
+    block->size += BLOCK_OVERHEAD + next->size;
+    block->next_phys = next->next_phys;
+    if (next->next_phys) {
+      next->next_phys->prev_phys = block;
+    }
+
+    if (block->size >= total_size + MIN_BLOCK_SIZE) {
+      block_split(pool, block, size);
+    }
+    return ptr;
+  }
+
+  void *new_ptr = tlsf_malloc(pool, size);
+  if (new_ptr) {
+    memcpy(new_ptr, ptr, block->size);
+    tlsf_free(pool, ptr);
+  }
+  return new_ptr;
 }
 
-void os_free(void* ptr) {
-    if (g_system_pool && ptr) {
-        tlsf_free(g_system_pool, ptr);
+void tlsf_free(tlsf_pool_t *pool, void *ptr) {
+  if (!pool || !ptr)
+    return;
+
+  block_header_t *block = block_from_ptr(ptr);
+  if (block->signature != TLSF_SIGNATURE)
+    return;
+  if (!(block->flags & TLSF_BLOCK_USED))
+    return;
+
+  block->flags &= ~TLSF_BLOCK_USED;
+  pool->used_size -= block->size + BLOCK_OVERHEAD;
+
+  block = block_merge(pool, block);
+  block_insert_free(pool, block);
+}
+
+size_t tlsf_pool_free_size(tlsf_pool_t *pool) {
+  if (!pool)
+    return 0;
+  size_t free = 0;
+  for (int i = 0; i < 32; i++) {
+    block_header_t *block = pool->free_list[i];
+    while (block) {
+      free += block->size + BLOCK_OVERHEAD;
+      block = block->next_free;
     }
+  }
+  return free;
+}
+
+size_t tlsf_pool_used_size(tlsf_pool_t *pool) {
+  return pool ? pool->used_size : 0;
+}
+
+size_t tlsf_pool_total_size(tlsf_pool_t *pool) {
+  return pool ? pool->total_size : 0;
+}
+
+bool tlsf_pool_check(tlsf_pool_t *pool) {
+  if (!pool || pool->signature != TLSF_SIGNATURE)
+    return false;
+
+  block_header_t *block = pool->block_list;
+  while (block) {
+    if (block->signature != TLSF_SIGNATURE)
+      return false;
+    block = block->next_phys;
+  }
+  return true;
+}
+
+static tlsf_pool_t *g_system_pool = NULL;
+static uint8_t g_heap_memory[16 * 1024];
+
+void *os_malloc(size_t size) {
+  if (!g_system_pool) {
+    g_system_pool = tlsf_create(g_heap_memory, sizeof(g_heap_memory));
+  }
+  return tlsf_malloc(g_system_pool, size);
+}
+
+void *os_calloc(size_t nmemb, size_t size) {
+  size_t total = nmemb * size;
+  void *ptr = os_malloc(total);
+  if (ptr)
+    memset(ptr, 0, total);
+  return ptr;
+}
+
+void *os_realloc(void *ptr, size_t size) {
+  if (!g_system_pool) {
+    g_system_pool = tlsf_create(g_heap_memory, sizeof(g_heap_memory));
+  }
+  return tlsf_realloc(g_system_pool, ptr, size);
+}
+
+void os_free(void *ptr) {
+  if (g_system_pool && ptr) {
+    tlsf_free(g_system_pool, ptr);
+  }
 }
 
 size_t os_get_free_heap(void) {
-    if (!g_system_pool) {
-        g_system_pool = tlsf_create(g_heap_memory, sizeof(g_heap_memory));
-    }
-    return tlsf_pool_free_size(g_system_pool);
+  if (!g_system_pool) {
+    g_system_pool = tlsf_create(g_heap_memory, sizeof(g_heap_memory));
+  }
+  return tlsf_pool_free_size(g_system_pool);
 }
 
 size_t os_get_min_free_heap(void) {
-    if (!g_system_pool) {
-        g_system_pool = tlsf_create(g_heap_memory, sizeof(g_heap_memory));
-    }
-    return g_system_pool->min_free;
+  if (!g_system_pool) {
+    g_system_pool = tlsf_create(g_heap_memory, sizeof(g_heap_memory));
+  }
+  return g_system_pool->min_free;
 }
 
-size_t os_get_heap_total(void) {
-    return sizeof(g_heap_memory);
-}
+size_t os_get_heap_total(void) { return sizeof(g_heap_memory); }

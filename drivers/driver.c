@@ -1,7 +1,7 @@
 #include "driver.h"
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #define MAX_DRIVERS 32
 #define MAX_DEVICES 64
@@ -18,35 +18,36 @@ static int g_core_lock = 0;
  * that dispatch exact instead of a guess. */
 #define MAX_OPEN_HANDLES 32
 static struct {
-    void* handle;
-    device_t* dev;
+  void *handle;
+  device_t *dev;
 } g_open_handles[MAX_OPEN_HANDLES];
 
-static void device_handle_track(void* handle, device_t* dev) {
-    for (int i = 0; i < MAX_OPEN_HANDLES; i++) {
-        if (!g_open_handles[i].handle) {
-            g_open_handles[i].handle = handle;
-            g_open_handles[i].dev = dev;
-            return;
-        }
+static void device_handle_track(void *handle, device_t *dev) {
+  for (int i = 0; i < MAX_OPEN_HANDLES; i++) {
+    if (!g_open_handles[i].handle) {
+      g_open_handles[i].handle = handle;
+      g_open_handles[i].dev = dev;
+      return;
     }
+  }
 }
 
-static device_t* device_handle_lookup(void* handle) {
-    for (int i = 0; i < MAX_OPEN_HANDLES; i++) {
-        if (g_open_handles[i].handle == handle) return g_open_handles[i].dev;
-    }
-    return NULL;
+static device_t *device_handle_lookup(void *handle) {
+  for (int i = 0; i < MAX_OPEN_HANDLES; i++) {
+    if (g_open_handles[i].handle == handle)
+      return g_open_handles[i].dev;
+  }
+  return NULL;
 }
 
-static void device_handle_untrack(void* handle) {
-    for (int i = 0; i < MAX_OPEN_HANDLES; i++) {
-        if (g_open_handles[i].handle == handle) {
-            g_open_handles[i].handle = NULL;
-            g_open_handles[i].dev = NULL;
-            return;
-        }
+static void device_handle_untrack(void *handle) {
+  for (int i = 0; i < MAX_OPEN_HANDLES; i++) {
+    if (g_open_handles[i].handle == handle) {
+      g_open_handles[i].handle = NULL;
+      g_open_handles[i].dev = NULL;
+      return;
     }
+  }
 }
 
 /* __sync_lock_test_and_set/__sync_lock_release are GCC/Clang builtins -
@@ -57,320 +58,343 @@ static void device_handle_untrack(void* handle) {
 #include <intrin.h>
 
 static void driver_core_lock_impl(void) {
-    while (_InterlockedExchange((volatile long*)&g_core_lock, 1)) {
-        // Spin
-    }
+  while (_InterlockedExchange((volatile long *)&g_core_lock, 1)) {
+    // Spin
+  }
 }
 
 static void driver_core_unlock_impl(void) {
-    _InterlockedExchange((volatile long*)&g_core_lock, 0);
+  _InterlockedExchange((volatile long *)&g_core_lock, 0);
 }
+#elif defined(ARDUBOT_TARGET_ESP8266) && defined(ARDUBOT_PIO)
+/* ESP8266 Arduino: single-threaded loop, no actual concurrency. */
+static void driver_core_lock_impl(void) { g_core_lock = 1; }
+
+static void driver_core_unlock_impl(void) { g_core_lock = 0; }
 #else
 static void driver_core_lock_impl(void) {
-    while (__sync_lock_test_and_set(&g_core_lock, 1)) {
-        // Spin
-    }
+  while (__sync_lock_test_and_set(&g_core_lock, 1)) {
+    // Spin
+  }
 }
 
-static void driver_core_unlock_impl(void) {
-    __sync_lock_release(&g_core_lock);
-}
+static void driver_core_unlock_impl(void) { __sync_lock_release(&g_core_lock); }
 #endif
 
-void driver_core_lock(void) {
-    driver_core_lock_impl();
-}
+void driver_core_lock(void) { driver_core_lock_impl(); }
 
-void driver_core_unlock(void) {
-    driver_core_unlock_impl();
-}
+void driver_core_unlock(void) { driver_core_unlock_impl(); }
 
 int driver_core_init(void) {
-    g_driver_core.drivers = NULL;
-    g_driver_core.devices = NULL;
-    g_driver_core.next_device_id = 1;
-    g_core_lock = 0;
-    memset(g_open_handles, 0, sizeof(g_open_handles));
-    return 0;
+  g_driver_core.drivers = NULL;
+  g_driver_core.devices = NULL;
+  g_driver_core.next_device_id = 1;
+  g_core_lock = 0;
+  memset(g_open_handles, 0, sizeof(g_open_handles));
+  return 0;
 }
 
 void driver_core_deinit(void) {
-    /* driver_t is always caller-owned - every real driver in drivers/
-     * registers a static struct (e.g. gpio_driver.c's g_gpio_driver), and
-     * this used to free() it anyway, which would corrupt the heap the
-     * moment deinit ran with any real driver registered. device_t is a
-     * mix: every *_create_device() helper (gpio_create_device() etc.)
-     * heap-allocates one and hands it to device_register(), while a
-     * caller can also register its own static device_t directly - hence
-     * the owned flag device_register()/the *_create_device() helpers set,
-     * instead of always or never freeing. */
-    while (g_driver_core.devices) {
-        device_t* dev = g_driver_core.devices;
-        g_driver_core.devices = dev->next;
-        if (dev->driver && dev->driver->ops && dev->driver->ops->remove) {
-            dev->driver->ops->remove(dev);
-        }
-        dev->registered = false;
-        if (dev->owned) free(dev);
+  /* driver_t is always caller-owned - every real driver in drivers/
+   * registers a static struct (e.g. gpio_driver.c's g_gpio_driver), and
+   * this used to free() it anyway, which would corrupt the heap the
+   * moment deinit ran with any real driver registered. device_t is a
+   * mix: every *_create_device() helper (gpio_create_device() etc.)
+   * heap-allocates one and hands it to device_register(), while a
+   * caller can also register its own static device_t directly - hence
+   * the owned flag device_register()/the *_create_device() helpers set,
+   * instead of always or never freeing. */
+  while (g_driver_core.devices) {
+    device_t *dev = g_driver_core.devices;
+    g_driver_core.devices = dev->next;
+    if (dev->driver && dev->driver->ops && dev->driver->ops->remove) {
+      dev->driver->ops->remove(dev);
     }
-    while (g_driver_core.drivers) {
-        driver_t* drv = g_driver_core.drivers;
-        g_driver_core.drivers = drv->next;
-        drv->refcount = 0;
-    }
+    dev->registered = false;
+    if (dev->owned)
+      free(dev);
+  }
+  while (g_driver_core.drivers) {
+    driver_t *drv = g_driver_core.drivers;
+    g_driver_core.drivers = drv->next;
+    drv->refcount = 0;
+  }
 }
 
-int driver_register(driver_t* driver) {
-    if (!driver || !driver->name[0] || !driver->ops) return -1;
-    
-    driver_core_lock();
-    
-    // Check if already registered
-    for (driver_t* d = g_driver_core.drivers; d; d = d->next) {
-        if (strcmp(d->name, driver->name) == 0) {
-            driver_core_unlock();
-            return -1;
-        }
-    }
-    
-    driver->refcount = 0;
-    driver->next = g_driver_core.drivers;
-    g_driver_core.drivers = driver;
-    
-    driver_core_unlock();
-    return 0;
-}
-
-int driver_unregister(const char* name) {
-    if (!name) return -1;
-
-    driver_core_lock();
-
-    driver_t** prev = &g_driver_core.drivers;
-    for (driver_t* d = g_driver_core.drivers; d; d = d->next) {
-        if (strcmp(d->name, name) == 0) {
-            if (d->refcount > 0) {
-                driver_core_unlock();
-                return -1;
-            }
-            *prev = d->next;
-            /* d is caller-owned (a static struct, for every real driver
-             * in this codebase) - free()ing it here used to corrupt the
-             * heap on the very first unregister of a real driver. */
-            driver_core_unlock();
-            return 0;
-        }
-        prev = &d->next;
-    }
-
-    driver_core_unlock();
+int driver_register(driver_t *driver) {
+  if (!driver || !driver->name[0] || !driver->ops)
     return -1;
+
+  driver_core_lock();
+
+  // Check if already registered
+  for (driver_t *d = g_driver_core.drivers; d; d = d->next) {
+    if (strcmp(d->name, driver->name) == 0) {
+      driver_core_unlock();
+      return -1;
+    }
+  }
+
+  driver->refcount = 0;
+  driver->next = g_driver_core.drivers;
+  g_driver_core.drivers = driver;
+
+  driver_core_unlock();
+  return 0;
 }
 
-driver_t* driver_find(const char* name) {
-    if (!name) return NULL;
-    
-    driver_core_lock();
-    
-    for (driver_t* d = g_driver_core.drivers; d; d = d->next) {
-        if (strcmp(d->name, name) == 0) {
-            driver_core_unlock();
-            return d;
-        }
-    }
-    
-    driver_core_unlock();
-    return NULL;
-}
-
-int device_register(device_t* dev) {
-    if (!dev || !dev->name[0] || !dev->driver) return -1;
-    
-    driver_core_lock();
-    
-    // Check if already registered
-    for (device_t* d = g_driver_core.devices; d; d = d->next) {
-        if (strcmp(d->name, dev->name) == 0) {
-            driver_core_unlock();
-            return -1;
-        }
-    }
-    
-    dev->id = g_driver_core.next_device_id++;
-    dev->registered = true;
-    dev->next = g_driver_core.devices;
-    g_driver_core.devices = dev;
-    
-    // Increment driver refcount
-    dev->driver->refcount++;
-    
-    // Call probe
-    if (dev->driver->ops && dev->driver->ops->probe) {
-        int ret = dev->driver->ops->probe(dev);
-        if (ret != 0) {
-            dev->driver->refcount--;
-            g_driver_core.devices = dev->next;
-            dev->registered = false;
-            driver_core_unlock();
-            return ret;
-        }
-    }
-    
-    driver_core_unlock();
-    return 0;
-}
-
-int device_unregister(const char* name) {
-    if (!name) return -1;
-    
-    driver_core_lock();
-    
-    device_t** prev = &g_driver_core.devices;
-    for (device_t* d = g_driver_core.devices; d; d = d->next) {
-        if (strcmp(d->name, name) == 0) {
-            if (d->driver && d->driver->ops && d->driver->ops->remove) {
-                d->driver->ops->remove(d);
-            }
-            if (d->driver) {
-                d->driver->refcount--;
-            }
-            *prev = d->next;
-            d->registered = false;
-            if (d->owned) free(d);  // see the comment in driver_core_deinit()
-            driver_core_unlock();
-            return 0;
-        }
-        prev = &d->next;
-    }
-    
-    driver_core_unlock();
+int driver_unregister(const char *name) {
+  if (!name)
     return -1;
-}
 
-device_t* device_find(const char* name) {
-    if (!name) return NULL;
-    
-    driver_core_lock();
-    
-    for (device_t* d = g_driver_core.devices; d; d = d->next) {
-        if (strcmp(d->name, name) == 0) {
-            driver_core_unlock();
-            return d;
-        }
-    }
-    
-    driver_core_unlock();
-    return NULL;
-}
+  driver_core_lock();
 
-device_t* device_find_by_path(const char* path) {
-    if (!path) return NULL;
-    
-    driver_core_lock();
-    
-    for (device_t* d = g_driver_core.devices; d; d = d->next) {
-        if (strcmp(d->path, path) == 0) {
-            driver_core_unlock();
-            return d;
-        }
-    }
-    
-    driver_core_unlock();
-    return NULL;
-}
-
-static int device_open_internal(device_t* dev, void** handle) {
-    if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->open) {
-        return -1;
-    }
-    return dev->driver->ops->open(dev, handle);
-}
-
-int device_open(const char* path, void** handle) {
-    if (!path || !handle) return -1;
-
-    /* device_find_by_path() takes driver_core_lock() itself - taking it
-     * again here before calling it deadlocked immediately, since this is
-     * a plain spin lock with no reentrancy support. Same bug existed in
-     * device_suspend()/device_resume() below. Never hit in practice only
-     * because nothing anywhere calls driver_core_init() - this whole
-     * driver/device core is disconnected from the real boot path, which
-     * goes through the hal/sim layer instead. */
-    device_t* dev = device_find_by_path(path);
-    if (!dev) return -1;
-
-    int ret = device_open_internal(dev, handle);
-    if (ret == 0) device_handle_track(*handle, dev);
-    return ret;
-}
-
-int device_close(void* handle) {
-    if (!handle) return -1;
-
-    driver_core_lock();
-    device_t* dev = device_handle_lookup(handle);
-    driver_core_unlock();
-
-    if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->close) return -1;
-
-    int ret = dev->driver->ops->close(handle);
-    if (ret == 0) {
-        driver_core_lock();
-        device_handle_untrack(handle);
+  driver_t **prev = &g_driver_core.drivers;
+  for (driver_t *d = g_driver_core.drivers; d; d = d->next) {
+    if (strcmp(d->name, name) == 0) {
+      if (d->refcount > 0) {
         driver_core_unlock();
-    }
-    return ret;
-}
-
-ssize_t device_read(void* handle, void* buf, size_t count) {
-    if (!handle || !buf) return -1;
-
-    driver_core_lock();
-    device_t* dev = device_handle_lookup(handle);
-    driver_core_unlock();
-
-    if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->read) return -1;
-    return dev->driver->ops->read(handle, buf, count);
-}
-
-ssize_t device_write(void* handle, const void* buf, size_t count) {
-    if (!handle || !buf) return -1;
-
-    driver_core_lock();
-    device_t* dev = device_handle_lookup(handle);
-    driver_core_unlock();
-
-    if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->write) return -1;
-    return dev->driver->ops->write(handle, buf, count);
-}
-
-int device_ioctl(void* handle, uint32_t cmd, void* arg) {
-    if (!handle) return -1;
-
-    driver_core_lock();
-    device_t* dev = device_handle_lookup(handle);
-    driver_core_unlock();
-
-    if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->ioctl) return -1;
-    return dev->driver->ops->ioctl(handle, cmd, arg);
-}
-
-int device_suspend(const char* path) {
-    if (!path) return -1;
-
-    device_t* dev = device_find_by_path(path);  // locks internally - see device_open()
-    if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->suspend) {
         return -1;
+      }
+      *prev = d->next;
+      /* d is caller-owned (a static struct, for every real driver
+       * in this codebase) - free()ing it here used to corrupt the
+       * heap on the very first unregister of a real driver. */
+      driver_core_unlock();
+      return 0;
     }
-    return dev->driver->ops->suspend(dev);
+    prev = &d->next;
+  }
+
+  driver_core_unlock();
+  return -1;
 }
 
-int device_resume(const char* path) {
-    if (!path) return -1;
+driver_t *driver_find(const char *name) {
+  if (!name)
+    return NULL;
 
-    device_t* dev = device_find_by_path(path);  // locks internally - see device_open()
-    if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->resume) {
-        return -1;
+  driver_core_lock();
+
+  for (driver_t *d = g_driver_core.drivers; d; d = d->next) {
+    if (strcmp(d->name, name) == 0) {
+      driver_core_unlock();
+      return d;
     }
-    return dev->driver->ops->resume(dev);
+  }
+
+  driver_core_unlock();
+  return NULL;
+}
+
+int device_register(device_t *dev) {
+  if (!dev || !dev->name[0] || !dev->driver)
+    return -1;
+
+  driver_core_lock();
+
+  // Check if already registered
+  for (device_t *d = g_driver_core.devices; d; d = d->next) {
+    if (strcmp(d->name, dev->name) == 0) {
+      driver_core_unlock();
+      return -1;
+    }
+  }
+
+  dev->id = g_driver_core.next_device_id++;
+  dev->registered = true;
+  dev->next = g_driver_core.devices;
+  g_driver_core.devices = dev;
+
+  // Increment driver refcount
+  dev->driver->refcount++;
+
+  // Call probe
+  if (dev->driver->ops && dev->driver->ops->probe) {
+    int ret = dev->driver->ops->probe(dev);
+    if (ret != 0) {
+      dev->driver->refcount--;
+      g_driver_core.devices = dev->next;
+      dev->registered = false;
+      driver_core_unlock();
+      return ret;
+    }
+  }
+
+  driver_core_unlock();
+  return 0;
+}
+
+int device_unregister(const char *name) {
+  if (!name)
+    return -1;
+
+  driver_core_lock();
+
+  device_t **prev = &g_driver_core.devices;
+  for (device_t *d = g_driver_core.devices; d; d = d->next) {
+    if (strcmp(d->name, name) == 0) {
+      if (d->driver && d->driver->ops && d->driver->ops->remove) {
+        d->driver->ops->remove(d);
+      }
+      if (d->driver) {
+        d->driver->refcount--;
+      }
+      *prev = d->next;
+      d->registered = false;
+      if (d->owned)
+        free(d); // see the comment in driver_core_deinit()
+      driver_core_unlock();
+      return 0;
+    }
+    prev = &d->next;
+  }
+
+  driver_core_unlock();
+  return -1;
+}
+
+device_t *device_find(const char *name) {
+  if (!name)
+    return NULL;
+
+  driver_core_lock();
+
+  for (device_t *d = g_driver_core.devices; d; d = d->next) {
+    if (strcmp(d->name, name) == 0) {
+      driver_core_unlock();
+      return d;
+    }
+  }
+
+  driver_core_unlock();
+  return NULL;
+}
+
+device_t *device_find_by_path(const char *path) {
+  if (!path)
+    return NULL;
+
+  driver_core_lock();
+
+  for (device_t *d = g_driver_core.devices; d; d = d->next) {
+    if (strcmp(d->path, path) == 0) {
+      driver_core_unlock();
+      return d;
+    }
+  }
+
+  driver_core_unlock();
+  return NULL;
+}
+
+static int device_open_internal(device_t *dev, void **handle) {
+  if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->open) {
+    return -1;
+  }
+  return dev->driver->ops->open(dev, handle);
+}
+
+int device_open(const char *path, void **handle) {
+  if (!path || !handle)
+    return -1;
+
+  /* device_find_by_path() takes driver_core_lock() itself - taking it
+   * again here before calling it deadlocked immediately, since this is
+   * a plain spin lock with no reentrancy support. Same bug existed in
+   * device_suspend()/device_resume() below. Never hit in practice only
+   * because nothing anywhere calls driver_core_init() - this whole
+   * driver/device core is disconnected from the real boot path, which
+   * goes through the hal/sim layer instead. */
+  device_t *dev = device_find_by_path(path);
+  if (!dev)
+    return -1;
+
+  int ret = device_open_internal(dev, handle);
+  if (ret == 0)
+    device_handle_track(*handle, dev);
+  return ret;
+}
+
+int device_close(void *handle) {
+  if (!handle)
+    return -1;
+
+  driver_core_lock();
+  device_t *dev = device_handle_lookup(handle);
+  driver_core_unlock();
+
+  if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->close)
+    return -1;
+
+  int ret = dev->driver->ops->close(handle);
+  if (ret == 0) {
+    driver_core_lock();
+    device_handle_untrack(handle);
+    driver_core_unlock();
+  }
+  return ret;
+}
+
+ssize_t device_read(void *handle, void *buf, size_t count) {
+  if (!handle || !buf)
+    return -1;
+
+  driver_core_lock();
+  device_t *dev = device_handle_lookup(handle);
+  driver_core_unlock();
+
+  if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->read)
+    return -1;
+  return dev->driver->ops->read(handle, buf, count);
+}
+
+ssize_t device_write(void *handle, const void *buf, size_t count) {
+  if (!handle || !buf)
+    return -1;
+
+  driver_core_lock();
+  device_t *dev = device_handle_lookup(handle);
+  driver_core_unlock();
+
+  if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->write)
+    return -1;
+  return dev->driver->ops->write(handle, buf, count);
+}
+
+int device_ioctl(void *handle, uint32_t cmd, void *arg) {
+  if (!handle)
+    return -1;
+
+  driver_core_lock();
+  device_t *dev = device_handle_lookup(handle);
+  driver_core_unlock();
+
+  if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->ioctl)
+    return -1;
+  return dev->driver->ops->ioctl(handle, cmd, arg);
+}
+
+int device_suspend(const char *path) {
+  if (!path)
+    return -1;
+
+  device_t *dev =
+      device_find_by_path(path); // locks internally - see device_open()
+  if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->suspend) {
+    return -1;
+  }
+  return dev->driver->ops->suspend(dev);
+}
+
+int device_resume(const char *path) {
+  if (!path)
+    return -1;
+
+  device_t *dev =
+      device_find_by_path(path); // locks internally - see device_open()
+  if (!dev || !dev->driver || !dev->driver->ops || !dev->driver->ops->resume) {
+    return -1;
+  }
+  return dev->driver->ops->resume(dev);
 }

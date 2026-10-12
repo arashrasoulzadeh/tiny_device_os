@@ -19,7 +19,7 @@ def get_staged_files():
     )
     if result.returncode != 0:
         return []
-    
+
     files = result.stdout.strip().split('\n')
     return [f for f in files if f.endswith('.c') and not f.startswith('tests/')]
 
@@ -28,18 +28,32 @@ def get_corresponding_test(impl_file):
     """Find the corresponding test file for an implementation file."""
     path = Path(impl_file)
     rel_path = path.relative_to(path.anchor) if path.is_absolute() else path
-    
+
     # Try different test locations
     test_patterns = [
         f"tests/unit/test_{path.stem}.c",
         f"tests/unit/test_{path.parent.name}_{path.stem}.c",
         f"tests/integration/test_{path.stem}.c",
     ]
-    
+
     for pattern in test_patterns:
         if Path(pattern).exists():
             return pattern
-    
+
+    # Repo tests are often test_<module>_<aspect>.c and include the header.
+    stem = path.stem
+    header_marks = (f'"{stem}.h"', f'/{stem}.h')
+    for folder in (Path("tests/unit"), Path("tests/integration")):
+        if not folder.is_dir():
+            continue
+        for candidate in sorted(folder.glob("test_*.c")):
+            try:
+                text = candidate.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            if any(mark in text for mark in header_marks):
+                return str(candidate)
+
     return None
 
 
@@ -48,7 +62,7 @@ def has_test_content(test_file):
     try:
         with open(test_file, 'r') as f:
             content = f.read()
-        
+
         # Check for test markers
         test_markers = [
             'RUN_TEST',
@@ -57,7 +71,7 @@ def has_test_content(test_file):
             'UNITY_BEGIN',
             'UNITY_END'
         ]
-        
+
         for marker in test_markers:
             if marker in content:
                 return True
@@ -69,17 +83,17 @@ def has_test_content(test_file):
 def check_tdd_compliance(staged_files):
     """Check TDD compliance for staged files."""
     violations = []
-    
+
     for impl_file in staged_files:
         test_file = get_corresponding_test(impl_file)
-        
+
         if not test_file:
             violations.append(f"No test file found for {impl_file}")
             continue
-        
+
         if not has_test_content(test_file):
             violations.append(f"Test file {test_file} exists but has no test content")
-    
+
     return violations
 
 
@@ -88,7 +102,7 @@ def main():
     parser.add_argument('--staged', action='store_true', help='Check only staged files')
     parser.add_argument('--all', action='store_true', help='Check all C files')
     args = parser.parse_args()
-    
+
     if args.staged:
         files = get_staged_files()
     elif args.all:
@@ -96,17 +110,17 @@ def main():
             ['git', 'ls-files', '*.c'],
             capture_output=True, text=True
         )
-        files = [f for f in result.stdout.strip().split('\n') 
+        files = [f for f in result.stdout.strip().split('\n')
                 if f and not f.startswith('tests/')]
     else:
         files = get_staged_files()
-    
+
     if not files:
         print("No C implementation files to check")
         return 0
-    
+
     violations = check_tdd_compliance(files)
-    
+
     if violations:
         print("TDD COMPLIANCE VIOLATIONS:")
         print("=" * 50)
@@ -116,7 +130,7 @@ def main():
         print("\nTDD RULE: Write failing tests FIRST (Red), then implement (Green), then refactor.")
         print("Create test file in tests/unit/ or tests/integration/ before implementing.")
         return 1
-    
+
     print("TDD check passed - all implementations have corresponding tests")
     return 0
 

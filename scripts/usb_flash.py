@@ -275,6 +275,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"PlatformIO: {ver.stdout.strip()}")
 
     port = resolve_port(cfg, args.port)
+    if arch == "esp8266" and not args.port:
+        device_port = str((cfg.get("device") or {}).get("port", "auto")).lower()
+        if device_port in ("", "auto"):
+            from nodemcu_upload import rank_ports
+
+            ranked = rank_ports(list_serial_ports(), None)
+            if ranked:
+                chosen = ranked[0]
+                if port and chosen != port:
+                    print(
+                        f"Using {chosen} for NodeMCU; {port} is another board's USB port."
+                    )
+                port = chosen
     if port and not os.path.exists(port):
         print(f"warning: configured port {port} is missing — will re-scan USB")
         port = None
@@ -314,7 +327,10 @@ def main(argv: list[str] | None = None) -> int:
             "Uploader will ask you to hold FLASH + tap RST."
         )
     elif arch == "esp8266" and sys.platform.startswith("linux"):
-        print("Linux upload resets the chip over /dev/ttyUSB* or /dev/ttyACM*.")
+        print(
+            "Linux tries auto-reset on the CH340 (/dev/ttyUSB*). "
+            "If Connecting… does not finish, you will be asked to hold FLASH and tap RST."
+        )
     rc = run_platformio(platformio, env_name, port, upload=True, jobs=args.jobs)
     if rc != 0 or not forward:
         return rc

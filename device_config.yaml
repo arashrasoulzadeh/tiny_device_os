@@ -20,9 +20,10 @@ device:
 lcd:
   type: ssd1306
   width: 128
-  height: 32
+  height: 64
   bus: i2c
   address: 0x3C
+  col_offset: 0
   # I2C wiring — use D1/D2 (GPIO5/4). Do NOT use D0 (GPIO16): Wire/I2C fails there.
   scl: D1   # GPIO5  — SCK/SCL on OLED
   sda: D2   # GPIO4  — SDA
@@ -42,3 +43,14 @@ inputs:
 outputs:
   leds: []
   sound: null
+
+apps:
+  - launcher
+  - counter
+  - clock
+  - pomodoro
+main_app: launcher
+
+features:
+  HEAP_SIZE_KB: 64
+  ENABLE_POWER_MANAGEMENT: true
